@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Noto_Sans_Bengali } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -15,18 +15,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const notoBengali = Noto_Sans_Bengali({
-  variable: "--font-bengali",
-  subsets: ["bengali"],
-  weight: ["400", "500", "600", "700", "800"],
-});
-
 export const metadata: Metadata = {
-  title: "টুলহাব — সব কাজের এক অ্যাপ | All-in-One Toolbox",
+  title: "ToolHub — All-in-One App Hub",
   description:
-    "ল্যাপটপ, মোবাইল, কম্পিউটার — প্রতিদিনের প্রয়োজনীয় সব টুল এক জায়গায়। ক্যালকুলেটর, কনভার্টার, জেনারেটর, ডেভেলপার টুলস সহ প্রগ্রেসিভ ওয়েব অ্যাপ। অফলাইনেও কাজ করে।",
-  keywords: ["টুলহাব", "toolhub", "tools", "calculator", "converter", "PWA", "টুল", "বাংলা টুলস"],
-  applicationName: "টুলহাব",
+    "One app for everything you do on your phone, laptop and computer. Calculator, converters, generators, developer tools, notes, weather and more — works offline, on every device.",
+  keywords: [
+    "toolhub",
+    "tools",
+    "calculator",
+    "converter",
+    "PWA",
+    "app hub",
+    "productivity",
+    "utilities",
+  ],
+  applicationName: "ToolHub",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -37,8 +40,8 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "টুলহাব",
+    statusBarStyle: "black-translucent",
+    title: "ToolHub",
   },
   formatDetection: {
     telephone: false,
@@ -51,8 +54,8 @@ export const viewport: Viewport = {
   maximumScale: 5,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#059669" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c2a22" },
+    { media: "(prefers-color-scheme: light)", color: "#2e1065" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f0a1e" },
   ],
 };
 
@@ -62,9 +65,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="bn" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${notoBengali.variable} ${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground min-h-screen`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground min-h-screen`}
       >
         <ThemeProvider
           attribute="class"

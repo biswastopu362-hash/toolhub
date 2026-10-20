@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export function ToolSkeleton() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="লোড হচ্ছে">
+    <div className="space-y-4" aria-busy="true" aria-label="Loading">
       <Skeleton className="h-10 w-2/3 mx-auto rounded-xl" />
       <Card>
         <CardContent className="p-6 space-y-4">

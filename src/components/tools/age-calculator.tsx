@@ -18,20 +18,19 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { toBn } from '@/lib/bn'
 
 /* ================================================================== */
 /* Date helpers — calendar-accurate age math (no external lib)         */
 /* ================================================================== */
 
-const BN_WEEKDAYS = [
-  'রবিবার',
-  'সোমবার',
-  'মঙ্গলবার',
-  'বুধবার',
-  'বৃহস্পতিবার',
-  'শুক্রবার',
-  'শনিবার',
+const EN_WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
 ]
 
 function toDateInput(d: Date): string {
@@ -153,11 +152,11 @@ export default function AgeCalculatorTool() {
 
   const stats: StatItem[] = age
     ? [
-        { label: 'মোট মাস', value: toBn(age.totalMonths), icon: CalendarDays },
-        { label: 'মোট সপ্তাহ', value: toBn(age.totalWeeks), icon: CalendarClock },
-        { label: 'মোট দিন', value: toBn(age.totalDays), icon: Hourglass },
-        { label: 'মোট ঘণ্টা', value: toBn(age.totalHours.toLocaleString('en-IN')), icon: Clock },
-        { label: 'মোট মিনিট', value: toBn(age.totalMinutes.toLocaleString('en-IN')), icon: Timer },
+        { label: 'Total months', value: age.totalMonths.toLocaleString('en-US'), icon: CalendarDays },
+        { label: 'Total weeks', value: age.totalWeeks.toLocaleString('en-US'), icon: CalendarClock },
+        { label: 'Total days', value: age.totalDays.toLocaleString('en-US'), icon: Hourglass },
+        { label: 'Total hours', value: age.totalHours.toLocaleString('en-US'), icon: Clock },
+        { label: 'Total minutes', value: age.totalMinutes.toLocaleString('en-US'), icon: Timer },
       ]
     : []
 
@@ -168,7 +167,7 @@ export default function AgeCalculatorTool() {
         <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="space-y-2">
             <Label htmlFor="birth-date" className="text-sm font-medium">
-              জন্মতারিখ
+              Date of birth
             </Label>
             <Input
               id="birth-date"
@@ -176,14 +175,14 @@ export default function AgeCalculatorTool() {
               value={birth}
               max={target || undefined}
               onChange={(e) => setBirth(e.target.value)}
-              aria-label="জন্মতারিখ নির্বাচন করুন"
+              aria-label="Select date of birth"
               className="h-11 text-base"
             />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="target-date" className="text-sm font-medium">
-                হিসাবের তারিখ
+                Age at date
               </Label>
               <Button
                 type="button"
@@ -191,10 +190,10 @@ export default function AgeCalculatorTool() {
                 size="sm"
                 className="h-8 gap-1 px-2 text-xs text-muted-foreground"
                 onClick={() => setTarget(toDateInput(new Date()))}
-                aria-label="হিসাবের তারিখ আজ সেট করুন"
+                aria-label="Set target date to today"
               >
                 <CalendarClock className="h-3.5 w-3.5" />
-                আজ
+                Today
               </Button>
             </div>
             <Input
@@ -202,7 +201,7 @@ export default function AgeCalculatorTool() {
               type="date"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              aria-label="হিসাবের তারিখ নির্বাচন করুন"
+              aria-label="Select target date"
               className="h-11 text-base"
             />
           </div>
@@ -213,9 +212,9 @@ export default function AgeCalculatorTool() {
       {invalidRange && (
         <Alert variant="destructive">
           <CalendarDays className="h-4 w-4" />
-          <AlertTitle>জন্মতারিখ ভবিষ্যতে হতে পারে না</AlertTitle>
+          <AlertTitle>Date of birth cannot be in the future</AlertTitle>
           <AlertDescription>
-            <p>জন্মতারিখ হিসাবের তারিখের আগে বা সমান হতে হবে।</p>
+            <p>Date of birth must be on or before the target date.</p>
           </AlertDescription>
         </Alert>
       )}
@@ -225,9 +224,9 @@ export default function AgeCalculatorTool() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center gap-2 p-8 text-center">
             <CalendarDays className="h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
-            <p className="text-sm font-medium">জন্মতারিখ নির্বাচন করুন</p>
+            <p className="text-sm font-medium">Select a date of birth</p>
             <p className="text-xs text-muted-foreground">
-              জন্মতারিখ দিলেই বয়স ও পরবর্তী জন্মদিনের হিসাব নিচে দেখা যাবে
+              Your age and next-birthday details will appear here as soon as you pick a date of birth
             </p>
           </CardContent>
         </Card>
@@ -238,13 +237,13 @@ export default function AgeCalculatorTool() {
           {/* Big highlight */}
           <Card className="overflow-hidden border-0 shadow-md">
             <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white sm:p-6">
-              <p className="text-sm font-medium text-white/80">আপনার বয়স</p>
+              <p className="text-sm font-medium text-white/80">Your age</p>
               <p
                 className="mt-1 text-2xl font-bold leading-snug sm:text-3xl"
                 aria-live="polite"
-                aria-label={`বয়স ${age.years} বছর ${age.months} মাস ${age.days} দিন`}
+                aria-label={`Age: ${age.years} years ${age.months} months ${age.days} days`}
               >
-                {toBn(age.years)} বছর {toBn(age.months)} মাস {toBn(age.days)} দিন
+                {age.years} years {age.months} months {age.days} days
               </p>
             </div>
           </Card>
@@ -274,18 +273,18 @@ export default function AgeCalculatorTool() {
                     <>
                       <PartyPopper className="mx-auto h-5 w-5 text-amber-600" aria-hidden="true" />
                       <p className="mt-1.5 text-sm font-bold text-amber-700 dark:text-amber-400">
-                        শুভ জন্মদিন! 🎂
+                        Happy Birthday! 🎂
                       </p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        আজই আপনার জন্মদিন
+                        Today is your birthday
                       </p>
                     </>
                   ) : (
                     <>
                       <Gift className="mx-auto h-5 w-5 text-primary" aria-hidden="true" />
-                      <p className="mt-1.5 text-xl font-bold">{toBn(birthday.until)} দিন</p>
+                      <p className="mt-1.5 text-xl font-bold">{birthday.until} days</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        পরবর্তী জন্মদিন • {BN_WEEKDAYS[birthday.date.getDay()]}
+                        Next birthday • {EN_WEEKDAYS[birthday.date.getDay()]}
                       </p>
                     </>
                   )}
@@ -299,14 +298,14 @@ export default function AgeCalculatorTool() {
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
                 <Gift className="h-3.5 w-3.5" aria-hidden="true" />
-                পরবর্তী জন্মদিন
+                Next birthday
               </Badge>
               <span>
-                {toBn(birthday.until)} দিন বাকি — পড়বে{' '}
+                {birthday.until} days to go — falls on{' '}
                 <strong className="font-semibold text-foreground">
-                  {BN_WEEKDAYS[birthday.date.getDay()]}
+                  {EN_WEEKDAYS[birthday.date.getDay()]}
                 </strong>{' '}
-                ({toBn(birthday.date.getFullYear())})
+                ({birthday.date.getFullYear()})
               </span>
             </div>
           )}

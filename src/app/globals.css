@@ -6,7 +6,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-bengali), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -149,5 +149,38 @@
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Home screen wallpapers — full-viewport gradient meshes              */
+/* ------------------------------------------------------------------ */
+@layer utilities {
+  .wallpaper {
+    background-attachment: fixed;
+  }
+  .wp-sunset {
+    background:
+      radial-gradient(120% 90% at 90% 0%, rgb(251 191 36 / 0.35) 0%, transparent 55%),
+      radial-gradient(100% 80% at 0% 100%, rgb(236 72 153 / 0.4) 0%, transparent 60%),
+      linear-gradient(165deg, #2e1065 0%, #6d28d9 42%, #a21caf 72%, #be185d 100%);
+  }
+  .wp-ocean {
+    background:
+      radial-gradient(110% 80% at 85% 5%, rgb(34 211 238 / 0.35) 0%, transparent 55%),
+      radial-gradient(110% 90% at 10% 95%, rgb(13 148 136 / 0.45) 0%, transparent 60%),
+      linear-gradient(160deg, #042f2e 0%, #0f766e 45%, #0e7490 78%, #155e75 100%);
+  }
+  .wp-forest {
+    background:
+      radial-gradient(110% 85% at 85% 10%, rgb(163 230 53 / 0.22) 0%, transparent 55%),
+      radial-gradient(100% 90% at 5% 95%, rgb(16 185 129 / 0.35) 0%, transparent 60%),
+      linear-gradient(160deg, #052e16 0%, #14532d 45%, #166534 75%, #3f6212 100%);
+  }
+  .wp-midnight {
+    background:
+      radial-gradient(120% 85% at 80% 0%, rgb(139 92 246 / 0.3) 0%, transparent 55%),
+      radial-gradient(100% 85% at 15% 100%, rgb(59 130 246 / 0.18) 0%, transparent 55%),
+      linear-gradient(165deg, #020617 0%, #1e1b4b 55%, #312e81 85%, #4c1d95 100%);
   }
 }

@@ -98,3 +98,132 @@ Work Log:
 Stage Summary:
 - App complete and browser-verified: 10 working tools on single "/" route with hash views #/tool/<id>
 - PWA installable + offline-capable; zero console/runtime errors
+
+---
+Task ID: 2-b
+Agent: full-stack-developer
+Task: Translated 4 tool components (password-generator, qr-generator, text-tools, color-tool) from Bengali-first to English-first UI
+
+Work Log:
+- Read worklog.md architecture contract + all 4 target files fully before rewriting; confirmed registry.tsx imports (default exports, unchanged)
+- password-generator.tsx: removed toBn import; strength levels → Weak/Fair/Good/Excellent; crack-time estimates in English ("about 3 seconds" … "billions of years", pluralized inline); charset checkboxes → Uppercase/Lowercase/Digits/Symbols/Exclude confusing characters; entropy + length now plain digits; all toasts/aria-labels/alerts translated; crypto/rejection-sampling logic untouched
+- qr-generator.tsx: removed toBn import; tabs → "Text / URL" + "Wi-Fi"; SSID/password/security (WPA/WEP (legacy)/None (open network))/hidden-network strings translated; size px + error-correction (L 7% / M 15% (default) / Q 25% / H 30%) as plain numbers; default sample text → "https://toolhub.app — ToolHub"; debounced 300ms effect with cancelled-flag guard kept identical (setState only in async callbacks); WIFI: escaping untouched
+- text-tools.tsx: removed toBn import; 11 transform labels → UPPERCASE/lowercase/Sentence case/Title Case/Remove extra spaces/Remove line breaks/Remove empty lines/Sort lines/Remove duplicate lines/Add line numbers/Reverse text; line numbers now "1. …" plain digits; stat chips → Characters/Words/Sentences/Paragraphs + "Read time: X min"; thousands separators via toLocaleString('en-US'); toast strings translated; regexes (incl. । sentence ender) and localeCompare('bn') sort kept identical per contract
+- color-tool.tsx: removed toBn import; headings/hints → "Pick a color", "Shade palette (10 steps)", "Complementary color", "Click to copy", Light/Dark swatch badge; HEX validation message → "Enter a valid HEX code — 6 digits, e.g. 10B981 or #10B981"; all copy aria-labels/toasts translated; hex↔rgb↔hsl↔cmyk math, WCAG luminance, tint/shade mixing untouched
+- Verification: bun run lint → 0 errors (exit 0); bunx tsc --noEmit → no errors in the 4 touched files (remaining output is pre-existing examples/skills errors + one pre-existing src/app/page.tsx error owned by the redesign agent, not this task); dev.log shows clean compiles, GET / 200
+- Zero logic/behavior changes: only user-facing strings, comments, and digit formatting (removed all toBn / @/lib/bn usage); registry, page, layout untouched
+
+Stage Summary:
+- All 4 tools now English-first: natural concise UI copy (e.g. 'Strong'→'Excellent' tier naming kept 4-level, 'টেক্সট/লিংক'→'Text / URL', 'ওয়াইফাই'→'Wi-Fi'), plain Arabic numerals with toLocaleString('en-US') where separators are needed
+- Contract intact per file: 'use client' + same default export names, h-11 touch targets, aria-labels on all interactive elements, max-h + overflow-y-auto lists, only shadcn/ui + lucide-react + qrcode + @/lib/utils + @/hooks/use-toast imports; @/lib/bn no longer referenced by any of these files
+- ESLint set-state-in-effect compliance patterns preserved (setTimeout-in-effect, promise callbacks with cancelled flag, fully derived useMemo)
+
+---
+Task ID: 2-c
+Agent: full-stack-developer
+Task: Translated json-formatter + base64-tool from Bengali-first to English-first UI (logic unchanged)
+
+Work Log:
+- Read worklog.md architecture contract + both target files end-to-end before editing
+- json-formatter.tsx: removed `import { toBn } from '@/lib/bn'`; all user-facing strings → English (JSON Input/Result labels, Format/Minify/Load sample/Clear buttons, Indent select items "2 spaces"/"4 spaces"/"Tab", "Valid JSON ✓" badge, "Invalid JSON" Alert + "Location: line N, column M", empty-input error message, copy toasts "Copied ✓"/"Copy failed", all aria-labels, placeholders `{ "name": "value" }`, empty-state hint, stats labels Bytes/Lines/Items/Top-level keys/No keys); SAMPLE_JSON rewritten with English keys/values (name/age/city/languages/address/active); digit conversions → plain numbers or `.toLocaleString('en-US')` (input byte count + stats.bytes); layout/h-11 targets/max-h-72 overflow-y-auto output kept identical
+- base64-tool.tsx: removed toBn import; tab names "Text → Base64"/"Base64 → Text"/"URL Encode", Encode/Decode segmented toggle, Swap/Clear buttons, Input/Output labels, all 4 placeholders, live-conversion empty hint, destructive error messages+titles ("Invalid Base64", "Invalid URL encoding", "Error"), copy toasts, footer Tip line, aria-labels → English; byte counters → `.toLocaleString('en-US')` (input header + Input/Output info line); Unicode-safe chunked btoa/atob logic, useMemo derived state, swap/clear/copy behavior untouched
+- Verified no Bengali characters, toBn, or @/lib/bn references remain in either file (grep over src/components/tools)
+- Verification: `bun run lint` → exit 0 (0 errors); `bunx tsc --noEmit` → no errors in json-formatter.tsx / base64-tool.tsx (remaining pre-existing errors only in examples/, skills/, and src/app/page.tsx line 307 removeEventListener — untouched by this task); dev.log shows ✓ Compiled + GET / 200
+
+Stage Summary:
+- Both tools now English-first per the redesigned app-OS contract; registry untouched (id-based load() requires no changes since fields live in registry), page/layout untouched, only the 2 tool component files changed
+- No setState-in-effect hazards introduced (neither file uses useEffect; base64 stays fully derived via useMemo); shadcn/ui + lucide-react + cn + useToast imports only
+
+---
+Task ID: 2-a
+Agent: full-stack-developer
+Task: Translated 4 tool components (calculator, unit-converter, age-calculator, emi-calculator) from Bengali-first to English-first UI; logic untouched
+
+Work Log:
+- Read worklog.md + verified English-first registry entries (name/description fields) before rewriting
+- calculator.tsx: engine error strings → English ("Mismatched parentheses", "Division by zero", "log: requires a positive number", "Incomplete expression", etc.), toast "Could not calculate / Check the expression", badge "Degrees (DEG)"/"Radians (RAD)", "History"/"Clear history"/"No calculations yet", keypad aria "Calculator keypad", display placeholder ০→0, keyboard hint line translated; no toBn usage existed; shunting-yard/RPN/DEG-RAD logic byte-identical
+- unit-converter.tsx: renamed internal fields nameBn→name (UnitDef/CategoryDef + all usages, no external consumers), all 10 category + 55 unit names translated (Length/Weight/Temperature/Area/Volume/Speed/Data/Time/Pressure/Energy; traditional units romanized: Maund, Seer, Bigha, Katha, Shotok (Decimal)), Bengali symbols replaced (মণ→maund, বিঘা→bigha, কাঠা→katha, শতক→decimal), labels From/To, placeholder "Enter a number", toast "Copied", swap aria "Swap units", result aria "Copy result", table heading "— result in all units"; conversion factors/formulas unchanged, fmt() already en-US
+- age-calculator.tsx: removed `import { toBn }`, BN_WEEKDAYS→EN_WEEKDAYS (Sunday–Saturday), labels "Date of birth"/"Age at date"/"Today", error Alert "Date of birth cannot be in the future", empty state translated, highlight "Your age — {y} years {m} months {d} days", stats Total months/weeks/days/hours/minutes via .toLocaleString('en-US'), birthday card "Happy Birthday! 🎂"/"{n} days to go — falls on {weekday} ({year})"; calendar-accurate anchor math unchanged
+- emi-calculator.tsx: removed `import { toBn }`, money() ৳+en-IN → $+en-US (global-audience currency + thousands separators per contract), "Loan details", inputs Loan amount ($)/Annual interest rate (%)/Tenure with Years/Months select, validation hints English (1–1,200 months cap), result cards Monthly payment/Total interest/Total payment, "Principal vs interest" bar + legend, Collapsible "View amortization schedule" with Year/Principal paid/Interest/Remaining balance, estimate disclaimer translated; EMI formula + yearly amortization loop unchanged
+- Kept 'use client', default export names, file paths, h-11 touch targets, aria-labels, max-h + overflow-y-auto regions; only imports from @/components/ui/*, lucide-react, @/lib/utils, @/hooks/use-toast
+- Verification: bun run lint → 0 errors; bunx tsc --noEmit → zero errors in the 4 touched files (only pre-existing errors in skills/ and src/app/page.tsx battery-API typing, both untouched); grep confirms no Bengali chars / toBn / @/lib/bn / nameBn remain in the 4 files; dev.log compiles clean
+
+Stage Summary:
+- The 4 core calculator/converter tools are now fully English-first: plain Western digits everywhere (toLocaleString('en-US') separators), no @/lib/bn dependency, and dollar-denominated loan output matching the registry's English naming
+- Zero behavioral changes: all math engines, state shapes, localStorage keys, validation thresholds and accessibility structure preserved; registry/page/layout untouched
+
+---
+Task ID: 2-e
+Agent: full-stack-developer
+Task: Created 2 NEW English-first app components: notes.tsx (NotesTool) + reminders.tsx (RemindersTool) with localStorage persistence
+
+Work Log:
+- Read worklog.md ARCHITECTURE CONTRACT + verified shell wrapper (page.tsx already provides max-w-4xl px-4 scrollable body + header with back button → tool components render body content only, no page title/back button), shadcn/ui APIs (alert-dialog/tabs/checkbox/progress/separator/badge/card/input/textarea/button), use-toast hook, calculator.tsx lazy-init + persist conventions, and the active eslint react-hooks/set-state-in-effect rule
+- notes.tsx (default export NotesTool): Note {id,title,body,updatedAt} in localStorage 'toolhub-notes'; lazy useState(loadNotes) with shape-validating parse + typeof window guard; debounced auto-save effect (400ms, clearTimeout cleanup, persist + setSaveState only inside timer callback — rule-safe); structural ops (create/delete) also persistNow immediately so nothing is lost on unmount
+- notes list view: search Input (Search icon, h-11) filtering title+body case-insensitive, "New note" Button (h-11, Plus, w-full sm:w-auto), match-count hint ("N of M notes match"), responsive grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 of button-wrapped Cards (title/"Untitled", line-clamp-2 snippet or italic "No additional text", relative time + full-timestamp title, hover lift + focus ring); empty states: no notes → StickyNote icon circle + copy + "Create your first note" CTA; search miss → SearchX + "No notes match “query”" + Clear search button
+- notes editor view: ArrowLeft back button (size-11, aria "Back to notes"), Saving…/Saved status pill (Loader2 spin / emerald Check, role=status aria-live), Trash-2 delete (AlertDialog confirm "Delete this note?" with destructive action → removes, back to list, toast); borderless bold title Input (text-xl md:text-2xl font-bold, px-0 border-0 shadow-none no-ring, autofocus via rAF ref focus on create), body Textarea min-h-[320px] resize-y, meta row "Edited {relative} · N characters · N words" (toLocaleString en-US), auto-save hint line
+- relativeTime helper per spec: just now / Xm ago / Xh ago / Xd ago (<7d) / toLocaleDateString('en-US', {month:'short', day:'numeric'}); ids via crypto.randomUUID() with Date+Math.random fallback in both files
+- reminders.tsx (default export RemindersTool): Reminder {id,text,done,createdAt} in 'toolhub-reminders'; lazy load with validation; persist-on-change effect (pure side effect, zero setState — rule-safe)
+- reminders UI: add form (Input "Add a reminder…" h-11 flex-1 + Add Button h-11, Enter submits via form onSubmit, empty draft → destructive toast), newest prepended (insertion order kept); row = Checkbox (size-5, per-item aria with text) + text (line-through + text-muted-foreground + bg-muted/40 card when done, full-timestamp title) + always-visible Trash-2 icon Button (aria-label "Delete reminder"); toasts on add/toggle/delete/clear
+- reminders header: Tabs All/Active/Completed with secondary Badge counts (TabsList h-11 w-full sm:w-auto), "X of Y completed" + percent + thin Progress h-1.5, Clear completed Button (outline destructive, only when doneCount > 0); list ul max-h-[420px] overflow-y-auto pr-1; per-filter empty states: All → "Nothing here yet", Active → Coffee icon "Nothing here — enjoy your day!", Completed → ListChecks "No completed reminders yet"
+- Imports restricted to @/components/ui/*, lucide-react, @/lib/utils (cn), @/hooks/use-toast; no @/lib/bn, no registry/page edits; only my 2 files touched
+- Verification: bun run lint → 0 errors (remaining warnings are in other agents' files image-tools/voice-recorder — untouched); bunx tsc --noEmit → 0 errors mentioning notes.tsx/reminders.tsx (remaining output pre-existing in examples/, skills/, src/app/page.tsx)
+
+Stage Summary:
+- 2 production-ready tools delivered per contract: 'use client' + default exports (NotesTool, RemindersTool), English-first copy, localStorage persistence with validated lazy initializers, h-11 touch targets, aria-labels on every icon button, max-h + overflow-y-auto long list, shadcn/ui + lucide only
+- ESLint set-state-in-effect compliance: notes uses setTimeout-in-effect with cleanup (setState only in timer callback) + handler-driven 'saving' state; reminders persistence effect has zero setState; all other state fully derived via useMemo
+
+---
+Task ID: 2-f
+Agent: full-stack-developer
+Task: Built 4 English-first apps (image-tools, voice-recorder, device-info, settings)
+
+Work Log:
+- Read worklog.md architecture contract + registry.tsx, app-store.ts, install-app-button.tsx, use-toast.ts, globals.css wallpaper classes; confirmed components load with next/dynamic ssr:false (direct window/localStorage access in lazy initializers is safe)
+- image-tools.tsx: drop zone (click/drag/keyboard) + hidden file input; image/* + ≤20MB validation with destructive Alert; object-URL lifecycle via refs (revoked on replace/unmount); Compress (quality slider 10–100, JPEG/WebP), Resize (aspect-lock switch default on, width↔height auto-sync in handlers, 25/50/75% presets, Keep-original/PNG/JPEG/WebP), Convert (PNG/JPEG/WebP + quality when lossy) — all canvas.toBlob with JPEG white-flatten for alpha; result card with original-vs-compressed sizes + green "% saved" Badge + preview; <a download> with basename + -compressed/-resized/-converted + proper extension; toasts on success
+- voice-recorder.tsx: getUserMedia + MediaRecorder with mime probing (webm/opus → mp4/ogg), big round record button with animate-ping ring + red pulsing dot + live MM:SS timer (interval callback setState only), Pause/Resume + Stop (h-11, aria-labels); recordings list rows (RecordingRow subcomponent revokes its own object URL on unmount) with native <audio controls>, duration/size/time badges, Download (recording-<timestamp>.<ext>) and Delete; session-only note card; destructive Alert when API unsupported, instructions Alert on permission denial
+- device-info.tsx: responsive info grid (grid-cols-1 sm:grid-cols-2, p-4 cards) — System (UAData/platform, UA-regex OS+browser, languages, timezone, cookies), Display (resolution, available area, DPR, color depth, orientation, live window size via resize listener), Hardware (deviceMemory, cores, touch points), Network (online/offline listeners + connection effectiveType/downlink/rtt/saveData with "N/A" badges), Battery (getBattery + levelchange/chargingchange listeners via ref), Graphics (WEBGL_debug_renderer_info in try/catch); Refresh button re-reads everything; muted label + semibold value rows; "read locally, never leaves your device" note
+- settings.tsx: Appearance (next-themes Light/Dark/System buttons, active = primary highlight + Check); Wallpaper (4 swatches using globals.css wallpaper wp-* classes, size-16 rounded-xl, active ring-2 ring-primary + check, wired to useAppStore setWallpaper); Install (<InstallAppButton /> + iOS Share→Add to Home Screen / Chrome menu hints); Data (favorites/recents counts, Clear recents via clearRecents(), Clear favorites via [...favorites].forEach(toggleFavorite), toast confirmations, disabled at 0); About (Wrench gradient tile, ToolHub v2.0 badge, tagline, "{tools.length} apps and counting", offline-PWA note)
+- ESLint compliance: zero synchronous setState in useEffect bodies across all 4 files (state changes only in event listeners / interval ticks / promise callbacks; cleanup-only effects for URL revocation and track teardown)
+- Registry untouched; no page edits; English-only UI; sizes via toLocaleString('en-US')
+- Verification: bun run lint → 0 errors/0 warnings; bunx tsc --noEmit → no errors in the 4 new files (remaining errors are other agents' files: page.tsx, clock.tsx, examples/, skills/); dev server GET / 200
+
+Stage Summary:
+- 4 production-ready apps delivered per contract: default-export client components at src/components/tools/<id>.tsx, shadcn/ui + lucide-react only (+ next-themes, app-store, registry imports where specified), mobile-first responsive, h-11 touch targets, aria-labels, max-h + overflow-y-auto lists, object-URL hygiene everywhere
+- image-tools, voice-recorder, device-info, settings ready for registry wiring by the integration task
+
+---
+Task ID: 2-d
+Agent: full-stack-developer
+Task: Built 3 networked daily tools (clock, weather, currency) with English-first UI
+
+Work Log:
+- Read worklog.md ARCHITECTURE CONTRACT + registry/page shell (components load via next/dynamic ssr:false → safe direct localStorage/Date access in lazy state initializers); confirmed shadcn exports (tabs forceMount passthrough, progress, select, alert, skeleton)
+- clock.tsx (ClockTool): shadcn Tabs World Clock | Stopwatch | Timer; all three TabsContent use forceMount + data-[state=inactive]:hidden so stopwatch/timer state survives tab switches. World Clock: big live local time (HH:MM:SS, updates via ONE setInterval → setNow(new Date())), hero card + 8 city rows (New York/London/Dubai/Kolkata/Singapore/Tokyo/Sydney/LA) each with live Intl.DateTimeFormat time (hour12:false), short date and Yesterday/Today/Tomorrow badge computed via en-CA YYYY-MM-DD calendar-date diff (robust across month boundaries). Stopwatch: performance.now() deltas (startAt/accum refs) → MM:SS.CS tabular-nums, 31ms interval while running, Start/Pause/Lap/Reset, laps list max-h-72 overflow-y-auto showing split + total, newest first, Fastest/Slowest subtle emerald/rose badges+colors (only when ≥2 laps). Timer: 6 quick presets (1/3/5/10/15/30 min) + clamped H/M/S number inputs, Start/Pause/Restart/Reset, countdown from endAt timestamp (no drift), thin Progress bar (h-1.5, elapsed %), "Time's up!" spring-animated state + 3-pulse 880Hz WebAudio beep (AudioContext created lazily in playBeep, try/catch guarded, closed after 1.2s)
+- weather.tsx (WeatherTool): Open-Meteo geocoding (debounced 400ms, cancelled-flag, min 2 chars, count=5, language=en) with in-card result dropdown (name, admin1, country) and "My Location" button via navigator.geolocation (error handling incl. no-support + permission denial). Forecast fetch (current temp/humidity/apparent/is_day/code/wind + daily 7d min/max/code, timezone=auto) guarded by reqIdRef counter so stale responses are dropped; offline check via navigator.onLine → destructive Alert (WifiOff). WMO code map → {label, lucide icon}: 0 Sun/Moon by is_day, 1 CloudSun/CloudMoon, 2-3 CloudSun/Cloud, 45/48 CloudFog, 51-57 CloudDrizzle, 61-67+80-82 CloudRain, 71-77+85-86 CloudSnow, 95-99 CloudLightning. Hero card: giant °C/°F temp (unit toggle persisted in localStorage 'weather-unit', aria-pressed), condition icon+label, separator, 3 stat tiles (Feels like/Humidity/Wind), then 7-day list (Today + weekday short via T12:00:00 anchor, icon, min–max) in max-h-96 overflow-y-auto. Skeleton loading state; empty state "Search for a city to see the weather". Cache 'weather-cache' {placeName, admin1, country, lat, lon, data, fetchedAt} auto-restored on mount inside setTimeout callback (no sync setState in effect body) with silent background refetch when older than 10 min
+- currency.tsx (CurrencyTool): fetches open.er-api.com/v6/latest/USD (no key); cache 'currency-rates' {rates, fetchedAt} reused when < 12h old, Refresh button forces refetch (spinning RefreshCw); on failure/offline falls back to built-in 31-currency static rate table (USD…EGP) + subtle amber warning Alert. UI: Amount input (default "1", number/decimal), From + To shadcn Selects (labels "USD — US Dollar", h-11 triggers, 31 items) with icon swap button (aria-label, swaps codes), big result tile (symbol + toLocaleString('en-US', max 2 decimals ≥1000 else up to 4), aria-live polite), rate line "1 USD = 137.50 BDT" (min 2/max 4 decimals), "Updated <date>" + Refresh row. Pure client math amount × (rate[to]/rate[from]) via useMemo; invalid/empty amount → graceful hint; initial load in setTimeout callback (cache-first, then network) to satisfy react-hooks/set-state-in-effect
+- Compliance: English-only UI, en-US number formatting, no @/lib/bn, no registry edits, default exports, imports limited to @/components/ui/*, lucide-react, framer-motion, @/lib/utils; grid-cols-1 sm:grid-cols-* responsive, h-11 touch targets, aria-labels on all icon buttons, p-4/p-6 card padding, max-h + overflow-y-auto on city/lap/daily/rate lists
+- Verification: bun run lint → 0 errors; bunx tsc --noEmit → 0 errors in my 3 files (fixed one bun-types Window/AudioContext clash by casting to a local AudioWindow shape); remaining tsc errors are pre-existing/parallel-agent files (examples/, skills/, src/app/page.tsx) — reported, not touched; dev.log shows clean compiles
+
+Stage Summary:
+- 3 production-ready apps for the phone home screen: Clock (world clock + stopwatch + timer with beep), Weather (Open-Meteo live search/forecast, unit + cache persistence), Currency (31-currency live converter with offline fallback)
+- All networked tools follow the same resilience pattern: debounced/guarded fetches with cancelled flags or request-id refs, localStorage caches (weather-cache, currency-rates, weather-unit) restored asynchronously on mount, destructive/amber alerts for offline+failure, skeleton loaders and empty states
+- ESLint set-state-in-effect rule respected everywhere: setState only inside interval/timeout/promise-then/event callbacks; stopwatch+timer state preserved across tabs via TabsContent forceMount
+
+---
+Task ID: 6
+Agent: main (Z.ai Code)
+Task: Redesign ToolHub as an iOS-style phone home-screen "app OS" — English-first, global audience
+
+Work Log:
+- Rewrote src/lib/tools/types.ts: English-first fields (name, description), added categories 'media' + 'utilities'
+- Rewrote src/lib/tools/registry.tsx: all-English registry; added 9 new apps (clock, weather, notes, reminders, currency, image-tools, voice-recorder, device-info, settings) → 19 apps total, 8 App Library categories
+- Rewrote src/app/page.tsx as a full phone OS shell: wallpaper root (4 gradient wallpapers in globals.css: sunset/ocean/forest/midnight), status bar (live clock HH:MM, Battery API %/charging, offline indicator, spotlight button), horizontal scroll-snap pages with responsive grid (ResizeObserver → cols 4-8, rows 2-5), clickable page dots, frosted-glass dock (Calculator, Clock, Weather, Notes), Spotlight search overlay (recents chips + all/matching apps, Enter opens first result), App Library page with auto-grouped category folders + folder overlay, AppWindow full-screen zoom transition (framer-motion spring) with header (back/icon/name/category/star) + scrollable body + iOS home indicator bar; hash routes #/app/<id> (+ legacy #/tool/<id>), Escape closes, addRecent on open
+- store/app-store.ts: added wallpaper pref (persisted); globals.css: wallpaper utilities, font var de-Bengalified; layout.tsx: lang=en, English metadata, dropped Noto Sans Bengali, new theme colors; manifest.ts English; sw.js cache bumped toolhub-v1→v2; install-app-button English
+- Subagent tasks 2-a/b/c: translated all 10 original tools to English (removed toBn/@/lib/bn, toLocaleString('en-US'), unit names romanized: Maund/Seer/Bigha/Katha)
+- Subagent tasks 2-d/e/f: built 9 new English apps: Clock (world clock/stopwatch w/ laps/timer w/ WebAudio beep), Weather (Open-Meteo geocoding+forecast, WMO icons, °C/°F, localStorage cache), Currency (open.er-api.com 12h cache + offline fallback 31 currencies), Notes (CRUD, debounced autosave, search), Reminders (filters, progress bar, clear completed), Image Tools (compress/resize/convert via canvas, % saved badge), Voice Recorder (MediaRecorder, pause/resume, download), Device Info (system/display/hardware/network/battery/GPU cards), Settings (theme, wallpaper picker, install hints, data mgmt, about)
+- Fixed: battery API typing (page.tsx tsc), folder overlay rendered inside horizontal scroll container → warped one viewport left (lifted overlay state outside scroll container), hydration mismatch on wallpaper class (useHydrated gate), clickable page dots, sync setState lint errors
+
+Stage Summary:
+- Browser E2E verified: home renders (19 apps, dock, dots), Calculator 7×8=56, Clock live world times + stopwatch lap, Weather live Dhaka 26°C (Open-Meteo), Notes persisted to localStorage, Reminders add+complete persisted, Currency live 1 USD=123.5846 BDT, Device Info populated, Settings wallpaper switch (sunset→ocean) persisted, Spotlight search→Enter opens app, App Library folders + overlay, legacy #/tool/ route works, mobile iPhone 14 → 4-col grid perfect, zero console errors after fixes, lint 0 errors, tsc clean in src/
+- NOTE: dev-mode service worker can serve stale bundles after edits — unregister SW/clear caches when re-verifying (cache now versioned toolhub-v2)

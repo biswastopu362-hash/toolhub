@@ -2,19 +2,19 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'টুলহাব — সব কাজের এক অ্যাপ',
-    short_name: 'টুলহাব',
+    name: 'ToolHub — All-in-One App Hub',
+    short_name: 'ToolHub',
     description:
-      'ল্যাপটপ, মোবাইল বা কম্পিউটার — প্রতিদিনের প্রয়োজনীয় সব টুল এক জায়গায়। অফলাইনেও কাজ করে এমন প্রগ্রেসিভ ওয়েব অ্যাপ।',
+      'One app for everything: calculator, converters, generators, developer tools, notes, weather and more. Works offline, on every device.',
     id: '/',
     start_url: '/',
     scope: '/',
     display: 'standalone',
     orientation: 'any',
-    lang: 'bn',
+    lang: 'en',
     dir: 'ltr',
-    background_color: '#f6fdf9',
-    theme_color: '#059669',
+    background_color: '#0f0a1e',
+    theme_color: '#2e1065',
     categories: ['utilities', 'productivity', 'tools'],
     icons: [
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },

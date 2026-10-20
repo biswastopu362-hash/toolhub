@@ -3,15 +3,20 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export type WallpaperId = 'sunset' | 'ocean' | 'forest' | 'midnight'
+
 interface AppState {
-  /** favorite tool ids */
+  /** favorite app ids */
   favorites: string[]
-  /** recently used tool ids (max 8) */
+  /** recently used app ids (max 8) */
   recents: string[]
+  /** home screen wallpaper */
+  wallpaper: WallpaperId
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
   addRecent: (id: string) => void
   clearRecents: () => void
+  setWallpaper: (w: WallpaperId) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -19,6 +24,7 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       favorites: [],
       recents: [],
+      wallpaper: 'sunset',
       toggleFavorite: (id) =>
         set((s) => ({
           favorites: s.favorites.includes(id)
@@ -31,6 +37,7 @@ export const useAppStore = create<AppState>()(
           recents: [id, ...s.recents.filter((r) => r !== id)].slice(0, 8),
         })),
       clearRecents: () => set({ recents: [] }),
+      setWallpaper: (w) => set({ wallpaper: w }),
     }),
     { name: 'toolhub-store' }
   )

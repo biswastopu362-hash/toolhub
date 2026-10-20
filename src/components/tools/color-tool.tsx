@@ -14,7 +14,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { toBn } from '@/lib/bn'
 import { useToast } from '@/hooks/use-toast'
 
 /* ================================================================== */
@@ -191,9 +190,9 @@ export default function ColorToolTool() {
   const copyValue = async (value: string, label: string) => {
     try {
       await navigator.clipboard.writeText(value)
-      toast({ title: 'কপি হয়েছে', description: `${label}: ${value}` })
+      toast({ title: 'Copied', description: `${label}: ${value}` })
     } catch {
-      toast({ title: 'কপি করা যায়নি', description: 'ব্রাউজার ক্লিপবোর্ড অনুমতি দিচ্ছে না', variant: 'destructive' })
+      toast({ title: 'Copy failed', description: 'Browser clipboard access was denied', variant: 'destructive' })
     }
   }
 
@@ -211,10 +210,10 @@ export default function ColorToolTool() {
         <CardHeader className="p-4 pb-3 sm:p-5 sm:pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Palette className="h-4 w-4 text-primary" aria-hidden="true" />
-            রং নির্বাচন করুন
+            Pick a color
           </CardTitle>
           <CardDescription className="text-xs">
-            পিকার থেকে বাছুন বা HEX কোড লিখুন — RGB, HSL, CMYK সাথে সাথে দেখা যাবে
+            Use the picker or type a HEX code — RGB, HSL and CMYK update instantly
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 p-4 pt-0 sm:p-5 sm:pt-0">
@@ -222,27 +221,27 @@ export default function ColorToolTool() {
           <div className="flex items-end gap-2">
             <div className="space-y-2">
               <Label htmlFor="color-picker" className="text-sm font-medium">
-                পিকার
+                Picker
               </Label>
               <Input
                 id="color-picker"
                 type="color"
                 value={hex}
                 onChange={(e) => handlePicker(e.target.value)}
-                aria-label="রঙের পিকার"
+                aria-label="Color picker"
                 className="h-11 w-16 cursor-pointer p-1"
               />
             </div>
             <div className="flex-1 space-y-2">
               <Label htmlFor="color-hex" className="text-sm font-medium">
-                HEX কোড
+                HEX code
               </Label>
               <Input
                 id="color-hex"
                 value={hexText}
                 onChange={(e) => handleText(e.target.value)}
                 placeholder="#10B981"
-                aria-label="HEX কোড লিখুন"
+                aria-label="Enter HEX code"
                 aria-invalid={!parsed}
                 className="h-11 font-mono text-base uppercase"
               />
@@ -251,15 +250,15 @@ export default function ColorToolTool() {
               variant="outline"
               onClick={randomColor}
               className="h-11 shrink-0 gap-2"
-              aria-label="র‍্যান্ডম রং বাছুন"
+              aria-label="Pick a random color"
             >
               <Dices className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">র‍্যান্ডম রং</span>
+              <span className="hidden sm:inline">Random</span>
             </Button>
           </div>
           {!parsed && (
             <p className="text-xs text-destructive">
-              সঠিক HEX কোড দিন — ৬ ডিজিট, যেমন <span className="font-mono">10B981</span> বা{' '}
+              Enter a valid HEX code — 6 digits, e.g. <span className="font-mono">10B981</span> or{' '}
               <span className="font-mono">#10B981</span>
             </p>
           )}
@@ -269,7 +268,7 @@ export default function ColorToolTool() {
             className="flex h-24 items-center justify-between rounded-2xl border px-5"
             style={{ backgroundColor: hex }}
             role="img"
-            aria-label={`প্রিভিউ ${hex}`}
+            aria-label={`Preview ${hex}`}
           >
             <span
               className="font-mono text-lg font-bold"
@@ -284,7 +283,7 @@ export default function ColorToolTool() {
                 backgroundColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.16)',
               }}
             >
-              {isLight ? 'হালকা রং' : 'গাঢ় রং'}
+              {isLight ? 'Light' : 'Dark'}
             </span>
           </div>
 
@@ -305,7 +304,7 @@ export default function ColorToolTool() {
                   variant="ghost"
                   size="icon"
                   onClick={() => copyValue(row.value, row.label)}
-                  aria-label={`${row.label} মান কপি করুন`}
+                  aria-label={`Copy ${row.label} value`}
                   className="h-11 w-11 shrink-0 text-muted-foreground"
                 >
                   <Copy className="h-4 w-4" aria-hidden="true" />
@@ -319,8 +318,8 @@ export default function ColorToolTool() {
           {/* Shades palette */}
           <div>
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">শেড প্যালেট ({toBn(10)} ধাপ)</Label>
-              <span className="text-[11px] text-muted-foreground">ক্লিক করলে কপি হবে</span>
+              <Label className="text-sm font-medium">Shade palette (10 steps)</Label>
+              <span className="text-[11px] text-muted-foreground">Click to copy</span>
             </div>
             <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 sm:grid sm:grid-cols-10 sm:overflow-visible sm:pb-0">
               {shades.map((s, i) => (
@@ -328,7 +327,7 @@ export default function ColorToolTool() {
                   key={`${s}-${i}`}
                   type="button"
                   title={s}
-                  aria-label={`রং কপি করুন ${s}`}
+                  aria-label={`Copy color ${s}`}
                   onClick={() => copyValue(s, 'HEX')}
                   className={cn(
                     'h-10 w-10 shrink-0 rounded-lg border border-black/10 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-95 sm:h-12 sm:w-full sm:hover:scale-105'
@@ -338,7 +337,7 @@ export default function ColorToolTool() {
               ))}
             </div>
             <p className="mt-1.5 text-[11px] text-muted-foreground">
-              প্রথম ৫টি সাদার সাথে মিশ্রিত (টিন্ট), পরের ৫টি কালোর সাথে (শেড)
+              The first 5 are mixed with white (tints), the last 5 with black (shades)
             </p>
           </div>
 
@@ -350,17 +349,17 @@ export default function ColorToolTool() {
               className="h-12 w-12 shrink-0 rounded-xl border"
               style={{ backgroundColor: complementary }}
               role="img"
-              aria-label={`পরিপূরক রং ${complementary}`}
+              aria-label={`Complementary color ${complementary}`}
             />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">পরিপূরক রং (বিপরীত)</p>
+              <p className="text-sm font-medium">Complementary color</p>
               <p className="truncate font-mono text-xs text-muted-foreground">{complementary}</p>
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => copyValue(complementary, 'HEX')}
-              aria-label="পরিপূরক রঙের HEX কপি করুন"
+              aria-label="Copy complementary HEX"
               className="h-11 w-11 shrink-0 text-muted-foreground"
             >
               <Copy className="h-4 w-4" aria-hidden="true" />

@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Copy, Download, Eye, EyeOff, QrCode, TriangleAlert, Wifi } from 'lucide-react'
-import { toBn } from '@/lib/bn'
 import { useToast } from '@/hooks/use-toast'
 
 /* ================================================================== */
@@ -44,7 +43,7 @@ export default function QrGeneratorTool() {
   const [mode, setMode] = useState<Mode>('text')
 
   /* Text / link tab */
-  const [text, setText] = useState('https://toolhub.app — টুলহাব')
+  const [text, setText] = useState('https://toolhub.app — ToolHub')
 
   /* WiFi tab */
   const [ssid, setSsid] = useState('')
@@ -90,7 +89,7 @@ export default function QrGeneratorTool() {
         .catch((err: unknown) => {
           if (cancelled) return
           setDataUrl(null)
-          setQrError(err instanceof Error ? err.message : 'কিউআর কোড তৈরি করা যায়নি।')
+          setQrError(err instanceof Error ? err.message : 'Could not generate the QR code.')
         })
     }, 300)
     return () => {
@@ -103,9 +102,9 @@ export default function QrGeneratorTool() {
     if (!payload.trim()) return
     try {
       await navigator.clipboard.writeText(payload)
-      toast({ title: 'কপি হয়েছে ✓', description: 'কনটেন্ট ক্লিপবোর্ডে সংরক্ষিত হয়েছে' })
+      toast({ title: 'Copied ✓', description: 'Content saved to your clipboard' })
     } catch {
-      toast({ title: 'কপি করা যায়নি', variant: 'destructive' })
+      toast({ title: 'Copy failed', variant: 'destructive' })
     }
   }
 
@@ -117,7 +116,7 @@ export default function QrGeneratorTool() {
     document.body.appendChild(a)
     a.click()
     a.remove()
-    toast({ title: 'ডাউনলোড শুরু হয়েছে', description: 'qr-code.png সংরক্ষিত হচ্ছে' })
+    toast({ title: 'Download started', description: 'Saving qr-code.png' })
   }
 
   const hasPayload = payload.trim().length > 0
@@ -128,25 +127,25 @@ export default function QrGeneratorTool() {
         <div className="p-4 sm:p-5">
           <Tabs value={mode} onValueChange={(v) => (v === 'text' || v === 'wifi') && setMode(v)}>
             <TabsList className="w-full">
-              <TabsTrigger value="text">টেক্সট / লিংক</TabsTrigger>
+              <TabsTrigger value="text">Text / URL</TabsTrigger>
               <TabsTrigger value="wifi" className="gap-1.5">
                 <Wifi className="h-4 w-4" />
-                ওয়াইফাই
+                Wi-Fi
               </TabsTrigger>
             </TabsList>
 
             {/* ---------------- Text / URL tab ---------------- */}
             <TabsContent value="text" className="space-y-1.5 pt-2">
               <Label htmlFor="qr-text" className="text-sm font-medium">
-                টেক্সট বা লিংক
+                Text or URL
               </Label>
               <Textarea
                 id="qr-text"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="যেকোনো লেখা বা https:// লিংক লিখুন…"
+                placeholder="Enter any text or an https:// link…"
                 className="min-h-[100px]"
-                aria-label="কিউআর কোডের কনটেন্ট"
+                aria-label="QR code content"
               />
             </TabsContent>
 
@@ -154,21 +153,21 @@ export default function QrGeneratorTool() {
             <TabsContent value="wifi" className="space-y-3 pt-2">
               <div className="space-y-1.5">
                 <Label htmlFor="qr-ssid" className="text-sm font-medium">
-                  নেটওয়ার্কের নাম (SSID)
+                  Network name (SSID)
                 </Label>
                 <Input
                   id="qr-ssid"
                   value={ssid}
                   onChange={(e) => setSsid(e.target.value)}
-                  placeholder="যেমন: Home_WiFi"
+                  placeholder="e.g. Home_WiFi"
                   className="h-11"
-                  aria-label="ওয়াইফাই নেটওয়ার্কের নাম"
+                  aria-label="Wi-Fi network name"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="qr-wifipass" className="text-sm font-medium">
-                  পাসওয়ার্ড
+                  Password
                 </Label>
                 <div className="relative">
                   <Input
@@ -176,10 +175,10 @@ export default function QrGeneratorTool() {
                     type={showPass ? 'text' : 'password'}
                     value={wifiPass}
                     onChange={(e) => setWifiPass(e.target.value)}
-                    placeholder={wifiType === 'nopass' ? 'ছাড়া নির্বাচিত — প্রয়োজন নেই' : 'ওয়াইফাই পাসওয়ার্ড'}
+                    placeholder={wifiType === 'nopass' ? 'None selected — not required' : 'Wi-Fi password'}
                     disabled={wifiType === 'nopass'}
                     className="h-11 pr-11"
-                    aria-label="ওয়াইফাই পাসওয়ার্ড"
+                    aria-label="Wi-Fi password"
                   />
                   <Button
                     type="button"
@@ -187,7 +186,7 @@ export default function QrGeneratorTool() {
                     size="icon"
                     className="absolute right-1 top-1/2 size-9 -translate-y-1/2"
                     onClick={() => setShowPass((s) => !s)}
-                    aria-label={showPass ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখান'}
+                    aria-label={showPass ? 'Hide password' : 'Show password'}
                   >
                     {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
@@ -196,31 +195,31 @@ export default function QrGeneratorTool() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">এনক্রিপশন</Label>
+                  <Label className="text-sm font-medium">Security</Label>
                   <Select
                     value={wifiType}
                     onValueChange={(v) => (v === 'WPA' || v === 'WEP' || v === 'nopass') && setWifiType(v)}
                   >
-                    <SelectTrigger className="h-11 w-full" aria-label="এনক্রিপশন ধরন নির্বাচন করুন">
+                    <SelectTrigger className="h-11 w-full" aria-label="Select security type">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="WPA">WPA / WPA2 / WPA3</SelectItem>
-                      <SelectItem value="WEP">WEP (পুরোনো)</SelectItem>
-                      <SelectItem value="nopass">ছাড়া (খোলা নেটওয়ার্ক)</SelectItem>
+                      <SelectItem value="WEP">WEP (legacy)</SelectItem>
+                      <SelectItem value="nopass">None (open network)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl border px-3 py-2">
                   <Label htmlFor="qr-hidden" className="text-sm font-normal">
-                    লুকানো নেটওয়ার্ক
+                    Hidden network
                   </Label>
                   <Switch
                     id="qr-hidden"
                     checked={hidden}
                     onCheckedChange={(v) => setHidden(v)}
-                    aria-label="লুকানো নেটওয়ার্ক কি না"
+                    aria-label="Hidden network toggle"
                   />
                 </div>
               </div>
@@ -230,30 +229,30 @@ export default function QrGeneratorTool() {
           {/* ---------------- Shared options ---------------- */}
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">সাইজ</Label>
+              <Label className="text-sm font-medium">Size</Label>
               <Select value={size} onValueChange={(v) => (v === '256' || v === '512' || v === '1024') && setSize(v)}>
-                <SelectTrigger className="h-11 w-full" aria-label="কিউআর কোডের সাইজ নির্বাচন করুন">
+                <SelectTrigger className="h-11 w-full" aria-label="Select QR code size">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="256">{toBn(256)} px</SelectItem>
-                  <SelectItem value="512">{toBn(512)} px</SelectItem>
-                  <SelectItem value="1024">{toBn(1024)} px</SelectItem>
+                  <SelectItem value="256">256 px</SelectItem>
+                  <SelectItem value="512">512 px</SelectItem>
+                  <SelectItem value="1024">1024 px</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">এরর কারেকশন</Label>
+              <Label className="text-sm font-medium">Error correction</Label>
               <Select value={ec} onValueChange={(v) => (v === 'L' || v === 'M' || v === 'Q' || v === 'H') && setEc(v)}>
-                <SelectTrigger className="h-11 w-full" aria-label="এরর কারেকশন লেভেল নির্বাচন করুন">
+                <SelectTrigger className="h-11 w-full" aria-label="Select error correction level">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="L">L — {toBn(7)}% পুনরুদ্ধার</SelectItem>
-                  <SelectItem value="M">M — {toBn(15)}% (ডিফল্ট)</SelectItem>
-                  <SelectItem value="Q">Q — {toBn(25)}%</SelectItem>
-                  <SelectItem value="H">H — {toBn(30)}%</SelectItem>
+                  <SelectItem value="L">L — 7% recovery</SelectItem>
+                  <SelectItem value="M">M — 15% (default)</SelectItem>
+                  <SelectItem value="Q">Q — 25%</SelectItem>
+                  <SelectItem value="H">H — 30%</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -262,7 +261,7 @@ export default function QrGeneratorTool() {
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="qr-dark" className="text-xs text-muted-foreground">
-                গাঢ় রং (মডিউল)
+                Dark color (modules)
               </Label>
               <Input
                 id="qr-dark"
@@ -270,12 +269,12 @@ export default function QrGeneratorTool() {
                 value={darkColor}
                 onChange={(e) => setDarkColor(e.target.value)}
                 className="h-11 cursor-pointer p-1"
-                aria-label="কিউআর কোডের গাঢ় রং নির্বাচন করুন"
+                aria-label="Select QR code dark color"
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="qr-light" className="text-xs text-muted-foreground">
-                হালকা রং (ব্যাকগ্রাউন্ড)
+                Light color (background)
               </Label>
               <Input
                 id="qr-light"
@@ -283,7 +282,7 @@ export default function QrGeneratorTool() {
                 value={lightColor}
                 onChange={(e) => setLightColor(e.target.value)}
                 className="h-11 cursor-pointer p-1"
-                aria-label="কিউআর কোডের হালকা রং নির্বাচন করুন"
+                aria-label="Select QR code light color"
               />
             </div>
           </div>
@@ -294,13 +293,13 @@ export default function QrGeneratorTool() {
               <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed py-10 text-center text-sm text-muted-foreground">
                 <QrCode className="h-8 w-8 opacity-50" />
                 {mode === 'wifi'
-                  ? 'ওয়াইফাইয়ের নাম (SSID) লিখুন — কিউআর কোড এখানে দেখা যাবে'
-                  : 'উপরে টেক্সট বা লিংক লিখুন — কিউআর কোড এখানে দেখা যাবে'}
+                  ? 'Enter the Wi-Fi name (SSID) — the QR code will appear here'
+                  : 'Enter text or a link above — the QR code will appear here'}
               </div>
             ) : qrError ? (
               <Alert variant="destructive">
                 <TriangleAlert className="h-4 w-4" />
-                <AlertTitle>কিউআর কোড তৈরি করা যায়নি</AlertTitle>
+                <AlertTitle>Could not generate QR code</AlertTitle>
                 <AlertDescription>{qrError}</AlertDescription>
               </Alert>
             ) : dataUrl ? (
@@ -308,7 +307,7 @@ export default function QrGeneratorTool() {
                 <Card className="bg-white p-4 shadow-md" style={{ backgroundColor: lightColor }}>
                   <img
                     src={dataUrl}
-                    alt="কিউআর কোড"
+                    alt="QR code"
                     width={Number(size)}
                     height={Number(size)}
                     className="h-auto max-w-full rounded-lg"
@@ -316,7 +315,7 @@ export default function QrGeneratorTool() {
                 </Card>
               </div>
             ) : (
-              <div className="flex justify-center py-10" role="status" aria-label="কিউআর কোড তৈরি হচ্ছে">
+              <div className="flex justify-center py-10" role="status" aria-label="Generating QR code">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
               </div>
             )}
@@ -329,26 +328,26 @@ export default function QrGeneratorTool() {
               className="h-11"
               onClick={download}
               disabled={!dataUrl}
-              aria-label="কিউআর কোড PNG হিসেবে ডাউনলোড করুন"
+              aria-label="Download QR code as PNG"
             >
               <Download className="h-4 w-4" />
-              ডাউনলোড
+              Download
             </Button>
             <Button
               variant="secondary"
               className="h-11"
               onClick={copyPayload}
               disabled={!hasPayload}
-              aria-label="কিউআর কোডের কনটেন্ট কপি করুন"
+              aria-label="Copy QR code content"
             >
               <Copy className="h-4 w-4" />
-              কপি
+              Copy
             </Button>
           </div>
 
           {hasPayload && !qrError && (
             <p className="mt-3 break-all text-center text-[11px] text-muted-foreground">
-              এনকোড হচ্ছে: {payload}
+              Encoding: {payload}
             </p>
           )}
         </div>

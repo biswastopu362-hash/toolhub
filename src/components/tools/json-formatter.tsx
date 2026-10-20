@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/select'
 import { CheckCircle2, Copy, FileJson, Minimize2, Sparkles, Trash2, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { toBn } from '@/lib/bn'
 import { useToast } from '@/hooks/use-toast'
 
 /* ================================================================== */
@@ -46,7 +45,7 @@ function positionOf(raw: string, index: number): { line: number; col: number } {
 
 function parseJson(raw: string): ParseResult {
   if (!raw.trim()) {
-    return { kind: 'fail', message: 'ইনপুট খালি — প্রথমে কিছু JSON লিখুন বা স্যাম্পল লোড করুন।' }
+    return { kind: 'fail', message: 'Input is empty — enter some JSON or load the sample first.' }
   }
   try {
     return { kind: 'ok', parsed: JSON.parse(raw) }
@@ -65,15 +64,15 @@ function parseJson(raw: string): ParseResult {
 }
 
 const SAMPLE_JSON = `{
-  "নাম": "রফিকুল ইসলাম",
-  "বয়স": 34,
-  "শহর": "চট্টগ্রাম",
-  "ভাষা": ["বাংলা", "ইংরেজি"],
-  "ঠিকানা": {
-    "বিভাগ": "চট্টগ্রাম",
-    "পোস্ট কোড": 4000
+  "name": "Rafiqul Islam",
+  "age": 34,
+  "city": "Chattogram",
+  "languages": ["English", "Bengali"],
+  "address": {
+    "region": "Chattogram",
+    "postalCode": 4000
   },
-  "সক্রিয়": true
+  "active": true
 }`
 
 type OutputState =
@@ -113,9 +112,9 @@ export default function JsonFormatterTool() {
     if (!output || output.kind !== 'ok') return
     try {
       await navigator.clipboard.writeText(output.text)
-      toast({ title: 'কপি হয়েছে ✓', description: 'ফরম্যাট করা JSON ক্লিপবোর্ডে সংরক্ষিত হয়েছে' })
+      toast({ title: 'Copied ✓', description: 'Formatted JSON saved to clipboard' })
     } catch {
-      toast({ title: 'কপি করা যায়নি', variant: 'destructive' })
+      toast({ title: 'Copy failed', variant: 'destructive' })
     }
   }
 
@@ -146,62 +145,64 @@ export default function JsonFormatterTool() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="json-input" className="text-sm font-medium">
-                JSON ইনপুট
+                JSON Input
               </Label>
               <span className="text-xs text-muted-foreground">
-                {input ? `${toBn(new TextEncoder().encode(input).length)} বাইট` : 'খালি'}
+                {input
+                  ? `${new TextEncoder().encode(input).length.toLocaleString('en-US')} bytes`
+                  : 'Empty'}
               </span>
             </div>
             <Textarea
               id="json-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={'{ "নাম": "মান" }'}
+              placeholder={'{ "name": "value" }'}
               className="min-h-[140px] font-mono text-sm"
               spellCheck={false}
-              aria-label="JSON ইনপুট লিখুন"
+              aria-label="Enter JSON input"
             />
           </div>
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => apply('pretty')} className="h-11" aria-label="JSON ফরম্যাট করুন">
+            <Button onClick={() => apply('pretty')} className="h-11" aria-label="Format JSON">
               <FileJson className="h-4 w-4" />
-              ফরম্যাট
+              Format
             </Button>
             <Button
               variant="secondary"
               onClick={() => apply('minify')}
               className="h-11"
-              aria-label="JSON মিনিফাই করুন"
+              aria-label="Minify JSON"
             >
               <Minimize2 className="h-4 w-4" />
-              মিনিফাই
+              Minify
             </Button>
-            <Button variant="outline" onClick={loadSample} className="h-11" aria-label="নমুনা JSON লোড করুন">
+            <Button variant="outline" onClick={loadSample} className="h-11" aria-label="Load sample JSON">
               <Sparkles className="h-4 w-4" />
-              স্যাম্পল লোড
+              Load sample
             </Button>
             <Button
               variant="ghost"
               onClick={clearAll}
               className="h-11 gap-1 text-destructive hover:text-destructive"
-              aria-label="সব মুছে ফেলুন"
+              aria-label="Clear everything"
             >
               <Trash2 className="h-4 w-4" />
-              মুছুন
+              Clear
             </Button>
 
             <div className="ms-auto flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground">ইনডেন্ট</Label>
+              <Label className="text-xs text-muted-foreground">Indent</Label>
               <Select value={indent} onValueChange={(v) => (v === '2' || v === '4' || v === 'tab') && setIndent(v)}>
-                <SelectTrigger size="sm" className="w-[110px]" aria-label="ইনডেন্ট সাইজ নির্বাচন করুন">
+                <SelectTrigger size="sm" className="w-[110px]" aria-label="Select indent size">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2">{toBn(2)} স্পেস</SelectItem>
-                  <SelectItem value="4">{toBn(4)} স্পেস</SelectItem>
-                  <SelectItem value="tab">ট্যাব</SelectItem>
+                  <SelectItem value="2">2 spaces</SelectItem>
+                  <SelectItem value="4">4 spaces</SelectItem>
+                  <SelectItem value="tab">Tab</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -210,14 +211,14 @@ export default function JsonFormatterTool() {
           {/* Output */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">ফলাফল</Label>
+              <Label className="text-sm font-medium">Result</Label>
               {output?.kind === 'ok' && (
                 <Badge
                   variant="outline"
                   className="gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  বৈধ JSON ✓
+                  Valid JSON ✓
                 </Badge>
               )}
               {output?.kind === 'ok' && (
@@ -226,10 +227,10 @@ export default function JsonFormatterTool() {
                   size="sm"
                   className="h-9 gap-1"
                   onClick={copyOutput}
-                  aria-label="ফলাফল কপি করুন"
+                  aria-label="Copy result"
                 >
                   <Copy className="h-3.5 w-3.5" />
-                  কপি
+                  Copy
                 </Button>
               )}
             </div>
@@ -237,12 +238,12 @@ export default function JsonFormatterTool() {
             {output?.kind === 'fail' && (
               <Alert variant="destructive">
                 <TriangleAlert className="h-4 w-4" />
-                <AlertTitle>অবৈধ JSON</AlertTitle>
+                <AlertTitle>Invalid JSON</AlertTitle>
                 <AlertDescription>
                   <p className="break-words">{output.message}</p>
                   {output.line !== undefined && output.col !== undefined && (
                     <p className="font-medium">
-                      অবস্থান: লাইন {toBn(output.line)}, কলাম {toBn(output.col)}
+                      Location: line {output.line}, column {output.col}
                     </p>
                   )}
                 </AlertDescription>
@@ -252,14 +253,14 @@ export default function JsonFormatterTool() {
             {output?.kind === 'ok' ? (
               <pre
                 className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border bg-muted/30 p-3 font-mono text-sm leading-relaxed select-all"
-                aria-label="ফরম্যাট করা JSON আউটপুট"
+                aria-label="Formatted JSON output"
               >
                 {output.text}
               </pre>
             ) : (
               !output && (
                 <div className="flex min-h-[80px] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-                  ফরম্যাট, মিনিফাই বা স্যাম্পল লোড করলে ফলাফল এখানে দেখা যাবে
+                  Run Format or Minify (or load the sample) and the result will appear here
                 </div>
               )
             )}
@@ -268,19 +269,19 @@ export default function JsonFormatterTool() {
             {stats && (
               <div className="grid grid-cols-3 gap-2">
                 <div className="rounded-lg border bg-muted/30 p-2 text-center">
-                  <p className="font-mono text-sm font-bold">{toBn(stats.bytes)}</p>
-                  <p className="text-[11px] text-muted-foreground">বাইট</p>
+                  <p className="font-mono text-sm font-bold">{stats.bytes.toLocaleString('en-US')}</p>
+                  <p className="text-[11px] text-muted-foreground">Bytes</p>
                 </div>
                 <div className="rounded-lg border bg-muted/30 p-2 text-center">
-                  <p className="font-mono text-sm font-bold">{toBn(stats.lines)}</p>
-                  <p className="text-[11px] text-muted-foreground">লাইন</p>
+                  <p className="font-mono text-sm font-bold">{stats.lines}</p>
+                  <p className="text-[11px] text-muted-foreground">Lines</p>
                 </div>
                 <div className="rounded-lg border bg-muted/30 p-2 text-center">
                   <p className={cn('font-mono text-sm font-bold', stats.keys === null && 'opacity-40')}>
-                    {stats.keys === null ? '—' : toBn(stats.keys)}
+                    {stats.keys === null ? '—' : stats.keys}
                   </p>
                   <p className="text-[11px] text-muted-foreground">
-                    {stats.keys === null ? 'কী নেই' : stats.isArray ? 'আইটেম' : 'টপ-লেভেল কী'}
+                    {stats.keys === null ? 'No keys' : stats.isArray ? 'Items' : 'Top-level keys'}
                   </p>
                 </div>
               </div>

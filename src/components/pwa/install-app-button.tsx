@@ -47,10 +47,10 @@ export function InstallAppButton({ className }: { className?: string }) {
         }
         setDeferred(null)
       }}
-      aria-label="অ্যাপ ইনস্টল করুন"
+      aria-label="Install app"
     >
       <Download className="h-4 w-4" />
-      <span className="hidden sm:inline">ইনস্টল</span>
+      <span className="hidden sm:inline">Install</span>
     </Button>
   )
 }

@@ -9,7 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ArrowLeftRight, Binary, Copy, Link2, Trash2, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { toBn } from '@/lib/bn'
 import { useToast } from '@/hooks/use-toast'
 
 /* ================================================================== */
@@ -68,18 +67,18 @@ export default function Base64ToolTool() {
       if (mode === 'decode') {
         return {
           output: '',
-          error: 'ইনপুটটি সঠিক Base64 ফরম্যাটে নেই — অক্ষর, স্পেস বা প্যাডিং (=) পরীক্ষা করুন।',
-          errorTitle: 'ভ্যালিড Base64 নয়',
+          error: 'Input is not valid Base64 — check for invalid characters, spaces, or padding (=).',
+          errorTitle: 'Invalid Base64',
         }
       }
       if (mode === 'url' && urlDir === 'decode') {
         return {
           output: '',
-          error: 'ইনপুটটি সঠিকভাবে URL-এনকোড করা নয় (যেমন %20 ইত্যাদি) — পরীক্ষা করুন।',
-          errorTitle: 'ভ্যালিড URL এনকোডিং নয়',
+          error: 'Input is not properly URL-encoded (e.g. %20 sequences) — check and try again.',
+          errorTitle: 'Invalid URL encoding',
         }
       }
-      return { output: '', error: 'রূপান্তর করা যায়নি — ইনপুট পরীক্ষা করুন।', errorTitle: 'ত্রুটি' }
+      return { output: '', error: 'Conversion failed — check the input.', errorTitle: 'Error' }
     }
   }, [input, mode, urlDir])
 
@@ -103,20 +102,20 @@ export default function Base64ToolTool() {
     if (!output) return
     try {
       await navigator.clipboard.writeText(output)
-      toast({ title: 'কপি হয়েছে ✓', description: 'আউটপুট ক্লিপবোর্ডে সংরক্ষিত হয়েছে' })
+      toast({ title: 'Copied ✓', description: 'Output saved to clipboard' })
     } catch {
-      toast({ title: 'কপি করা যায়নি', variant: 'destructive' })
+      toast({ title: 'Copy failed', variant: 'destructive' })
     }
   }
 
   const placeholder =
     mode === 'encode'
-      ? 'এনকোড করার জন্য টেক্সট লিখুন… (বাংলাও চলবে)'
+      ? 'Enter text to encode… (any Unicode works)'
       : mode === 'decode'
-        ? 'ডিকোড করার জন্য Base64 পেস্ট করুন… (যেমন: aGk=)'
+        ? 'Paste Base64 to decode… (e.g. aGk=)'
         : urlDir === 'encode'
-          ? 'URL-এনকোড করার টেক্সট লিখুন…'
-          : 'ডিকোড করার জন্য %20-স্টাইল স্ট্রিং পেস্ট করুন…'
+          ? 'Enter text to URL-encode…'
+          : 'Paste a %20-style string to decode…'
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -127,11 +126,11 @@ export default function Base64ToolTool() {
             onValueChange={(v) => (v === 'encode' || v === 'decode' || v === 'url') && setMode(v)}
           >
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="encode">টেক্সট → Base64</TabsTrigger>
-              <TabsTrigger value="decode">Base64 → টেক্সট</TabsTrigger>
+              <TabsTrigger value="encode">Text → Base64</TabsTrigger>
+              <TabsTrigger value="decode">Base64 → Text</TabsTrigger>
               <TabsTrigger value="url" className="gap-1.5">
                 <Link2 className="h-3.5 w-3.5" />
-                URL এনকোড
+                URL Encode
               </TabsTrigger>
             </TabsList>
 
@@ -140,7 +139,7 @@ export default function Base64ToolTool() {
               <div
                 className="inline-flex overflow-hidden rounded-lg border"
                 role="group"
-                aria-label="URL এনকোড বা ডিকোড নির্বাচন করুন"
+                aria-label="Select URL encode or decode"
               >
                 <Button
                   type="button"
@@ -152,7 +151,7 @@ export default function Base64ToolTool() {
                     urlDir === 'encode' && 'bg-primary text-primary-foreground hover:bg-primary/90'
                   )}
                 >
-                  এনকোড
+                  Encode
                 </Button>
                 <Button
                   type="button"
@@ -164,7 +163,7 @@ export default function Base64ToolTool() {
                     urlDir === 'decode' && 'bg-primary text-primary-foreground hover:bg-primary/90'
                   )}
                 >
-                  ডিকোড
+                  Decode
                 </Button>
               </div>
             </TabsContent>
@@ -174,9 +173,11 @@ export default function Base64ToolTool() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="b64-input" className="text-sm font-medium">
-                ইনপুট
+                Input
               </Label>
-              <span className="text-xs text-muted-foreground">{toBn(inBytes)} বাইট</span>
+              <span className="text-xs text-muted-foreground">
+                {inBytes.toLocaleString('en-US')} bytes
+              </span>
             </div>
             <Textarea
               id="b64-input"
@@ -185,7 +186,7 @@ export default function Base64ToolTool() {
               placeholder={placeholder}
               className="min-h-[120px] font-mono text-sm"
               spellCheck={false}
-              aria-label="ইনপুট টেক্সট"
+              aria-label="Input text"
             />
           </div>
 
@@ -196,24 +197,25 @@ export default function Base64ToolTool() {
               onClick={swap}
               disabled={!output}
               className="h-11"
-              aria-label="ইনপুট ও আউটপুট অদল-বদল করুন"
+              aria-label="Swap input and output"
             >
               <ArrowLeftRight className="h-4 w-4" />
-              অদল-বদল
+              Swap
             </Button>
             <Button
               variant="ghost"
               onClick={clearAll}
               disabled={!input}
               className="h-11 gap-1 text-destructive hover:text-destructive"
-              aria-label="ইনপুট মুছে ফেলুন"
+              aria-label="Clear input"
             >
               <Trash2 className="h-4 w-4" />
-              মুছুন
+              Clear
             </Button>
             <div className="ms-auto flex items-center gap-1.5 text-xs text-muted-foreground">
               <Binary className="h-3.5 w-3.5" />
-              ইনপুট {toBn(inBytes)} বাইট · আউটপুট {toBn(outBytes)} বাইট
+              Input {inBytes.toLocaleString('en-US')} bytes · Output {outBytes.toLocaleString('en-US')}{' '}
+              bytes
             </div>
           </div>
 
@@ -221,7 +223,7 @@ export default function Base64ToolTool() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="b64-output" className="text-sm font-medium">
-                আউটপুট
+                Output
               </Label>
               <Button
                 variant="ghost"
@@ -229,10 +231,10 @@ export default function Base64ToolTool() {
                 className="h-9 gap-1"
                 onClick={copyOutput}
                 disabled={!output}
-                aria-label="আউটপুট কপি করুন"
+                aria-label="Copy output"
               >
                 <Copy className="h-3.5 w-3.5" />
-                কপি
+                Copy
               </Button>
             </div>
 
@@ -246,12 +248,12 @@ export default function Base64ToolTool() {
               <div
                 id="b64-output"
                 aria-live="polite"
-                aria-label="রূপান্তরের আউটপুট"
+                aria-label="Conversion output"
                 className="max-h-48 min-h-[80px] overflow-y-auto whitespace-pre-wrap break-all rounded-xl border bg-muted/30 p-3 font-mono text-sm select-all"
               >
                 {output || (
                   <span className="pointer-events-none opacity-40">
-                    লাইভ রূপান্তরের ফলাফল এখানে দেখা যাবে…
+                    Live conversion result will appear here…
                   </span>
                 )}
               </div>
@@ -259,8 +261,8 @@ export default function Base64ToolTool() {
           </div>
 
           <p className="text-[11px] text-muted-foreground">
-            টিপ: টেক্সট ট্যাবে বাংলা সহ যেকোনো ইউনিকোড লেখা সঠিকভাবে এনকোড-ডিকোড হয়; «অদল-বদল» চাপলে
-            আউটপুট ইনপুটে চলে যায় এবং দিক উল্টে যায়।
+            Tip: any Unicode text (emoji, accented scripts, etc.) encodes and decodes correctly in the
+            Text tab; pressing Swap moves the output back into the input and flips the direction.
           </p>
         </CardContent>
       </Card>

@@ -33,10 +33,9 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
-import { toBn } from '@/lib/bn'
 
 /* ================================================================== */
-/* Transform helpers (work for Bengali + English)                      */
+/* Transform helpers (script-agnostic; sentence enders include ।)      */
 /* ================================================================== */
 
 const wordsOf = (t: string): string[] => t.trim().split(/\s+/).filter(Boolean)
@@ -45,17 +44,17 @@ const linesOf = (t: string): string[] => t.split(/\r?\n/)
 
 const TRANSFORMS: { label: string; icon: typeof Type; fn: (t: string) => string }[] = [
   {
-    label: 'বড় হাতের',
+    label: 'UPPERCASE',
     icon: CaseUpper,
     fn: (t) => t.toUpperCase(),
   },
   {
-    label: 'ছোট হাতের',
+    label: 'lowercase',
     icon: CaseLower,
     fn: (t) => t.toLowerCase(),
   },
   {
-    label: 'বাক্যের নিয়ম',
+    label: 'Sentence case',
     icon: CaseSensitive,
     fn: (t) =>
       t
@@ -63,32 +62,32 @@ const TRANSFORMS: { label: string; icon: typeof Type; fn: (t: string) => string 
         .replace(/(^\s*|[.!?।]\s*|\n\s*)(\S)/g, (_m, sep: string, ch: string) => sep + ch.toUpperCase()),
   },
   {
-    label: 'প্রতি শব্দে বড়',
+    label: 'Title Case',
     icon: ALargeSmall,
     fn: (t) => t.replace(/(^|\s)(\S)/g, (_m, sep: string, ch: string) => sep + ch.toUpperCase()),
   },
   {
-    label: 'অতিরিক্ত স্পেস মুছুন',
+    label: 'Remove extra spaces',
     icon: Eraser,
     fn: (t) => t.replace(/\s+/g, ' ').trim(),
   },
   {
-    label: 'লাইন ব্রেক মুছুন',
+    label: 'Remove line breaks',
     icon: Combine,
     fn: (t) => t.replace(/\r?\n+/g, ' ').replace(/ {2,}/g, ' ').trim(),
   },
   {
-    label: 'খালি লাইন মুছুন',
+    label: 'Remove empty lines',
     icon: ListX,
     fn: (t) => linesOf(t).filter((l) => l.trim().length > 0).join('\n'),
   },
   {
-    label: 'লাইন সাজান',
+    label: 'Sort lines',
     icon: ArrowDownAZ,
     fn: (t) => linesOf(t).slice().sort((a, b) => a.localeCompare(b, 'bn')).join('\n'),
   },
   {
-    label: 'ডুপ্লিকেট লাইন মুছুন',
+    label: 'Remove duplicate lines',
     icon: CopyX,
     fn: (t) => {
       const seen = new Set<string>()
@@ -102,15 +101,15 @@ const TRANSFORMS: { label: string; icon: typeof Type; fn: (t: string) => string 
     },
   },
   {
-    label: 'লাইন নম্বর যোগ',
+    label: 'Add line numbers',
     icon: ListOrdered,
     fn: (t) =>
       linesOf(t)
-        .map((l, i) => `${toBn(i + 1)}. ${l}`)
+        .map((l, i) => `${i + 1}. ${l}`)
         .join('\n'),
   },
   {
-    label: 'উল্টো দিক',
+    label: 'Reverse text',
     icon: ArrowLeftRight,
     fn: (t) => Array.from(t).reverse().join(''),
   },
@@ -139,54 +138,54 @@ export default function TextToolsTool() {
 
   const applyTransform = (fn: (t: string) => string, label: string) => {
     if (!text.trim()) {
-      toast({ title: 'লেখা খালি', description: 'আগে কিছু লিখুন, তারপর রূপান্তর করুন', variant: 'destructive' })
+      toast({ title: 'Text is empty', description: 'Type or paste some text first', variant: 'destructive' })
       return
     }
     setText((prev) => fn(prev))
-    toast({ title: 'রূপান্তর হয়েছে', description: label })
+    toast({ title: 'Transform applied', description: label })
   }
 
   const copyResult = async () => {
     if (!text.trim()) {
-      toast({ title: 'কপি করার মতো কিছু নেই', variant: 'destructive' })
+      toast({ title: 'Nothing to copy', variant: 'destructive' })
       return
     }
     try {
       await navigator.clipboard.writeText(text)
-      toast({ title: 'কপি হয়েছে', description: 'ফলাফল ক্লিপবোর্ডে কপি করা হয়েছে' })
+      toast({ title: 'Copied', description: 'Result copied to clipboard' })
     } catch {
-      toast({ title: 'কপি করা যায়নি', description: 'ব্রাউজার ক্লিপবোর্ড অনুমতি দিচ্ছে না', variant: 'destructive' })
+      toast({ title: 'Copy failed', description: 'Browser clipboard access was denied', variant: 'destructive' })
     }
   }
 
   const clearAll = () => {
     if (!text) return
     setText('')
-    toast({ title: 'সব মুছে ফেলা হয়েছে' })
+    toast({ title: 'Cleared' })
   }
 
   const chips = [
-    { label: 'অক্ষর', value: text.length, icon: Type },
-    { label: 'শব্দ', value: stats.words, icon: WholeWord },
-    { label: 'বাক্য', value: stats.sentences, icon: TextQuote },
-    { label: 'প্যারাগ্রাফ', value: stats.paragraphs, icon: Pilcrow },
+    { label: 'Characters', value: text.length, icon: Type },
+    { label: 'Words', value: stats.words, icon: WholeWord },
+    { label: 'Sentences', value: stats.sentences, icon: TextQuote },
+    { label: 'Paragraphs', value: stats.paragraphs, icon: Pilcrow },
   ]
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <Card>
         <CardHeader className="p-4 pb-3 sm:p-5 sm:pb-3">
-          <CardTitle className="text-base">আপনার লেখা দিন</CardTitle>
+          <CardTitle className="text-base">Enter your text</CardTitle>
           <CardDescription className="text-xs">
-            নিচের স্ট্যাটাস ও টুলগুলো লেখা লিখলেই সাথে সাথে আপডেট হয়
+            Stats and tools below update live as you type
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0 sm:p-5 sm:pt-0">
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="এখানে লিখুন বা পেস্ট করুন — বাংলা বা English দুটোই চলবে…"
-            aria-label="টেক্সট লেখার জায়গা"
+            placeholder="Type or paste your text here — any language works…"
+            aria-label="Text input"
             className="min-h-[140px] resize-y text-base leading-relaxed"
           />
 
@@ -195,12 +194,12 @@ export default function TextToolsTool() {
             {chips.map((c) => (
               <Badge key={c.label} variant="secondary" className="h-8 gap-1.5 px-3 text-xs font-medium">
                 <c.icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                {c.label}: <span className="font-bold">{toBn(c.value.toLocaleString('en-IN'))}</span>
+                {c.label}: <span className="font-bold">{c.value.toLocaleString('en-US')}</span>
               </Badge>
             ))}
             <Badge variant="secondary" className="h-8 gap-1.5 px-3 text-xs font-medium">
               <Timer className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-              পড়ার সময়: <span className="font-bold">{toBn(stats.readMins)} মিনিট</span>
+              Read time: <span className="font-bold">{stats.readMins} min</span>
             </Badge>
           </div>
         </CardContent>
@@ -208,7 +207,7 @@ export default function TextToolsTool() {
 
       <Card>
         <CardHeader className="p-4 pb-3 sm:p-5 sm:pb-3">
-          <CardTitle className="text-base">রূপান্তর টুলস</CardTitle>
+          <CardTitle className="text-base">Transform tools</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 p-4 pt-0 sm:p-5 sm:pt-0">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -229,18 +228,18 @@ export default function TextToolsTool() {
           <Separator />
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={copyResult} className="h-11 flex-1 gap-2 sm:flex-none sm:px-6" aria-label="ফলাফল কপি করুন">
+            <Button onClick={copyResult} className="h-11 flex-1 gap-2 sm:flex-none sm:px-6" aria-label="Copy result">
               <Copy className="h-4 w-4" aria-hidden="true" />
-              ফলাফল কপি
+              Copy Result
             </Button>
             <Button
               variant="destructive"
               onClick={clearAll}
               className="h-11 flex-1 gap-2 sm:flex-none sm:px-6"
-              aria-label="সব লেখা মুছে ফেলুন"
+              aria-label="Clear all text"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
-              সব মুছুন
+              Clear All
             </Button>
           </div>
         </CardContent>

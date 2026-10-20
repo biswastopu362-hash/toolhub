@@ -55,7 +55,7 @@ function tokenize(src: string): Tok[] {
       let j = i
       while (j < s.length && /[0-9.]/.test(s[j])) j++
       const n = parseFloat(s.slice(i, j))
-      if (!isFinite(n)) throw new Error('ভুল সংখ্যা')
+      if (!isFinite(n)) throw new Error('Invalid number')
       if (prevNeedsImplicitMul()) toks.push({ t: 'op', v: '*' })
       toks.push({ t: 'num', n })
       i = j
@@ -79,7 +79,7 @@ function tokenize(src: string): Tok[] {
         if (prevNeedsImplicitMul()) toks.push({ t: 'op', v: '*' })
         toks.push({ t: 'fn', v: w })
       } else {
-        throw new Error(`অজানা: ${w}`)
+        throw new Error(`Unknown: ${w}`)
       }
       continue
     }
@@ -117,7 +117,7 @@ function tokenize(src: string): Tok[] {
         toks.push({ t: 'op', v: '%' })
         break
       default:
-        throw new Error(`অজানা চিহ্ন: ${c}`)
+        throw new Error(`Unknown symbol: ${c}`)
     }
     i++
   }
@@ -161,7 +161,7 @@ function toRpn(toks: Tok[]): Tok[] {
           }
           out.push(top)
         }
-        if (!foundLp) throw new Error('বন্ধনী মেলেনি')
+        if (!foundLp) throw new Error('Mismatched parentheses')
         if (stack.length > 0 && stack[stack.length - 1].t === 'fn') out.push(stack.pop()!)
         break
       }
@@ -169,14 +169,14 @@ function toRpn(toks: Tok[]): Tok[] {
   }
   while (stack.length > 0) {
     const top = stack.pop()!
-    if (top.t === 'lp') throw new Error('বন্ধনী মেলেনি')
+    if (top.t === 'lp') throw new Error('Mismatched parentheses')
     out.push(top)
   }
   return out
 }
 
 function factorial(n: number): number {
-  if (n < 0 || !Number.isInteger(n)) throw new Error('ফ্যাক্টরিয়াল: পূর্ণসংখ্যা লাগবে')
+  if (n < 0 || !Number.isInteger(n)) throw new Error('Factorial: requires an integer')
   if (n > 170) return Infinity
   let r = 1
   for (let k = 2; k <= n; k++) r *= k
@@ -188,25 +188,25 @@ function evalRpn(rpn: Tok[], deg: boolean): number {
   const apply = (op: string) => {
     if (op === 'u-') {
       const a = st.pop()
-      if (a === undefined) throw new Error('ত্রুটি')
+      if (a === undefined) throw new Error('Error')
       st.push(-a)
       return
     }
     if (op === '!' || op === '%') {
       const a = st.pop()
-      if (a === undefined) throw new Error('ত্রুটি')
+      if (a === undefined) throw new Error('Error')
       st.push(op === '!' ? factorial(a) : a / 100)
       return
     }
     const b = st.pop()
     const a = st.pop()
-    if (a === undefined || b === undefined) throw new Error('ত্রুটি')
+    if (a === undefined || b === undefined) throw new Error('Error')
     switch (op) {
       case '+': st.push(a + b); break
       case '-': st.push(a - b); break
       case '*': st.push(a * b); break
       case '/':
-        if (b === 0) throw new Error('শূন্য দিয়ে ভাগ')
+        if (b === 0) throw new Error('Division by zero')
         st.push(a / b)
         break
       case '^': st.push(Math.pow(a, b)); break
@@ -226,22 +226,22 @@ function evalRpn(rpn: Tok[], deg: boolean): number {
         break
       case 'fn': {
         const a = st.pop()
-        if (a === undefined) throw new Error('ত্রুটি')
+        if (a === undefined) throw new Error('Error')
         const toRad = (x: number) => (deg ? (x * Math.PI) / 180 : x)
         switch (tok.v) {
           case 'sin': st.push(Math.sin(toRad(a))); break
           case 'cos': st.push(Math.cos(toRad(a))); break
           case 'tan': st.push(Math.tan(toRad(a))); break
           case 'log':
-            if (a <= 0) throw new Error('লগ: ধনাত্মক সংখ্যা লাগবে')
+            if (a <= 0) throw new Error('log: requires a positive number')
             st.push(Math.log10(a))
             break
           case 'ln':
-            if (a <= 0) throw new Error('ln: ধনাত্মক সংখ্যা লাগবে')
+            if (a <= 0) throw new Error('ln: requires a positive number')
             st.push(Math.log(a))
             break
           case 'sqrt':
-            if (a < 0) throw new Error('বর্গমূল: ঋণাত্মক সংখ্যা নয়')
+            if (a < 0) throw new Error('sqrt: negative number')
             st.push(Math.sqrt(a))
             break
           case 'abs': st.push(Math.abs(a)); break
@@ -250,9 +250,9 @@ function evalRpn(rpn: Tok[], deg: boolean): number {
       }
     }
   }
-  if (st.length !== 1) throw new Error('অসম্পূর্ণ এক্সপ্রেশন')
+  if (st.length !== 1) throw new Error('Incomplete expression')
   const r = st[0]
-  if (!isFinite(r)) throw new Error('সংখ্যাটি খুব বড়')
+  if (!isFinite(r)) throw new Error('Number too large')
   return r
 }
 
@@ -343,8 +343,8 @@ export default function CalculatorTool() {
           setDisplay(res)
         } catch (err) {
           toast({
-            title: 'হিসাব করা যায়নি',
-            description: err instanceof Error ? err.message : 'এক্সপ্রেশনটি পরীক্ষা করুন',
+            title: 'Could not calculate',
+            description: err instanceof Error ? err.message : 'Check the expression',
             variant: 'destructive',
           })
         }
@@ -462,9 +462,9 @@ export default function CalculatorTool() {
             <div
               className="min-h-[28px] break-all font-mono text-lg text-muted-foreground"
               aria-live="polite"
-              aria-label="এক্সপ্রেশন"
+              aria-label="Expression"
             >
-              {display || <span className="opacity-40">০</span>}
+              {display || <span className="opacity-40">0</span>}
             </div>
             <div className="mt-1 min-h-[34px] break-all font-mono text-2xl font-bold text-foreground">
               {preview !== null && preview !== display ? (
@@ -478,7 +478,7 @@ export default function CalculatorTool() {
           {/* Mode + history toggle */}
           <div className="mt-3 flex items-center justify-between">
             <Badge variant="outline" className="gap-1">
-              {deg ? 'ডিগ্রি (DEG)' : 'রেডিয়ান (RAD)'}
+              {deg ? 'Degrees (DEG)' : 'Radians (RAD)'}
             </Badge>
             <div className="flex gap-1">
               <Button
@@ -489,7 +489,7 @@ export default function CalculatorTool() {
                 className="gap-1.5 text-muted-foreground"
               >
                 <History className="h-4 w-4" />
-                ইতিহাস
+                History
               </Button>
               {history.length > 0 && (
                 <Button
@@ -499,7 +499,7 @@ export default function CalculatorTool() {
                     setHistory([])
                     localStorage.removeItem(HISTORY_KEY)
                   }}
-                  aria-label="ইতিহাস মুছুন"
+                  aria-label="Clear history"
                   className="text-muted-foreground"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -512,7 +512,7 @@ export default function CalculatorTool() {
           {showHistory && (
             <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border bg-muted/30 p-2">
               {history.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">এখনো কোনো হিসাব নেই</p>
+                <p className="py-4 text-center text-xs text-muted-foreground">No calculations yet</p>
               ) : (
                 <ul className="space-y-1">
                   {history.map((h, i) => (
@@ -532,7 +532,7 @@ export default function CalculatorTool() {
           )}
 
           {/* Keypad */}
-          <div className="mt-3 grid grid-cols-5 gap-1.5 sm:gap-2" role="group" aria-label="ক্যালকুলেটর কিপ্যাড">
+          <div className="mt-3 grid grid-cols-5 gap-1.5 sm:gap-2" role="group" aria-label="Calculator keypad">
             {keys.flat().map((k, i) => (
               <Button
                 key={`${k.key}-${i}`}
@@ -552,7 +552,7 @@ export default function CalculatorTool() {
           </div>
 
           <p className="mt-3 text-center text-[11px] text-muted-foreground">
-            কীবোর্ড দিয়েও লেখা যায় — সংখ্যা, + − * / ^ ( ) %, Enter = হিসাব, Esc = মুছুন
+            You can also type with a keyboard — digits, + − * / ^ ( ) %, Enter = calculate, Esc = clear
           </p>
         </CardContent>
       </Card>

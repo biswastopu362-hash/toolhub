@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Copy, KeyRound, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { toBn } from '@/lib/bn'
 import { useToast } from '@/hooks/use-toast'
 
 /* ================================================================== */
@@ -76,10 +75,10 @@ function generatePassword(length: number, o: PwOptions): string {
 /* ================================================================== */
 
 const LEVELS = [
-  { label: 'দুর্বল', bar: 'bg-red-500', text: 'text-red-600 dark:text-red-400' },
-  { label: 'মোট', bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
-  { label: 'ভাল', bar: 'bg-lime-500', text: 'text-lime-600 dark:text-lime-400' },
-  { label: 'দুর্দান্ত', bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+  { label: 'Weak', bar: 'bg-red-500', text: 'text-red-600 dark:text-red-400' },
+  { label: 'Fair', bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
+  { label: 'Good', bar: 'bg-lime-500', text: 'text-lime-600 dark:text-lime-400' },
+  { label: 'Excellent', bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
 ] as const
 
 function strengthLevel(entropy: number): 0 | 1 | 2 | 3 {
@@ -89,24 +88,39 @@ function strengthLevel(entropy: number): 0 | 1 | 2 | 3 {
   return 3
 }
 
-/** Rough offline-attack estimate (~10^10 guesses/sec) in Bengali */
+/** Rough offline-attack estimate (~10^10 guesses/sec) */
 function crackTimeText(entropy: number): string {
   if (!isFinite(entropy) || entropy <= 0) return '—'
   const seconds = Math.pow(2, entropy) / 2 / 1e10
-  if (seconds < 1) return 'তাৎক্ষণিকভাবে'
-  if (seconds < 60) return `প্রায় ${toBn(Math.max(1, Math.round(seconds)))} সেকেন্ড`
+  if (seconds < 1) return 'instantly'
+  if (seconds < 60) {
+    const n = Math.max(1, Math.round(seconds))
+    return `about ${n} second${n === 1 ? '' : 's'}`
+  }
   const minutes = seconds / 60
-  if (minutes < 60) return `প্রায় ${toBn(Math.round(minutes))} মিনিট`
+  if (minutes < 60) {
+    const n = Math.round(minutes)
+    return `about ${n} minute${n === 1 ? '' : 's'}`
+  }
   const hours = minutes / 60
-  if (hours < 24) return `প্রায় ${toBn(Math.round(hours))} ঘণ্টা`
+  if (hours < 24) {
+    const n = Math.round(hours)
+    return `about ${n} hour${n === 1 ? '' : 's'}`
+  }
   const days = hours / 24
-  if (days < 365) return `প্রায় ${toBn(Math.round(days))} দিন`
+  if (days < 365) {
+    const n = Math.round(days)
+    return `about ${n} day${n === 1 ? '' : 's'}`
+  }
   const years = days / 365.25
-  if (years < 100) return `প্রায় ${toBn(Math.round(years))} বছর`
-  if (years < 10_000) return 'শত শত বছর'
-  if (years < 1_000_000) return 'হাজার হাজার বছর'
-  if (years < 1e9) return 'লক্ষ লক্ষ বছর'
-  return 'কোটি কোটি বছর'
+  if (years < 100) {
+    const n = Math.round(years)
+    return `about ${n} year${n === 1 ? '' : 's'}`
+  }
+  if (years < 10_000) return 'hundreds of years'
+  if (years < 1_000_000) return 'thousands of years'
+  if (years < 1e9) return 'millions of years'
+  return 'billions of years'
 }
 
 /* ================================================================== */
@@ -114,11 +128,11 @@ function crackTimeText(entropy: number): string {
 /* ================================================================== */
 
 const CHECK_ITEMS: { key: keyof PwOptions; label: string; hint: string }[] = [
-  { key: 'upper', label: 'বড় হাতের অক্ষর', hint: 'A-Z' },
-  { key: 'lower', label: 'ছোট হাতের অক্ষর', hint: 'a-z' },
-  { key: 'digits', label: 'সংখ্যা', hint: '0-9' },
-  { key: 'symbols', label: 'প্রতীক', hint: '!@#$…' },
-  { key: 'noConfusable', label: 'বিভ্রান্তিকর অক্ষর বাদ দিন', hint: 'i l 1 L O 0 o' },
+  { key: 'upper', label: 'Uppercase letters', hint: 'A-Z' },
+  { key: 'lower', label: 'Lowercase letters', hint: 'a-z' },
+  { key: 'digits', label: 'Digits', hint: '0-9' },
+  { key: 'symbols', label: 'Symbols', hint: '!@#$…' },
+  { key: 'noConfusable', label: 'Exclude confusing characters', hint: 'i l 1 L O 0 o' },
 ]
 
 export default function PasswordGeneratorTool() {
@@ -155,11 +169,11 @@ export default function PasswordGeneratorTool() {
       if (!text) return
       try {
         await navigator.clipboard.writeText(text)
-        toast({ title: 'কপি হয়েছে ✓', description: 'ক্লিপবোর্ডে সংরক্ষিত হয়েছে' })
+        toast({ title: 'Copied ✓', description: 'Saved to your clipboard' })
       } catch {
         toast({
-          title: 'কপি করা যায়নি',
-          description: 'লেখাটি সিলেক্ট করে ম্যানুয়ালি কপি করুন',
+          title: 'Copy failed',
+          description: 'Select the text and copy it manually',
           variant: 'destructive',
         })
       }
@@ -185,11 +199,11 @@ export default function PasswordGeneratorTool() {
           <div className="flex items-center justify-between">
             <Badge variant="outline" className="gap-1.5">
               <KeyRound className="h-3.5 w-3.5" />
-              দৈর্ঘ্য: {toBn(length)}
+              Length: {length}
             </Badge>
             {password && !noCharset && (
               <span className="text-xs text-muted-foreground">
-                এনট্রপি: {toBn(Math.round(entropy))} বিট
+                Entropy: {Math.round(entropy)} bits
               </span>
             )}
           </div>
@@ -199,7 +213,7 @@ export default function PasswordGeneratorTool() {
             <p
               className="min-h-[2rem] flex-1 break-all font-mono text-lg font-semibold sm:text-xl"
               aria-live="polite"
-              aria-label="তৈরি করা পাসওয়ার্ড"
+              aria-label="Generated password"
             >
               {password || <span className="font-normal opacity-40">…</span>}
             </p>
@@ -209,7 +223,7 @@ export default function PasswordGeneratorTool() {
               className="size-11 shrink-0"
               onClick={() => copy(password)}
               disabled={!password}
-              aria-label="পাসওয়ার্ড কপি করুন"
+              aria-label="Copy password"
             >
               <Copy className="h-4 w-4" />
             </Button>
@@ -220,15 +234,15 @@ export default function PasswordGeneratorTool() {
             onClick={handleGenerate}
             disabled={noCharset}
             className="h-11 w-full text-base sm:h-10"
-            aria-label="নতুন পাসওয়ার্ড তৈরি করুন"
+            aria-label="Generate a new password"
           >
             <RefreshCw className="h-4 w-4" />
-            নতুন পাসওয়ার্ড
+            New Password
           </Button>
 
           {/* Strength meter */}
           {password && !noCharset && (
-            <div aria-label="পাসওয়ার্ডের শক্তি">
+            <div aria-label="Password strength">
               <div className="flex gap-1">
                 {[0, 1, 2, 3].map((i) => (
                   <div
@@ -242,7 +256,7 @@ export default function PasswordGeneratorTool() {
                 ))}
               </div>
               <p className={cn('mt-1.5 text-xs font-medium', LEVELS[level].text)}>
-                শক্তি: {LEVELS[level].label} — ভেঙে ফেলতে লাগবে {crackTimeText(entropy)}
+                Strength: {LEVELS[level].label} — takes {crackTimeText(entropy)} to crack
               </p>
             </div>
           )}
@@ -251,9 +265,9 @@ export default function PasswordGeneratorTool() {
           {noCharset && (
             <Alert variant="destructive">
               <ShieldAlert className="h-4 w-4" />
-              <AlertTitle>কোনো অক্ষর নির্বাচিত নয়</AlertTitle>
+              <AlertTitle>No character set selected</AlertTitle>
               <AlertDescription>
-                পাসওয়ার্ড তৈরি করতে অন্তত একটি সেট (A-Z, a-z, 0-9 বা প্রতীক) বেছে নিন।
+                Pick at least one set (A-Z, a-z, 0-9, or symbols) to generate a password.
               </AlertDescription>
             </Alert>
           )}
@@ -261,12 +275,12 @@ export default function PasswordGeneratorTool() {
           {/* Length slider */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">দৈর্ঘ্য</Label>
+              <Label className="text-sm font-medium">Length</Label>
               <span
                 className="rounded-md bg-muted px-2 py-0.5 font-mono text-sm font-semibold"
-                aria-label={`বর্তমান দৈর্ঘ্য ${toBn(length)}`}
+                aria-label={`Current length ${length}`}
               >
-                {toBn(length)}
+                {length}
               </span>
             </div>
             <Slider
@@ -275,17 +289,17 @@ export default function PasswordGeneratorTool() {
               step={1}
               value={[length]}
               onValueChange={(v) => setLength(v[0] ?? length)}
-              aria-label="পাসওয়ার্ডের দৈর্ঘ্য নির্বাচন করুন"
+              aria-label="Select password length"
             />
             <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>{toBn(6)}</span>
-              <span>{toBn(64)}</span>
+              <span>6</span>
+              <span>64</span>
             </div>
           </div>
 
           {/* Charset checkboxes */}
           <fieldset>
-            <legend className="sr-only">অক্ষরের সেট</legend>
+            <legend className="sr-only">Character sets</legend>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {CHECK_ITEMS.map((item) => (
                 <Label
@@ -308,16 +322,16 @@ export default function PasswordGeneratorTool() {
           {history.length > 0 && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">সাম্প্রতিক ({toBn(history.length)})</p>
+                <p className="text-sm font-medium">Recent ({history.length})</p>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-9 gap-1 text-muted-foreground"
                   onClick={() => setHistory([])}
-                  aria-label="সাম্প্রতিক পাসওয়ার্ডের তালিকা মুছুন"
+                  aria-label="Clear recent passwords"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  মুছুন
+                  Clear
                 </Button>
               </div>
               <ul className="max-h-40 space-y-1 overflow-y-auto rounded-xl border bg-muted/30 p-2">
@@ -327,7 +341,7 @@ export default function PasswordGeneratorTool() {
                       type="button"
                       onClick={() => setPassword(pw)}
                       className="min-h-11 flex-1 truncate rounded-lg px-2 text-left font-mono text-sm transition-colors hover:bg-accent"
-                      aria-label={`পাসওয়ার্ড নির্বাচন করুন (${toBn(i + 1)} নম্বর)`}
+                      aria-label={`Select password ${i + 1}`}
                     >
                       {pw}
                     </button>
@@ -336,7 +350,7 @@ export default function PasswordGeneratorTool() {
                       size="icon"
                       className="size-11 shrink-0"
                       onClick={() => copy(pw)}
-                      aria-label={`পাসওয়ার্ড ${toBn(i + 1)} কপি করুন`}
+                      aria-label={`Copy password ${i + 1}`}
                     >
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
@@ -344,7 +358,7 @@ export default function PasswordGeneratorTool() {
                 ))}
               </ul>
               <p className="text-[11px] text-muted-foreground">
-                যেকোনো পাসওয়ার্ডে ক্লিক করলে সেটি উপরের বক্সে নির্বাচিত হবে।
+                Click any password to select it in the box above.
               </p>
             </div>
           )}

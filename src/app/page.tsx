@@ -1,34 +1,25 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useTheme } from 'next-themes'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft,
-  Compass,
-  Heart,
-  Laptop,
-  Moon,
+  Battery,
+  BatteryCharging,
+  BatteryFull,
+  BatteryLow,
+  BatteryMedium,
+  Folder,
   Search,
   SearchX,
-  Share2,
-  Smartphone,
-  Sparkles,
   Star,
-  Sun,
   WifiOff,
-  Wrench,
   X,
-  Zap,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
-import { useToast } from '@/hooks/use-toast'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useHydrated } from '@/hooks/use-hydrated'
-import { useAppStore } from '@/lib/store/app-store'
+import { useAppStore, type WallpaperId } from '@/lib/store/app-store'
 import {
   getToolById,
   searchTools,
@@ -37,54 +28,267 @@ import {
   type Tool,
   type ToolCategoryId,
 } from '@/lib/tools/registry'
-import { toBn } from '@/lib/bn'
-import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { cn } from '@/lib/utils'
 
 /* ================================================================== */
-/* Page — the whole app lives on this single route (#/tool/<id> views) */
+/* Constants                                                           */
+/* ================================================================== */
+
+const DOCK_IDS = ['calculator', 'clock', 'weather', 'notes']
+
+const WALLPAPER_CLASS: Record<WallpaperId, string> = {
+  sunset: 'wp-sunset',
+  ocean: 'wp-ocean',
+  forest: 'wp-forest',
+  midnight: 'wp-midnight',
+}
+
+/* ================================================================== */
+/* Page — the whole "phone OS" lives on this single route              */
+/* Home: #/        App: #/app/<id> (legacy #/tool/<id> also works)     */
 /* ================================================================== */
 
 export default function Home() {
   const [hash, navigate] = useHashRoute()
+  const hydrated = useHydrated()
+  const wallpaper = useAppStore((s) => s.wallpaper)
 
-  const toolId = hash.startsWith('#/tool/') ? decodeURIComponent(hash.replace('#/tool/', '')) : null
-  const tool = getToolById(toolId)
+  const appId = useMemo(() => {
+    if (hash.startsWith('#/app/')) return decodeURIComponent(hash.replace('#/app/', ''))
+    if (hash.startsWith('#/tool/')) return decodeURIComponent(hash.replace('#/tool/', ''))
+    return null
+  }, [hash])
 
-  const { addRecent } = useAppStore()
+  const app = getToolById(appId)
+  const showApp = hydrated && Boolean(app)
+  const wallpaperId = hydrated ? wallpaper : 'sunset'
 
-  const openTool = (id: string) => {
-    addRecent(id)
-    navigate(`#/tool/${id}`)
-  }
+  const openApp = useCallback(
+    (id: string) => {
+      useAppStore.getState().addRecent(id)
+      navigate(`#/app/${id}`)
+    },
+    [navigate]
+  )
+
+  const goHome = useCallback(() => navigate('#/'), [navigate])
+
+  const [spotlightOpen, setSpotlightOpen] = useState(false)
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header onHome={() => navigate('#/')} />
+    <div
+      className={cn(
+        'wallpaper relative h-dvh w-full overflow-hidden',
+        WALLPAPER_CLASS[wallpaperId] ?? WALLPAPER_CLASS.sunset
+      )}
+    >
+      {/* subtle vignette for depth */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/10" />
 
-      <main className="flex-1 w-full">
-        {tool ? (
-          <ToolView tool={tool} onBack={() => navigate('#/')} onOpen={openTool} />
-        ) : (
-          <HomeView onOpen={openTool} />
+      <HomeScreen onOpenApp={openApp} onOpenSearch={() => setSpotlightOpen(true)} />
+
+      {/* Spotlight search overlay */}
+      <AnimatePresence>
+        {spotlightOpen && (
+          <Spotlight
+            key="spotlight"
+            onOpenApp={(id) => {
+              setSpotlightOpen(false)
+              openApp(id)
+            }}
+            onClose={() => setSpotlightOpen(false)}
+          />
         )}
-      </main>
+      </AnimatePresence>
 
-      <AppFooter />
+      {/* Full-screen app window with iOS-like zoom transition */}
+      <AnimatePresence>
+        {showApp && app && (
+          <AppWindow key={app.id} app={app} onHome={goHome} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
 
 /* ================================================================== */
-/* Header                                                              */
+/* Home screen: status bar + pages + dots + dock                       */
 /* ================================================================== */
 
-function Header({ onHome }: { onHome: () => void }) {
-  const { theme, setTheme } = useTheme()
-  const hydrated = useHydrated()
+function HomeScreen({
+  onOpenApp,
+  onOpenSearch,
+}: {
+  onOpenApp: (id: string) => void
+  onOpenSearch: () => void
+}) {
+  const pagesRef = useRef<HTMLDivElement>(null)
+  const grid = useGridMetrics(pagesRef)
+  const [activePage, setActivePage] = useState(0)
+  const [openFolder, setOpenFolder] = useState<ToolCategoryId | null>(null)
+
+  const capacity = grid.cols * grid.rows
+
+  const pages = useMemo(() => {
+    const out: Tool[][] = []
+    for (let i = 0; i < tools.length; i += capacity) out.push(tools.slice(i, i + capacity))
+    return out
+  }, [capacity])
+
+  const dockApps = useMemo(
+    () => DOCK_IDS.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t)),
+    []
+  )
+
+  const pageCount = pages.length + 1 // + App Library page
+
+  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    setActivePage(Math.max(0, Math.round(el.scrollLeft / Math.max(1, el.clientWidth))))
+  }, [])
+
+  const scrollToPage = useCallback(
+    (index: number) => {
+      const el = pagesRef.current
+      if (!el) return
+      el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
+    },
+    []
+  )
+
+  return (
+    <>
+      <StatusBar onOpenSearch={onOpenSearch} />
+
+      {/* Pages (horizontal scroll-snap) */}
+      <div
+        ref={pagesRef}
+        onScroll={onScroll}
+        className="no-scrollbar absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden pb-32 pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.5rem))]"
+        aria-label="Home screen pages"
+      >
+        {pages.map((pageApps, i) => (
+          <section
+            key={`page-${i}`}
+            aria-label={`Page ${i + 1}`}
+            className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
+          >
+            <div
+              className="grid content-start justify-items-center gap-x-1 gap-y-4 pt-2"
+              style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
+            >
+              {pageApps.map((t) => (
+                <AppIcon key={t.id} tool={t} onOpen={() => onOpenApp(t.id)} />
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {/* App Library page — always the last page */}
+        <section
+          aria-label="App Library"
+          className="h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
+        >
+          <AppLibrary onOpenApp={onOpenApp} onOpenFolder={setOpenFolder} />
+        </section>
+      </div>
+
+      {/* Page dots */}
+      <div className="absolute inset-x-0 bottom-28 z-20 flex justify-center gap-2">
+        {Array.from({ length: pageCount }).map((_, i) => (
+          <button
+            key={i}
+            onClick={() => scrollToPage(i)}
+            aria-label={`Go to page ${i + 1}`}
+            aria-current={activePage === i}
+            className="p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-full"
+          >
+            <span
+              className={cn(
+                'block h-1.5 w-1.5 rounded-full transition-colors',
+                activePage === i ? 'bg-white' : 'bg-white/40 hover:bg-white/60'
+              )}
+            />
+          </button>
+        ))}
+      </div>
+
+      {/* Dock */}
+      <div className="absolute inset-x-0 bottom-0 z-20 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto w-fit max-w-[calc(100%-2rem)] rounded-[1.75rem] bg-white/15 px-4 py-3 shadow-lg ring-1 ring-white/25 backdrop-blur-xl">
+          <div className="flex gap-6">
+            {dockApps.map((t) => (
+              <AppIcon key={`dock-${t.id}`} tool={t} onOpen={() => onOpenApp(t.id)} noLabel />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Folder overlay — lives OUTSIDE the scroll container so it covers the screen */}
+      <AnimatePresence>
+        {openFolder && (
+          <FolderOverlay
+            key="folder"
+            categoryId={openFolder}
+            onOpenApp={(id) => {
+              setOpenFolder(null)
+              onOpenApp(id)
+            }}
+            onClose={() => setOpenFolder(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  )
+}
+
+/* ================================================================== */
+/* Grid metrics — responsive cols/rows via ResizeObserver              */
+/* ================================================================== */
+
+function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>) {
+  const [grid, setGrid] = useState({ cols: 4, rows: 4 })
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => {
+      const cols = Math.min(8, Math.max(4, Math.floor((el.clientWidth - 40) / 92)))
+      const rows = Math.min(5, Math.max(2, Math.floor((el.clientHeight - 176) / 106)))
+      setGrid((g) => (g.cols === cols && g.rows === rows ? g : { cols, rows }))
+    }
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ref])
+
+  return grid
+}
+
+/* ================================================================== */
+/* Status bar — live clock, battery, online state, search              */
+/* ================================================================== */
+
+function StatusBar({ onOpenSearch }: { onOpenSearch: () => void }) {
+  const [time, setTime] = useState<string | null>(null)
   const [online, setOnline] = useState(() =>
     typeof window !== 'undefined' ? navigator.onLine : true
   )
+  const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null)
+
+  useEffect(() => {
+    const update = () =>
+      setTime(
+        new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+      )
+    update()
+    const id = setInterval(update, 15_000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     const goOnline = () => setOnline(true)
@@ -97,529 +301,447 @@ function Header({ onHome }: { onHome: () => void }) {
     }
   }, [])
 
-  return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
-        <button
-          onClick={onHome}
-          className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="টুলহাব হোম"
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
-            <Wrench className="h-5 w-5" />
-          </span>
-          <span className="flex flex-col items-start leading-none">
-            <span className="text-lg font-bold tracking-tight">টুলহাব</span>
-            <span className="text-[10px] font-medium text-muted-foreground">ALL-IN-ONE TOOLBOX</span>
-          </span>
-        </button>
+  useEffect(() => {
+    interface BatteryLike extends EventTarget {
+      level: number
+      charging: boolean
+      addEventListener: (type: string, cb: () => void) => void
+      removeEventListener: (type: string, cb: () => void) => void
+    }
+    let active = true
+    let battery: BatteryLike | null = null
+    const sync = () => {
+      if (battery && active) setBattery({ level: battery.level, charging: battery.charging })
+    }
+    if ('getBattery' in navigator) {
+      ;(navigator as unknown as { getBattery: () => Promise<BatteryLike> })
+        .getBattery()
+        .then((b) => {
+          battery = b
+          sync()
+          b.addEventListener('levelchange', sync)
+          b.addEventListener('chargingchange', sync)
+        })
+        .catch(() => {})
+    }
+    return () => {
+      active = false
+      if (battery) {
+        battery.removeEventListener('levelchange', sync)
+        battery.removeEventListener('chargingchange', sync)
+      }
+    }
+  }, [])
 
-        <div className="flex items-center gap-2">
-          {!online && (
-            <Badge variant="outline" className="gap-1 border-amber-500/50 text-amber-600 dark:text-amber-400">
-              <WifiOff className="h-3 w-3" />
-              অফলাইন
-            </Badge>
-          )}
-          {hydrated && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="থিম পরিবর্তন করুন"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            >
-              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </Button>
-          )}
-          <InstallAppButton />
-        </div>
+  return (
+    <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-6 pb-2 pt-[max(0.9rem,env(safe-area-inset-top))] text-sm font-semibold text-white drop-shadow-md">
+      <time suppressHydrationWarning>{time ?? '--:--'}</time>
+
+      <div className="flex items-center gap-3">
+        {!online && (
+          <span className="flex items-center gap-1" title="Offline">
+            <WifiOff className="h-4 w-4" aria-label="Offline" />
+          </span>
+        )}
+        {battery && (
+          <span className="flex items-center gap-1 tabular-nums">
+            <span className="text-xs">{Math.round(battery.level * 100)}%</span>
+            <BatteryGlyph level={battery.level} charging={battery.charging} />
+          </span>
+        )}
+        <button
+          onClick={onOpenSearch}
+          aria-label="Search apps"
+          className="rounded-full p-1 transition-colors hover:bg-white/15 active:scale-90"
+        >
+          <Search className="h-[18px] w-[18px]" />
+        </button>
       </div>
     </header>
   )
 }
 
+function BatteryGlyph({ level, charging }: { level: number; charging: boolean }) {
+  if (charging) return <BatteryCharging className="h-4.5 w-4.5" />
+  if (level > 0.75) return <BatteryFull className="h-4.5 w-4.5" />
+  if (level > 0.35) return <BatteryMedium className="h-4.5 w-4.5" />
+  return <BatteryLow className="h-4.5 w-4.5" />
+}
+
 /* ================================================================== */
-/* Home view                                                           */
+/* App icon                                                            */
 /* ================================================================== */
 
-function HomeView({ onOpen }: { onOpen: (id: string) => void }) {
-  const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<ToolCategoryId | 'all'>('all')
-  const hydrated = useHydrated()
-
-  const favorites = useAppStore((s) => s.favorites)
-  const recents = useAppStore((s) => s.recents)
-  const toggleFavorite = useAppStore((s) => s.toggleFavorite)
-
-  const results = useMemo(() => searchTools(query, category), [query, category])
-  const favTools = useMemo(
-    () => (hydrated ? toolsInOrder(favorites) : []),
-    [favorites, hydrated]
-  )
-  const recentTools = useMemo(
-    () => (hydrated ? toolsInOrder(recents) : []),
-    [recents, hydrated]
-  )
-
-  const searching = query.trim().length > 0
-
-  return (
-    <div className="mx-auto max-w-6xl px-4 pb-10">
-      {/* ---------------- Hero ---------------- */}
-      <section className="relative mt-4 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-800 text-white shadow-lg sm:mt-6">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-20 left-1/4 h-56 w-56 rounded-full bg-amber-300/20 blur-3xl"
-        />
-        <div className="relative z-10 flex flex-col gap-6 p-6 sm:p-10 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-xl space-y-3">
-            <Badge className="bg-white/15 text-white backdrop-blur hover:bg-white/15">
-              <Sparkles className="h-3 w-3" />
-              প্রগ্রেসিভ ওয়েব অ্যাপ
-            </Badge>
-            <h1 className="text-2xl font-bold leading-snug sm:text-3xl md:text-4xl">
-              সব কাজের এক সুপার অ্যাপ
-            </h1>
-            <p className="text-sm text-emerald-50/90 sm:text-base">
-              ল্যাপটপ, মোবাইল বা কম্পিউটার — প্রতিদিনের প্রয়োজনীয় সব টুল এক জায়গায়।
-              ইনস্টল করুন আর ইন্টারনেট ছাড়াও চালান।
-            </p>
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <HeroChip icon={Zap} label={`${toBn(tools.length)}+ টুল`} />
-              <HeroChip icon={Laptop} label="সব ডিভাইসে" />
-              <HeroChip icon={Smartphone} label="অফলাইনেও চলে" />
-            </div>
-          </div>
-          <div className="flex flex-col items-start gap-3 md:items-end">
-            <InstallAppButton className="h-11 rounded-xl bg-white px-5 text-sm font-semibold text-emerald-800 shadow hover:bg-emerald-50" />
-            <p className="text-xs text-emerald-100/80">হোম স্ক্রিনে অ্যাপের মতো ইনস্টল হবে</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- Search ---------------- */}
-      <section className="mt-6" aria-label="টুল খুঁজুন">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="টুল খুঁজুন… যেমন: ক্যালকুলেটর, QR, পাসওয়ার্ড"
-            className="h-12 rounded-2xl border-border bg-card pl-12 pr-11 text-base shadow-sm"
-            aria-label="টুল সার্চ"
-          />
-          {searching && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full"
-              onClick={() => setQuery('')}
-              aria-label="সার্চ মুছুন"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-
-        {/* Category chips */}
-        <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="ক্যাটাগরি">
-          <CategoryChip
-            active={category === 'all'}
-            label={`সব (${toBn(tools.length)})`}
-            onClick={() => setCategory('all')}
-          />
-          {toolCategories.map((c) => (
-            <CategoryChip
-              key={c.id}
-              active={category === c.id}
-              label={`${c.nameBn} (${toBn(tools.filter((t) => t.category === c.id).length)})`}
-              onClick={() => setCategory(c.id)}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* ---------------- Favorites ---------------- */}
-      {favTools.length > 0 && !searching && category === 'all' && (
-        <HomeSection
-          icon={<Heart className="h-4 w-4 fill-rose-500 text-rose-500" />}
-          title="প্রিয় টুল"
-        >
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {favTools.map((t) => (
-              <ToolCard
-                key={`fav-${t.id}`}
-                tool={t}
-                isFav
-                onToggleFav={() => toggleFavorite(t.id)}
-                onOpen={() => onOpen(t.id)}
-              />
-            ))}
-          </div>
-        </HomeSection>
-      )}
-
-      {/* ---------------- Recents ---------------- */}
-      {recentTools.length > 0 && !searching && category === 'all' && (
-        <HomeSection
-          icon={<Compass className="h-4 w-4 text-teal-600" />}
-          title="সাম্প্রতিক ব্যবহার"
-        >
-          <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
-            {recentTools.map((t) => (
-              <button
-                key={`recent-${t.id}`}
-                onClick={() => onOpen(t.id)}
-                className="flex min-w-[150px] max-w-[150px] shrink-0 flex-col items-start gap-2 rounded-2xl border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span
-                  className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br text-white',
-                    t.gradient
-                  )}
-                >
-                  <t.icon className="h-4.5 w-4.5" />
-                </span>
-                <span className="w-full truncate text-sm font-semibold">{t.nameBn}</span>
-                <span className="w-full truncate text-[11px] text-muted-foreground">{t.nameEn}</span>
-              </button>
-            ))}
-          </div>
-        </HomeSection>
-      )}
-
-      {/* ---------------- Results ---------------- */}
-      {results.length === 0 ? (
-        <EmptyState query={query} />
-      ) : searching || category !== 'all' ? (
-        <HomeSection icon={<Search className="h-4 w-4 text-muted-foreground" />} title={searching ? `"${query}" — ${toBn(results.length)} টি ফলাফল` : undefined}>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-            {results.map((t) => (
-              <ToolCard
-                key={t.id}
-                tool={t}
-                isFav={hydrated && favorites.includes(t.id)}
-                onToggleFav={() => toggleFavorite(t.id)}
-                onOpen={() => onOpen(t.id)}
-              />
-            ))}
-          </div>
-        </HomeSection>
-      ) : (
-        toolCategories
-          .map((c) => ({ cat: c, items: results.filter((t) => t.category === c.id) }))
-          .filter(({ items }) => items.length > 0)
-          .map(({ cat, items }) => (
-            <HomeSection
-              key={cat.id}
-              icon={<cat.icon className="h-4 w-4 text-primary" />}
-              title={cat.nameBn}
-              subtitle={cat.nameEn}
-            >
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-                {items.map((t) => (
-                  <ToolCard
-                    key={t.id}
-                    tool={t}
-                    isFav={hydrated && favorites.includes(t.id)}
-                    onToggleFav={() => toggleFavorite(t.id)}
-                    onOpen={() => onOpen(t.id)}
-                  />
-                ))}
-              </div>
-            </HomeSection>
-          ))
-      )}
-    </div>
-  )
-}
-
-function HomeSection({
-  icon,
-  title,
-  subtitle,
-  children,
+function AppIcon({
+  tool,
+  onOpen,
+  noLabel = false,
 }: {
-  icon: React.ReactNode
-  title?: string
-  subtitle?: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="mt-8">
-      {title && (
-        <div className="mb-3 flex items-center gap-2">
-          {icon}
-          <h2 className="text-base font-semibold sm:text-lg">{title}</h2>
-          {subtitle && <span className="text-xs text-muted-foreground">· {subtitle}</span>}
-        </div>
-      )}
-      {children}
-    </section>
-  )
-}
-
-function HeroChip({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur">
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </span>
-  )
-}
-
-function CategoryChip({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean
-  label: string
-  onClick: () => void
+  tool: Tool
+  onOpen: () => void
+  noLabel?: boolean
 }) {
   return (
     <button
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        'shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium transition-colors sm:text-sm',
-        active
-          ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-          : 'border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-      )}
+      onClick={onOpen}
+      aria-label={`Open ${tool.name}`}
+      className="group flex w-full flex-col items-center gap-1.5 rounded-2xl p-1 transition-transform duration-150 ease-out hover:scale-[1.04] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
     >
-      {label}
+      <span
+        className={cn(
+          'flex size-[60px] items-center justify-center rounded-[1.15rem] bg-gradient-to-br text-white shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(255,255,255,0.35)] ring-1 ring-white/20 sm:size-[66px] sm:rounded-[1.3rem]',
+          tool.gradient
+        )}
+      >
+        <tool.icon className="h-[52%] w-[52%]" strokeWidth={1.9} aria-hidden />
+      </span>
+      {!noLabel && (
+        <span className="max-w-[88px] truncate text-[11px] font-medium leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] sm:text-xs">
+          {tool.name}
+        </span>
+      )}
     </button>
   )
 }
 
-function EmptyState({ query }: { query: string }) {
+/* ================================================================== */
+/* Spotlight search overlay                                            */
+/* ================================================================== */
+
+function Spotlight({
+  onOpenApp,
+  onClose,
+}: {
+  onOpenApp: (id: string) => void
+  onClose: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const hydrated = useHydrated()
+  const recents = useAppStore((s) => s.recents)
+
+  const results = useMemo(() => searchTools(query, 'all'), [query])
+  const recentTools = useMemo(
+    () =>
+      hydrated
+        ? recents.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t))
+        : [],
+    [recents, hydrated]
+  )
+  const searching = query.trim().length > 0
+
+  const list = searching ? results : tools
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') onClose()
+    if (e.key === 'Enter' && list.length > 0) onOpenApp(list[0].id)
+  }
+
   return (
-    <div className="mt-16 flex flex-col items-center gap-3 text-center">
-      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
-        <SearchX className="h-8 w-8 text-muted-foreground" />
-      </span>
-      <p className="font-semibold">&ldquo;{query}&rdquo; নামে কোনো টুল পাওয়া যায়নি</p>
-      <p className="max-w-sm text-sm text-muted-foreground">
-        বানান পরীক্ষা করুন বা অন্য কিছু লিখে খুঁজুন। প্রতি সপ্তাহে নতুন টুল যোগ হচ্ছে!
-      </p>
+    <motion.div
+      initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+      animate={{ opacity: 1, backdropFilter: 'blur(24px)' }}
+      exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+      transition={{ duration: 0.22 }}
+      className="absolute inset-0 z-40 flex flex-col bg-black/40 px-4 pt-[max(3rem,calc(env(safe-area-inset-top)+2rem))] backdrop-blur-2xl"
+      onClick={onClose}
+      role="dialog"
+      aria-label="Search apps"
+    >
+      <div className="mx-auto w-full max-w-xl" onClick={(e) => e.stopPropagation()}>
+        <motion.div
+          initial={{ y: -12, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.05 }}
+        >
+          <div className="flex items-center gap-2 rounded-2xl bg-white/15 px-4 ring-1 ring-white/25 focus-within:ring-white/50">
+            <Search className="h-5 w-5 shrink-0 text-white/80" aria-hidden />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Search apps"
+              aria-label="Search apps"
+              className="h-12 w-full bg-transparent text-base text-white placeholder:text-white/50 focus:outline-none"
+            />
+            <button
+              onClick={onClose}
+              aria-label="Close search"
+              className="shrink-0 rounded-full bg-white/20 px-3 py-1 text-sm font-medium text-white transition hover:bg-white/30"
+            >
+              Cancel
+            </button>
+          </div>
+        </motion.div>
+
+        <div className="no-scrollbar mt-4 max-h-[62vh] space-y-4 overflow-y-auto pb-8">
+          {/* Recents (only when not searching) */}
+          {!searching && recentTools.length > 0 && (
+            <section aria-label="Recent apps">
+              <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+                Recent
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {recentTools.map((t) => (
+                  <button
+                    key={`recent-${t.id}`}
+                    onClick={() => onOpenApp(t.id)}
+                    className="flex items-center gap-2 rounded-full bg-white/15 py-1.5 pl-1.5 pr-4 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/25 active:scale-95"
+                  >
+                    <span
+                      className={cn(
+                        'flex size-7 items-center justify-center rounded-full bg-gradient-to-br text-white',
+                        t.gradient
+                      )}
+                    >
+                      <t.icon className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* All / matching apps */}
+          <section aria-label={searching ? 'Search results' : 'All apps'}>
+            <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+              {searching ? `Results for “${query.trim()}”` : 'All Apps'}
+            </h2>
+            {list.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-white/70">
+                <SearchX className="h-8 w-8" aria-hidden />
+                <p className="text-sm">No apps found for “{query.trim()}”</p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/15">
+                {list.map((t, i) => (
+                  <button
+                    key={t.id}
+                    onClick={() => onOpenApp(t.id)}
+                    className={cn(
+                      'flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/15 active:bg-white/20',
+                      i > 0 && 'border-t border-white/10'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ring-1 ring-white/20',
+                        t.gradient
+                      )}
+                    >
+                      <t.icon className="h-4.5 w-4.5" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-white">
+                        {t.name}
+                      </span>
+                      <span className="block truncate text-xs text-white/60">{t.description}</span>
+                    </span>
+                    <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-white/45">
+                      {toolCategories.find((c) => c.id === t.category)?.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+/* ================================================================== */
+/* App Library (last page) — auto-grouped folders                      */
+/* ================================================================== */
+
+function AppLibrary({
+  onOpenApp,
+  onOpenFolder,
+}: {
+  onOpenApp: (id: string) => void
+  onOpenFolder: (id: ToolCategoryId) => void
+}) {
+  const folders = useMemo(
+    () =>
+      toolCategories
+        .map((c) => ({ cat: c, items: tools.filter((t) => t.category === c.id) }))
+        .filter(({ items }) => items.length > 0),
+    []
+  )
+
+  return (
+    <div className="mx-auto max-w-2xl pt-6">
+      <h1 className="mb-5 text-center text-lg font-bold text-white drop-shadow-md">App Library</h1>
+      <div className="grid grid-cols-2 justify-items-center gap-x-3 gap-y-6 sm:grid-cols-3">
+        {folders.map(({ cat, items }) => (
+          <button
+            key={cat.id}
+            onClick={() => onOpenFolder(cat.id)}
+            aria-label={`Open ${cat.name} folder, ${items.length} apps`}
+            className="group flex w-full max-w-[150px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            <span className="grid w-full grid-cols-2 gap-1.5 rounded-[1.4rem] bg-white/15 p-2.5 shadow-lg ring-1 ring-white/25 backdrop-blur-xl">
+              {items.slice(0, 4).map((t) => (
+                <span
+                  key={t.id}
+                  className={cn(
+                    'flex aspect-square items-center justify-center rounded-[0.7rem] bg-gradient-to-br text-white shadow-sm ring-1 ring-white/20',
+                    t.gradient
+                  )}
+                >
+                  <t.icon className="h-[55%] w-[55%]" strokeWidth={1.9} aria-hidden />
+                </span>
+              ))}
+              {items.length > 4 && (
+                <span className="col-span-2 flex items-center justify-center gap-1 pt-0.5 text-[10px] font-semibold text-white/80">
+                  <Folder className="h-3 w-3" aria-hidden /> {items.length} apps
+                </span>
+              )}
+            </span>
+            <span className="truncate text-xs font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+              {cat.name}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
 
-/* ================================================================== */
-/* Tool card                                                           */
-/* ================================================================== */
-
-function ToolCard({
-  tool,
-  isFav,
-  onToggleFav,
-  onOpen,
+function FolderOverlay({
+  categoryId,
+  onOpenApp,
+  onClose,
 }: {
-  tool: Tool
-  isFav: boolean
-  onToggleFav: () => void
-  onOpen: () => void
+  categoryId: ToolCategoryId
+  onOpenApp: (id: string) => void
+  onClose: () => void
 }) {
-  return (
-    <Card
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
-      className="group relative cursor-pointer overflow-hidden border-border/80 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <CardContent className="p-4">
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleFav()
-          }}
-          aria-label={isFav ? 'প্রিয় থেকে বাদ দিন' : 'প্রিয়তে যোগ করুন'}
-          aria-pressed={isFav}
-          className="absolute right-2 top-2 z-10 rounded-full p-1.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Star className={cn('h-4 w-4', isFav && 'fill-amber-400 text-amber-500')} />
-        </button>
+  const cat = toolCategories.find((c) => c.id === categoryId)
+  const items = tools.filter((t) => t.category === categoryId)
 
-        <div className="flex items-start gap-3 pr-6">
-          <span
-            className={cn(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm transition-transform duration-200 group-hover:scale-105',
-              tool.gradient
-            )}
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 p-6 backdrop-blur-2xl"
+      onClick={onClose}
+      role="dialog"
+      aria-label={`${cat?.name ?? 'Folder'} apps`}
+    >
+      <motion.div
+        initial={{ scale: 0.92, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.92, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+        className="w-full max-w-md rounded-3xl bg-white/12 p-5 ring-1 ring-white/25 backdrop-blur-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold text-white">{cat?.name}</h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close folder"
+            className="h-8 w-8 rounded-full text-white hover:bg-white/20"
           >
-            <tool.icon className="h-5 w-5" />
-          </span>
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold sm:text-base">{tool.nameBn}</h3>
-            <p className="truncate text-xs text-muted-foreground">{tool.nameEn}</p>
-          </div>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
-        <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-[13px]">
-          {tool.descBn}
-        </p>
-      </CardContent>
-    </Card>
+        <div className="no-scrollbar grid max-h-[56vh] grid-cols-4 gap-x-2 gap-y-5 overflow-y-auto">
+          {items.map((t) => (
+            <AppIcon key={t.id} tool={t} onOpen={() => onOpenApp(t.id)} />
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
 /* ================================================================== */
-/* Tool view                                                           */
+/* App window — full-screen with zoom transition + home indicator      */
 /* ================================================================== */
 
-function ToolView({
-  tool,
-  onBack,
-  onOpen,
-}: {
-  tool: Tool
-  onBack: () => void
-  onOpen: (id: string) => void
-}) {
-  const { toast } = useToast()
+function AppWindow({ app, onHome }: { app: Tool; onHome: () => void }) {
   const favorites = useAppStore((s) => s.favorites)
   const toggleFavorite = useAppStore((s) => s.toggleFavorite)
-  const isFav = favorites.includes(tool.id)
-  const cat = toolCategories.find((c) => c.id === tool.category)
+  const isFav = favorites.includes(app.id)
 
-  const related = tools
-    .filter((t) => t.category === tool.category && t.id !== tool.id)
-    .slice(0, 3)
-
-  const share = async () => {
-    const url = typeof window !== 'undefined' ? window.location.href : ''
-    const shareData = {
-      title: `${tool.nameBn} — টুলহাব`,
-      text: `${tool.nameBn} (${tool.nameEn}) — টুলহাব অ্যাপে ব্যবহার করুন`,
-      url,
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onHome()
     }
-    try {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share(shareData)
-      } else {
-        await navigator.clipboard.writeText(url)
-        toast({ title: 'লিংক কপি হয়েছে', description: 'শেয়ার করতে পারেন এখন' })
-      }
-    } catch {
-      /* user cancelled share — ignore */
-    }
-  }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onHome])
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-10">
-      {/* Tool header */}
-      <div className="flex items-center gap-3 py-4">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.84, y: 30 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.84, y: 30 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+      className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background text-foreground"
+      role="dialog"
+      aria-label={app.name}
+    >
+      {/* App header */}
+      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b bg-background/85 px-3 backdrop-blur">
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
-          onClick={onBack}
-          aria-label="ফিরে যান"
+          onClick={onHome}
+          aria-label="Go home"
           className="h-10 w-10 shrink-0 rounded-xl"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <span
           className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm',
-            tool.gradient
+            'flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ring-1 ring-black/5',
+            app.gradient
           )}
         >
-          <tool.icon className="h-5 w-5" />
+          <app.icon className="h-5 w-5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold leading-tight sm:text-xl">{tool.nameBn}</h1>
-          <p className="truncate text-xs text-muted-foreground">
-            {tool.nameEn}
-            {cat && <span> · {cat.nameBn}</span>}
+          <h1 className="truncate text-base font-bold leading-tight">{app.name}</h1>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {toolCategories.find((c) => c.id === app.category)?.name}
           </p>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          onClick={share}
-          aria-label="শেয়ার করুন"
-          className="h-10 w-10 shrink-0 rounded-xl"
-        >
-          <Share2 className="h-5 w-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => toggleFavorite(tool.id)}
-          aria-label={isFav ? 'প্রিয় থেকে বাদ দিন' : 'প্রিয়তে যোগ করুন'}
+          onClick={() => toggleFavorite(app.id)}
+          aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
           aria-pressed={isFav}
           className="h-10 w-10 shrink-0 rounded-xl"
         >
           <Star className={cn('h-5 w-5', isFav && 'fill-amber-400 text-amber-500')} />
         </Button>
+      </header>
+
+      {/* App body */}
+      <div className="flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto w-full max-w-4xl px-4 pb-28 pt-5">
+          <app.Component />
+        </div>
       </div>
 
-      {/* Tool body — lazy loaded, code-split */}
-      <tool.Component />
-
-      {/* Related tools */}
-      {related.length > 0 && (
-        <section className="mt-8">
-          <Separator className="mb-4" />
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
-            আরও {cat?.nameBn} টুল
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {related.map((t) => (
-              <Button
-                key={t.id}
-                variant="outline"
-                size="sm"
-                className="rounded-full"
-                onClick={() => onOpen(t.id)}
-              >
-                <t.icon className="h-4 w-4" />
-                {t.nameBn}
-              </Button>
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
+      {/* Home indicator */}
+      <button
+        onClick={onHome}
+        aria-label="Go home"
+        className="group absolute bottom-[max(0.4rem,env(safe-area-inset-bottom))] left-1/2 z-10 -translate-x-1/2 p-2 focus-visible:outline-none"
+      >
+        <span className="block h-[5px] w-32 rounded-full bg-foreground/25 transition-colors group-hover:bg-foreground/50" />
+      </button>
+    </motion.div>
   )
-}
-
-/* ================================================================== */
-/* Footer — sticks to the bottom (mt-auto)                             */
-/* ================================================================== */
-
-function AppFooter() {
-  return (
-    <footer className="mt-auto border-t bg-card/50 pb-[env(safe-area-inset-bottom)]">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-1 px-4 py-4 text-center">
-        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Wrench className="h-3.5 w-3.5" />
-          টুলহাব — সব কাজের এক অ্যাপ
-        </p>
-        <p className="text-[11px] text-muted-foreground/70">
-          অফলাইনেও চলে · বিনামূল্যে · প্রতি সপ্তাহে নতুন টুল যোগ হয় · © ২০২৫ টুলহাব
-        </p>
-      </div>
-    </footer>
-  )
-}
-
-/* ================================================================== */
-
-function toolsInOrder(ids: string[]): Tool[] {
-  return ids
-    .map((id) => getToolById(id))
-    .filter((t): t is Tool => Boolean(t))
 }

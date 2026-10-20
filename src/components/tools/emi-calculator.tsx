@@ -33,13 +33,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import { toBn } from '@/lib/bn'
 
 /* ================================================================== */
 /* Helpers                                                             */
 /* ================================================================== */
 
-const money = (x: number): string => `৳ ${Math.round(x).toLocaleString('en-IN')}`
+const money = (x: number): string => `$ ${Math.round(x).toLocaleString('en-US')}`
 
 interface YearRow {
   year: number
@@ -140,16 +139,16 @@ export default function EmiCalculatorTool() {
         <CardHeader className="p-4 pb-0 sm:p-5 sm:pb-0">
           <CardTitle className="flex items-center gap-2 text-base">
             <Landmark className="h-4 w-4 text-primary" aria-hidden="true" />
-            ঋণের তথ্য দিন
+            Loan details
           </CardTitle>
           <CardDescription className="text-xs">
-            মাসিক কিস্তি (EMI), মোট সুদ ও পরিশোধ সারণি সাথে সাথে হিসাব হবে
+            Monthly EMI, total interest and the repayment schedule are calculated instantly
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="space-y-2">
             <Label htmlFor="emi-amount" className="text-sm font-medium">
-              ঋণের পরিমাণ (৳)
+              Loan amount ($)
             </Label>
             <Input
               id="emi-amount"
@@ -158,19 +157,19 @@ export default function EmiCalculatorTool() {
               min={1}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="যেমন: 500000"
-              aria-label="ঋণের পরিমাণ টাকায়"
+              placeholder="e.g. 500000"
+              aria-label="Loan amount in dollars"
               aria-invalid={amountError}
               className="h-11 text-base"
             />
             {amountError && (
-              <p className="text-xs text-destructive">সঠিক ঋণের পরিমাণ লিখুন (০-এর বেশি)</p>
+              <p className="text-xs text-destructive">Enter a valid loan amount (greater than 0)</p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="emi-rate" className="text-sm font-medium">
-              বার্ষিক সুদের হার (%)
+              Annual interest rate (%)
             </Label>
             <Input
               id="emi-rate"
@@ -180,19 +179,19 @@ export default function EmiCalculatorTool() {
               step="0.01"
               value={rate}
               onChange={(e) => setRate(e.target.value)}
-              placeholder="যেমন: 9"
-              aria-label="বার্ষিক সুদের হার শতাংশে"
+              placeholder="e.g. 9"
+              aria-label="Annual interest rate in percent"
               aria-invalid={rateError}
               className="h-11 text-base"
             />
             {rateError && (
-              <p className="text-xs text-destructive">সুদের হার ০ থেকে ১০০-এর মধ্যে দিন</p>
+              <p className="text-xs text-destructive">Interest rate must be between 0 and 100</p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="emi-tenure" className="text-sm font-medium">
-              সময়কাল
+              Tenure
             </Label>
             <div className="flex gap-2">
               <Input
@@ -202,27 +201,27 @@ export default function EmiCalculatorTool() {
                 min={1}
                 value={tenure}
                 onChange={(e) => setTenure(e.target.value)}
-                placeholder="যেমন: 5"
-                aria-label={`সময়কাল (${unit === 'years' ? 'বছর' : 'মাস'})`}
+                placeholder="e.g. 5"
+                aria-label={`Tenure (${unit === 'years' ? 'years' : 'months'})`}
                 aria-invalid={tenureError}
                 className="h-11 flex-1 text-base"
               />
               <Select value={unit} onValueChange={(v) => setUnit(v === 'months' ? 'months' : 'years')}>
                 <SelectTrigger
                   className="h-11 w-[110px] shrink-0"
-                  aria-label="সময়ের একক নির্বাচন করুন"
+                  aria-label="Select tenure unit"
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="years">বছর</SelectItem>
-                  <SelectItem value="months">মাস</SelectItem>
+                  <SelectItem value="years">Years</SelectItem>
+                  <SelectItem value="months">Months</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {tenureError && (
               <p className="text-xs text-destructive">
-                সময়কাল ১ থেকে {toBn(MAX_MONTHS)} মাসের মধ্যে দিন
+                Tenure must be between 1 and {MAX_MONTHS.toLocaleString('en-US')} months
               </p>
             )}
           </div>
@@ -236,24 +235,24 @@ export default function EmiCalculatorTool() {
             <div className="rounded-2xl bg-primary p-4 text-primary-foreground shadow-md sm:row-span-1">
               <div className="flex items-center gap-1.5 text-primary-foreground/80">
                 <Banknote className="h-4 w-4" aria-hidden="true" />
-                <span className="text-xs font-medium">মাসিক কিস্তি</span>
+                <span className="text-xs font-medium">Monthly payment</span>
               </div>
               <p
                 className="mt-1.5 text-2xl font-bold tracking-tight"
                 aria-live="polite"
-                aria-label={`মাসিক কিস্তি ${money(result.emi)}`}
+                aria-label={`Monthly payment ${money(result.emi)}`}
               >
                 {money(result.emi)}
               </p>
               <p className="mt-1 text-[11px] text-primary-foreground/70">
-                মোট {toBn(result.months)} মাস
+                {result.months.toLocaleString('en-US')} months total
               </p>
             </div>
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Percent className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="text-xs font-medium">মোট সুদ</span>
+                  <span className="text-xs font-medium">Total interest</span>
                 </div>
                 <p className="mt-1.5 text-lg font-bold tracking-tight sm:text-xl">
                   {money(result.totalInterest)}
@@ -264,7 +263,7 @@ export default function EmiCalculatorTool() {
               <CardContent className="p-4">
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <PiggyBank className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="text-xs font-medium">মোট পরিশোধ</span>
+                  <span className="text-xs font-medium">Total payment</span>
                 </div>
                 <p className="mt-1.5 text-lg font-bold tracking-tight sm:text-xl">
                   {money(result.totalPayment)}
@@ -276,11 +275,11 @@ export default function EmiCalculatorTool() {
           {/* Breakdown bar */}
           <Card>
             <CardContent className="p-4 sm:p-5">
-              <p className="text-sm font-medium">আসল বনাম সুদ</p>
+              <p className="text-sm font-medium">Principal vs interest</p>
               <div
                 className="mt-3 flex h-3.5 w-full overflow-hidden rounded-full bg-muted"
                 role="img"
-                aria-label={`আসল ${result.principalPct.toFixed(1)} শতাংশ, সুদ ${result.interestPct.toFixed(1)} শতাংশ`}
+                aria-label={`Principal ${result.principalPct.toFixed(1)}%, interest ${result.interestPct.toFixed(1)}%`}
               >
                 <div
                   className="h-full bg-primary transition-all"
@@ -294,11 +293,11 @@ export default function EmiCalculatorTool() {
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
                 <span className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-primary" aria-hidden="true" />
-                  আসল {money(result.principal)} ({toBn(result.principalPct.toFixed(1))}%)
+                  Principal {money(result.principal)} ({result.principalPct.toFixed(1)}%)
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-500" aria-hidden="true" />
-                  সুদ {money(result.totalInterest)} ({toBn(result.interestPct.toFixed(1))}%)
+                  Interest {money(result.totalInterest)} ({result.interestPct.toFixed(1)}%)
                 </span>
               </div>
             </CardContent>
@@ -312,7 +311,7 @@ export default function EmiCalculatorTool() {
                 className="h-11 w-full justify-between px-4"
                 aria-expanded={openTable}
               >
-                বিস্তারিত পরিশোধ তালিকা দেখুন
+                View amortization schedule
                 <ChevronDown
                   className={cn('h-4 w-4 transition-transform', openTable && 'rotate-180')}
                   aria-hidden="true"
@@ -326,17 +325,17 @@ export default function EmiCalculatorTool() {
                     <Table>
                       <TableHeader className="sticky top-0 bg-background/95 backdrop-blur">
                         <TableRow>
-                          <TableHead className="text-xs">বছর</TableHead>
-                          <TableHead className="text-right text-xs">আসল পরিশোধ</TableHead>
-                          <TableHead className="text-right text-xs">সুদ</TableHead>
-                          <TableHead className="text-right text-xs">বাকি ঋণ</TableHead>
+                          <TableHead className="text-xs">Year</TableHead>
+                          <TableHead className="text-right text-xs">Principal paid</TableHead>
+                          <TableHead className="text-right text-xs">Interest</TableHead>
+                          <TableHead className="text-right text-xs">Remaining balance</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {result.rows.map((row) => (
                           <TableRow key={row.year}>
                             <TableCell className="font-medium">
-                              বছর {toBn(row.year)}
+                              Year {row.year}
                             </TableCell>
                             <TableCell className="text-right font-mono text-xs sm:text-sm">
                               {money(row.principal)}
@@ -353,7 +352,7 @@ export default function EmiCalculatorTool() {
                     </Table>
                   </div>
                   <p className="mt-2 text-[11px] text-muted-foreground">
-                    সব হিসাব আনুমানিক — ব্যাংকের প্রকৃত হিসাব ভিন্ন হতে পারে (প্রসেসিং ফি, ভাটা পরিবর্তন ইত্যাদি)।
+                    All figures are estimates — your bank&apos;s actual calculation may differ (processing fees, rate changes, etc.).
                   </p>
                 </CardContent>
               </Card>
@@ -364,9 +363,9 @@ export default function EmiCalculatorTool() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center gap-2 p-8 text-center">
             <Banknote className="h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
-            <p className="text-sm font-medium">সঠিক মান লিখুন</p>
+            <p className="text-sm font-medium">Enter valid values</p>
             <p className="text-xs text-muted-foreground">
-              ঋণের পরিমাণ, সুদের হার ও সময়কাল ঠিক করলেই কিস্তির হিসাব দেখা যাবে
+              Results will appear as soon as the loan amount, interest rate and tenure are valid
             </p>
           </CardContent>
         </Card>

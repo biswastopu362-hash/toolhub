@@ -8,26 +8,28 @@ export type ToolCategoryId =
   | 'text'
   | 'developer'
   | 'daily'
+  | 'media'
+  | 'utilities'
 
 export interface ToolCategoryMeta {
   id: ToolCategoryId
-  nameBn: string
-  nameEn: string
+  name: string
   icon: LucideIcon
 }
 
 export interface Tool {
-  /** unique slug, used in hash route #/tool/<id> */
+  /** unique slug, used in hash route #/app/<id> */
   id: string
-  nameBn: string
-  nameEn: string
-  descBn: string
+  /** display name (English) */
+  name: string
+  /** short description (English) */
+  description: string
   category: ToolCategoryId
   icon: LucideIcon
   /** tailwind gradient classes for the icon tile, e.g. "from-emerald-500 to-teal-600" */
   gradient: string
-  /** bn + en search keywords */
+  /** search keywords */
   keywords: string[]
-  /** component that renders the tool body (lazy loaded) */
+  /** component that renders the app body (lazy loaded) */
   Component: ComponentType
 }
