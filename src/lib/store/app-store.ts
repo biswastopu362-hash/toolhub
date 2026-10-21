@@ -2,7 +2,15 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_ACCENT, DEFAULT_MODE, DEFAULT_WALLPAPER, type AccentId, type ModeId, type WallpaperId } from '@/lib/theme'
+import {
+  DEFAULT_ACCENT,
+  DEFAULT_MODE,
+  DEFAULT_WALLPAPER,
+  type AccentId,
+  type ModeId,
+  type WallpaperId,
+} from '@/lib/theme'
+import type { HomeItem } from '@/lib/home-layout'
 
 interface AppState {
   /** favorite app ids */
@@ -15,6 +23,11 @@ interface AppState {
   mode: ModeId
   /** accent palette id */
   accent: AccentId
+  /** ordered home-screen layout: apps + user folders (dock excluded) */
+  layout: HomeItem[]
+  /** set on first run once the store has rehydrated */
+  layoutMigrated: boolean
+
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
   addRecent: (id: string) => void
@@ -22,6 +35,9 @@ interface AppState {
   setWallpaper: (w: WallpaperId) => void
   setMode: (m: ModeId) => void
   setAccent: (a: AccentId) => void
+  setLayout: (l: HomeItem[]) => void
+  setLayoutMigrated: () => void
+  resetLayout: (l: HomeItem[]) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -32,6 +48,9 @@ export const useAppStore = create<AppState>()(
       wallpaper: DEFAULT_WALLPAPER,
       mode: DEFAULT_MODE,
       accent: DEFAULT_ACCENT,
+      layout: [],
+      layoutMigrated: false,
+
       toggleFavorite: (id) =>
         set((s) => ({
           favorites: s.favorites.includes(id)
@@ -47,7 +66,18 @@ export const useAppStore = create<AppState>()(
       setWallpaper: (w) => set({ wallpaper: w }),
       setMode: (m) => set({ mode: m }),
       setAccent: (a) => set({ accent: a }),
+      setLayout: (l) => set({ layout: l }),
+      setLayoutMigrated: () => set({ layoutMigrated: true }),
+      resetLayout: (l) => set({ layout: l, layoutMigrated: true }),
     }),
-    { name: 'toolhub-store' }
+    {
+      name: 'toolhub-store',
+      version: 2,
+      migrate: (persisted) => {
+        const state = persisted as Partial<AppState>
+        // v1 → v2: layout did not exist yet
+        return { ...state, layout: state.layout ?? [], layoutMigrated: false }
+      },
+    }
   )
 )

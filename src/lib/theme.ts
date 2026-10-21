@@ -120,10 +120,14 @@ export type WallpaperId =
   | 'ocean'
   | 'forest'
   | 'midnight'
+  | 'aurora'
+  | 'nebula'
   | 'pearl'
   | 'mint'
   | 'blossom'
   | 'haze'
+  | 'sand'
+  | 'porcelain'
 
 export interface WallpaperDef {
   id: WallpaperId
@@ -134,16 +138,20 @@ export interface WallpaperDef {
 }
 
 export const WALLPAPERS: WallpaperDef[] = [
-  // Dark wallpapers
+  // Dark wallpapers — vivid, cinematic gradient meshes
   { id: 'sunset', name: 'Sunset', className: 'wp-sunset', dark: true },
   { id: 'ocean', name: 'Ocean', className: 'wp-ocean', dark: true },
   { id: 'forest', name: 'Forest', className: 'wp-forest', dark: true },
   { id: 'midnight', name: 'Midnight', className: 'wp-midnight', dark: true },
-  // Light wallpapers
+  { id: 'aurora', name: 'Aurora', className: 'wp-aurora', dark: true },
+  { id: 'nebula', name: 'Nebula', className: 'wp-nebula', dark: true },
+  // Light wallpapers — soft, airy pastel meshes
   { id: 'pearl', name: 'Pearl', className: 'wp-pearl', dark: false },
   { id: 'mint', name: 'Mint', className: 'wp-mint', dark: false },
   { id: 'blossom', name: 'Blossom', className: 'wp-blossom', dark: false },
   { id: 'haze', name: 'Haze', className: 'wp-haze', dark: false },
+  { id: 'sand', name: 'Sand', className: 'wp-sand', dark: false },
+  { id: 'porcelain', name: 'Porcelain', className: 'wp-porcelain', dark: false },
 ]
 
 export const DEFAULT_WALLPAPER: WallpaperId = 'sunset'

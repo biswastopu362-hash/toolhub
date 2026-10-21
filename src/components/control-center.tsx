@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, type CSSProperties } from 'react'
 import { motion } from 'framer-motion'
 import {
   Check,
+  LayoutGrid,
   Monitor,
   Moon,
   Palette,
@@ -11,29 +12,43 @@ import {
   Sparkles,
   Sun,
   X,
-  type LucideIcon,
 } from 'lucide-react'
 import { ACCENTS, MODES, WALLPAPERS, type ModeId } from '@/lib/theme'
 import { useAppStore } from '@/lib/store/app-store'
 import { cn } from '@/lib/utils'
 
-const MODE_ICONS: Record<ModeId, LucideIcon> = {
-  light: Sun,
-  dark: Moon,
-  amoled: Sparkles,
-  system: Monitor,
-}
-
 /**
  * iOS Control-Center-style bottom sheet for instant personalization:
- * color mode, accent palette and wallpaper — available from any home screen.
+ * color mode, accent palette, wallpaper and home-screen layout —
+ * reachable from any home screen.
  */
+
+/* mini live previews rendered inside each mode tile */
+const MODE_PREVIEW: Record<ModeId, CSSProperties> = {
+  light: { background: 'linear-gradient(135deg, #ffffff 0%, #dbeafe 100%)' },
+  dark: { background: 'linear-gradient(135deg, #3f3f46 0%, #18181b 100%)' },
+  amoled: { background: 'linear-gradient(135deg, #18181b 0%, #000000 100%)' },
+  system: {
+    background:
+      'linear-gradient(135deg, #ffffff 0%, #ffffff 49%, #18181b 51%, #18181b 100%)',
+  },
+}
+
+const MODE_GLYPH: Record<ModeId, { icon: typeof Sun; cls: string }> = {
+  light: { icon: Sun, cls: 'text-amber-500' },
+  dark: { icon: Moon, cls: 'text-zinc-100' },
+  amoled: { icon: Sparkles, cls: 'text-violet-300' },
+  system: { icon: Monitor, cls: 'text-sky-600' },
+}
+
 export function ControlCenter({
   onClose,
   onOpenApp,
+  onEditIcons,
 }: {
   onClose: () => void
   onOpenApp: (id: string) => void
+  onEditIcons: () => void
 }) {
   const mode = useAppStore((s) => s.mode)
   const setMode = useAppStore((s) => s.setMode)
@@ -83,7 +98,7 @@ export function ControlCenter({
         <div className="mx-auto w-full max-w-xl space-y-5 px-5 pb-2 pt-4">
           {/* ---------------- header ---------------- */}
           <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-base font-bold">
+            <h2 className="flex items-center gap-2 text-base font-bold tracking-tight">
               <Palette className="size-4.5 text-primary" aria-hidden />
               Quick settings
             </h2>
@@ -101,7 +116,7 @@ export function ControlCenter({
             <div className="grid grid-cols-4 gap-2">
               {MODES.map((m) => {
                 const active = mode === m.id
-                const Icon = MODE_ICONS[m.id]
+                const glyph = MODE_GLYPH[m.id]
                 return (
                   <button
                     key={m.id}
@@ -111,14 +126,23 @@ export function ControlCenter({
                     aria-label={`${m.name} mode — ${m.description}`}
                     title={m.description}
                     className={cn(
-                      'flex h-[4.25rem] flex-col items-center justify-center gap-1.5 rounded-2xl border text-xs font-semibold transition-all active:scale-95',
+                      'group relative flex h-[4.6rem] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl border text-xs font-semibold transition-all active:scale-95',
                       active
                         ? 'border-transparent bg-primary text-primary-foreground shadow-md shadow-primary/30'
                         : 'border-border bg-muted/60 text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                     )}
                   >
-                    <Icon className="size-5" aria-hidden />
-                    {m.name}
+                    <span
+                      aria-hidden
+                      className="absolute inset-x-3 top-2 h-6 rounded-lg ring-1 ring-black/10"
+                      style={MODE_PREVIEW[m.id]}
+                    >
+                      <glyph.icon
+                        className={cn('absolute inset-0 m-auto size-3.5', glyph.cls)}
+                        aria-hidden
+                      />
+                    </span>
+                    <span className="mt-6">{m.name}</span>
                   </button>
                 )
               })}
@@ -135,7 +159,7 @@ export function ControlCenter({
                 {ACCENTS.find((a) => a.id === accent)?.name}
               </span>
             </div>
-            <div className="flex flex-wrap gap-3" role="group">
+            <div className="grid grid-cols-8 gap-2" role="group">
               {ACCENTS.map((a) => {
                 const active = accent === a.id
                 return (
@@ -147,14 +171,16 @@ export function ControlCenter({
                     aria-label={`${a.name} accent`}
                     title={a.name}
                     className={cn(
-                      'group relative grid size-10 place-items-center rounded-full bg-gradient-to-br shadow-md transition-all active:scale-90',
+                      'group relative grid aspect-square place-items-center rounded-[30%] bg-gradient-to-br shadow-md ring-1 ring-black/10 transition-all active:scale-90',
                       a.swatch,
                       active
                         ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
                         : 'hover:scale-110'
                     )}
                   >
-                    {active && <Check className="size-4.5 text-white drop-shadow-md" aria-hidden />}
+                    {active && (
+                      <Check className="size-4 text-white drop-shadow-md" aria-hidden />
+                    )}
                   </button>
                 )
               })}
@@ -183,7 +209,7 @@ export function ControlCenter({
                     aria-label={`${w.name} wallpaper`}
                     title={w.name}
                     className={cn(
-                      'relative size-14 shrink-0 rounded-xl bg-gradient-to-br shadow-sm transition-all active:scale-90',
+                      'relative aspect-square w-14 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br shadow-sm ring-1 ring-black/10 transition-all active:scale-90',
                       w.className,
                       active
                         ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
@@ -200,6 +226,16 @@ export function ControlCenter({
               })}
             </div>
           </section>
+
+          {/* ---------------- home screen layout ---------------- */}
+          <button
+            type="button"
+            onClick={onEditIcons}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-muted/70 text-sm font-semibold text-foreground ring-1 ring-border transition hover:bg-accent active:scale-[0.98]"
+          >
+            <LayoutGrid className="size-4 text-primary" aria-hidden />
+            Rearrange icons &amp; folders
+          </button>
 
           {/* ---------------- footer ---------------- */}
           <button

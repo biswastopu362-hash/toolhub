@@ -28,6 +28,8 @@ export interface Tool {
   icon: LucideIcon
   /** tailwind gradient classes for the icon tile, e.g. "from-emerald-500 to-teal-600" */
   gradient: string
+  /** hex glow color used for the premium ambient shadow under the icon */
+  glow: string
   /** search keywords */
   keywords: string[]
   /** component that renders the app body (lazy loaded) */

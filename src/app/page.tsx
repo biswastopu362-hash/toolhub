@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import {
   ArrowLeft,
@@ -24,6 +24,18 @@ import { useHydrated } from '@/hooks/use-hydrated'
 import { useAppStore } from '@/lib/store/app-store'
 import { DEFAULT_WALLPAPER, WALLPAPERS, getWallpaper, type WallpaperId } from '@/lib/theme'
 import {
+  addToFolderOp,
+  createFolderOp,
+  mergeFoldersOp,
+  migrateLayout,
+  moveItemOp,
+  removeFromFolderOp,
+  renameFolderOp,
+  suggestFolderName,
+  type HomeFolderItem,
+  type HomeItem,
+} from '@/lib/home-layout'
+import {
   getToolById,
   searchTools,
   toolCategories,
@@ -32,12 +44,15 @@ import {
   type ToolCategoryId,
 } from '@/lib/tools/registry'
 import { cn } from '@/lib/utils'
+import { useHomeDrag } from '@/components/home/use-home-drag'
 
 /* ================================================================== */
 /* Constants                                                           */
 /* ================================================================== */
 
 const DOCK_IDS = ['calculator', 'clock', 'weather', 'notes']
+
+type OpenFolder = { kind: 'user'; id: string } | { kind: 'category'; id: ToolCategoryId } | null
 
 /* ================================================================== */
 /* Page — the whole "phone OS" lives on this single route              */
@@ -57,7 +72,21 @@ export default function Home() {
 
   const app = getToolById(appId)
   const showApp = hydrated && Boolean(app)
-  const wallpaperId = hydrated ? wallpaper : 'sunset'
+  const wallpaperId = hydrated ? wallpaper : DEFAULT_WALLPAPER
+
+  /* one-time consistency pass for the persisted home layout */
+  useEffect(() => {
+    if (!hydrated) return
+    const s = useAppStore.getState()
+    if (s.layoutMigrated) return
+    const next = migrateLayout(
+      s.layout,
+      tools.map((t) => t.id),
+      DOCK_IDS
+    )
+    if (next) s.setLayout(next)
+    s.setLayoutMigrated()
+  }, [hydrated])
 
   const openApp = useCallback(
     (id: string) => {
@@ -76,122 +105,195 @@ export default function Home() {
 
   const [spotlightOpen, setSpotlightOpen] = useState(false)
   const [ccOpen, setCcOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
   const wpDark = getWallpaper(wallpaperId).dark
 
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative h-dvh w-full overflow-hidden">
-        {/* crossfading wallpaper stack */}
+        {/* crossfading wallpaper stack (live layer animates, rest paused) */}
         <div aria-hidden className="pointer-events-none absolute inset-0">
           {WALLPAPERS.map((w) => (
             <div
               key={w.id}
-              className={cn('absolute inset-0 transition-opacity duration-700', w.className)}
+              data-off={wallpaperId === w.id ? 'false' : 'true'}
+              className={cn('wp-layer', w.className)}
               style={{ opacity: wallpaperId === w.id ? 1 : 0 }}
             />
           ))}
+          {/* film grain + soft vignette for physical depth */}
+          <div className="wp-noise absolute inset-0" />
+          <div
+            className={cn(
+              'absolute inset-0 transition-colors duration-700',
+              wpDark ? 'bg-black/10' : 'bg-black/[0.04]'
+            )}
+          />
         </div>
 
-        {/* subtle vignette for depth */}
-        <div
-          aria-hidden
-          className={cn(
-            'pointer-events-none absolute inset-0 transition-colors duration-700',
-            wpDark ? 'bg-black/10' : 'bg-black/[0.04]'
-          )}
+        <HomeScreen
+          onOpenApp={openApp}
+          onOpenSearch={() => setSpotlightOpen(true)}
+          onOpenCustomize={() => setCcOpen(true)}
+          editing={editing}
+          setEditing={setEditing}
         />
 
-      <HomeScreen
-        wallpaperId={wallpaperId}
-        onOpenApp={openApp}
-        onOpenSearch={() => setSpotlightOpen(true)}
-        onOpenCustomize={() => setCcOpen(true)}
-      />
+        {/* Quick-settings control center */}
+        <AnimatePresence>
+          {ccOpen && (
+            <ControlCenter
+              key="cc"
+              onClose={() => setCcOpen(false)}
+              onOpenApp={openApp}
+              onEditIcons={() => {
+                setCcOpen(false)
+                setEditing(true)
+              }}
+            />
+          )}
+        </AnimatePresence>
 
-      {/* Quick-settings control center */}
-      <AnimatePresence>
-        {ccOpen && <ControlCenter key="cc" onClose={() => setCcOpen(false)} onOpenApp={openApp} />}
-      </AnimatePresence>
+        {/* Spotlight search overlay */}
+        <AnimatePresence>
+          {spotlightOpen && (
+            <Spotlight
+              key="spotlight"
+              onOpenApp={(id) => {
+                setSpotlightOpen(false)
+                openApp(id)
+              }}
+              onClose={() => setSpotlightOpen(false)}
+            />
+          )}
+        </AnimatePresence>
 
-      {/* Spotlight search overlay */}
-      <AnimatePresence>
-        {spotlightOpen && (
-          <Spotlight
-            key="spotlight"
-            onOpenApp={(id) => {
-              setSpotlightOpen(false)
-              openApp(id)
-            }}
-            onClose={() => setSpotlightOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Full-screen app window with iOS-like zoom transition */}
-      <AnimatePresence>
-        {showApp && app && (
-          <AppWindow key={app.id} app={app} onHome={goHome} />
-        )}
-      </AnimatePresence>
+        {/* Full-screen app window with iOS-like zoom transition */}
+        <AnimatePresence>{showApp && app && <AppWindow key={app.id} app={app} onHome={goHome} />}</AnimatePresence>
       </div>
     </MotionConfig>
   )
 }
 
 /* ================================================================== */
-/* Home screen: status bar + pages + dots + dock                       */
+/* Home screen: status bar + pages + dots + dock + drag engine         */
 /* ================================================================== */
 
 function HomeScreen({
-  wallpaperId,
   onOpenApp,
   onOpenSearch,
   onOpenCustomize,
+  editing,
+  setEditing,
 }: {
-  wallpaperId: WallpaperId
   onOpenApp: (id: string) => void
   onOpenSearch: () => void
   onOpenCustomize: () => void
+  editing: boolean
+  setEditing: (v: boolean) => void
 }) {
   const pagesRef = useRef<HTMLDivElement>(null)
+  const gridEls = useRef<Map<number, HTMLDivElement>>(new Map())
   const grid = useGridMetrics(pagesRef)
   const [activePage, setActivePage] = useState(0)
-  const [openFolder, setOpenFolder] = useState<ToolCategoryId | null>(null)
-  const onLight = !getWallpaper(wallpaperId).dark
+  const [openFolder, setOpenFolder] = useState<OpenFolder>(null)
+
+  const layout = useAppStore((s) => s.layout)
+  const onLight = !getWallpaper(useAppStore((s) => s.wallpaper)).dark
 
   const capacity = grid.cols * grid.rows
+  const pageCount = Math.max(1, Math.ceil(layout.length / capacity)) + 1 // + App Library
 
   const pages = useMemo(() => {
-    const out: Tool[][] = []
-    for (let i = 0; i < tools.length; i += capacity) out.push(tools.slice(i, i + capacity))
+    const out: HomeItem[][] = []
+    for (let i = 0; i < layout.length; i += capacity) out.push(layout.slice(i, i + capacity))
+    if (out.length === 0) out.push([])
     return out
-  }, [capacity])
+  }, [layout, capacity])
 
   const dockApps = useMemo(
     () => DOCK_IDS.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t)),
     []
   )
 
-  const pageCount = pages.length + 1 // + App Library page
+  const scrollToPage = useCallback((index: number) => {
+    const el = pagesRef.current
+    if (!el) return
+    el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
+  }, [])
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
     setActivePage(Math.max(0, Math.round(el.scrollLeft / Math.max(1, el.clientWidth))))
   }, [])
 
-  const scrollToPage = useCallback(
-    (index: number) => {
-      const el = pagesRef.current
-      if (!el) return
-      el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
-    },
-    []
-  )
+  /* ---------------- drag engine ---------------- */
+  const handleMove = useCallback((from: number, to: number) => {
+    const s = useAppStore.getState()
+    s.setLayout(moveItemOp(s.layout, from, to))
+  }, [])
+
+  const handleDrop = useCallback((draggedId: string, overId: string | null) => {
+    if (!overId || overId === draggedId) return
+    const s = useAppStore.getState()
+    const dragged = s.layout.find((i) => i.id === draggedId)
+    const target = s.layout.find((i) => i.id === overId)
+    if (!dragged || !target) return
+
+    if (dragged.kind === 'app' && target.kind === 'app') {
+      const { layout: next } = createFolderOp(s.layout, draggedId, overId)
+      s.setLayout(next)
+      try {
+        navigator.vibrate?.(16)
+      } catch {}
+    } else if (dragged.kind === 'app' && target.kind === 'folder') {
+      s.setLayout(addToFolderOp(s.layout, draggedId, overId))
+      try {
+        navigator.vibrate?.(12)
+      } catch {}
+    } else if (dragged.kind === 'folder' && target.kind === 'folder') {
+      s.setLayout(mergeFoldersOp(s.layout, draggedId, overId))
+      try {
+        navigator.vibrate?.(12)
+      } catch {}
+    }
+  }, [])
+
+  const { view, ghostRef, onItemPointerDown, shouldSuppressClick, armedRef } = useHomeDrag({
+    scrollerRef: pagesRef,
+    gridEls,
+    getMetrics: () => ({
+      cols: grid.cols,
+      capacity,
+      itemCount: layout.length,
+      pageCount,
+    }),
+    isEditing: () => editing,
+    onEnterEdit: () => setEditing(true),
+    onMove: handleMove,
+    onDrop: handleDrop,
+    scrollToPage,
+  })
+
+  /* Escape exits edit mode */
+  useEffect(() => {
+    if (!editing) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditing(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editing, setEditing])
+
+  const dragItem = view.draggingId ? layout.find((i) => i.id === view.draggingId) ?? null : null
+  const dragTool = dragItem?.kind === 'app' ? getToolById(dragItem.id) : undefined
 
   return (
     <>
       <StatusBar
         onLight={onLight}
+        editing={editing}
+        onDone={() => setEditing(false)}
         onOpenSearch={onOpenSearch}
         onOpenCustomize={onOpenCustomize}
       />
@@ -200,21 +302,44 @@ function HomeScreen({
       <div
         ref={pagesRef}
         onScroll={onScroll}
+        onContextMenu={(e) => e.preventDefault()}
         className="no-scrollbar absolute inset-0 flex snap-x snap-mandatory select-none overflow-x-auto overflow-y-hidden pb-32 pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.5rem))]"
         aria-label="Home screen pages"
       >
-        {pages.map((pageApps, i) => (
+        {pages.map((items, page) => (
           <section
-            key={`page-${i}`}
-            aria-label={`Page ${i + 1}`}
+            key={`page-${page}`}
+            aria-label={`Page ${page + 1}`}
+            onClick={(e) => {
+              if (editing && e.target === e.currentTarget) setEditing(false)
+            }}
             className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
           >
             <div
-              className="grid content-start justify-items-center gap-x-1 gap-y-4 pt-2"
+              ref={(el) => {
+                if (el) gridEls.current.set(page, el)
+                else gridEls.current.delete(page)
+              }}
+              className="grid content-start justify-items-center gap-x-1.5 gap-y-4 pt-2 sm:gap-x-2"
               style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
             >
-              {pageApps.map((t) => (
-                <AppIcon key={t.id} tool={t} onOpen={() => onOpenApp(t.id)} onLight={onLight} />
+              {items.map((item, slot) => (
+                <HomeItemView
+                  key={item.id}
+                  item={item}
+                  index={page * capacity + slot}
+                  editing={editing}
+                  dragging={view.draggingId === item.id}
+                  hinted={view.overId === item.id}
+                  onLight={onLight}
+                  onPointerDown={onItemPointerDown}
+                  armedRef={armedRef}
+                  onClick={() => {
+                    if (editing || shouldSuppressClick()) return
+                    if (item.kind === 'app') onOpenApp(item.id)
+                    else setOpenFolder({ kind: 'user', id: item.id })
+                  }}
+                />
               ))}
             </div>
           </section>
@@ -223,9 +348,9 @@ function HomeScreen({
         {/* App Library page — always the last page */}
         <section
           aria-label="App Library"
-          className="h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
+          className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
         >
-          <AppLibrary onOpenApp={onOpenApp} onOpenFolder={setOpenFolder} onLight={onLight} />
+          <AppLibrary onOpenApp={onOpenApp} onOpenFolder={(id) => setOpenFolder({ kind: 'category', id })} />
         </section>
       </div>
 
@@ -244,11 +369,11 @@ function HomeScreen({
           >
             <span
               className={cn(
-                'block h-1.5 w-1.5 rounded-full transition-colors',
+                'block h-1.5 w-1.5 rounded-full transition-all duration-300',
                 activePage === i
                   ? onLight
-                    ? 'bg-zinc-900'
-                    : 'bg-white'
+                    ? 'w-4 bg-zinc-900'
+                    : 'w-4 bg-white'
                   : onLight
                     ? 'bg-zinc-900/30 hover:bg-zinc-900/50'
                     : 'bg-white/40 hover:bg-white/60'
@@ -262,19 +387,24 @@ function HomeScreen({
       <div className="absolute inset-x-0 bottom-0 z-20 select-none pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div
           className={cn(
-            'mx-auto w-fit max-w-[calc(100%-2rem)] rounded-[1.75rem] px-4 py-3 shadow-lg ring-1 backdrop-blur-xl',
-            onLight ? 'bg-white/55 ring-black/10' : 'bg-white/15 ring-white/25'
+            'mx-auto w-fit max-w-[calc(100%-2rem)] rounded-[1.9rem] px-5 py-3.5 backdrop-blur-2xl',
+            onLight
+              ? 'bg-white/55 ring-1 ring-black/10 shadow-[0_18px_40px_-12px_rgb(0_0_0/0.35),inset_0_1px_1px_rgb(255_255_255/0.6)]'
+              : 'bg-white/12 ring-1 ring-white/20 shadow-[0_18px_40px_-12px_rgb(0_0_0/0.55),inset_0_1px_1px_rgb(255_255_255/0.18)]'
           )}
         >
-          <div className="flex gap-6">
+          <div className="flex items-end gap-5 sm:gap-6">
             {dockApps.map((t) => (
-              <AppIcon
+              <motion.button
                 key={`dock-${t.id}`}
-                tool={t}
-                onOpen={() => onOpenApp(t.id)}
-                noLabel
-                onLight={onLight}
-              />
+                whileTap={{ scale: 0.86 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 24 }}
+                onClick={() => onOpenApp(t.id)}
+                aria-label={`Open ${t.name}`}
+                className="w-[56px] shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:w-[62px]"
+              >
+                <IconTile tool={t} />
+              </motion.button>
             ))}
           </div>
         </div>
@@ -285,7 +415,7 @@ function HomeScreen({
         {openFolder && (
           <FolderOverlay
             key="folder"
-            categoryId={openFolder}
+            target={openFolder}
             onOpenApp={(id) => {
               setOpenFolder(null)
               onOpenApp(id)
@@ -294,7 +424,180 @@ function HomeScreen({
           />
         )}
       </AnimatePresence>
+
+      {/* Floating drag ghost (positioned imperatively by the drag engine) */}
+      <div ref={ghostRef} className="drag-ghost" style={{ transform: 'translate3d(-9999px,-9999px,0)' }} aria-hidden>
+        {dragItem?.kind === 'app' && dragTool && <IconTile tool={dragTool} />}
+        {dragItem?.kind === 'folder' && <FolderTile item={dragItem} />}
+      </div>
     </>
+  )
+}
+
+/* ================================================================== */
+/* Home item — app icon or folder, with jiggle + drag states           */
+/* ================================================================== */
+
+function HomeItemView({
+  item,
+  index,
+  editing,
+  dragging,
+  hinted,
+  onLight,
+  onPointerDown,
+  armedRef,
+  onClick,
+}: {
+  item: HomeItem
+  index: number
+  editing: boolean
+  dragging: boolean
+  hinted: boolean
+  onLight: boolean
+  onPointerDown: (e: React.PointerEvent<HTMLElement>, id: string) => void
+  armedRef: React.RefObject<boolean>
+  onClick: () => void
+}) {
+  const tool = item.kind === 'app' ? getToolById(item.id) : undefined
+  const label =
+    item.kind === 'app'
+      ? (tool?.name ?? '')
+      : item.name ||
+        suggestFolderName(
+          item.appIds,
+          (id) => getToolById(id)?.category,
+          (cid) => toolCategories.find((c) => c.id === cid)?.name
+        )
+
+  /*
+   * While a drag is armed (edit mode active), cancel the browser's scroll
+   * gesture on touchmove so the very first drag attempt works on mobile.
+   * Requires a non-passive listener, hence the manual addEventListener.
+   */
+  const elRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = elRef.current
+    if (!el) return
+    const onTouchMove = (e: TouchEvent) => {
+      if (armedRef.current) e.preventDefault()
+    }
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onTouchMove)
+  }, [armedRef])
+
+  return (
+    <motion.div
+      layout
+      data-item-id={item.id}
+      data-item-index={index}
+      initial={{ opacity: 0, scale: 0.55 }}
+      animate={{ opacity: dragging ? 0.25 : 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.5 }}
+      transition={{ type: 'spring', stiffness: 480, damping: 34, mass: 0.9 }}
+      onPointerDown={(e) => onPointerDown(e, item.id)}
+      onClick={onClick}
+      className={cn('w-full cursor-pointer', editing && 'touch-none')}
+      role="button"
+      aria-label={item.kind === 'app' ? `Open ${label}` : `Open folder ${label}`}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !editing) onClick()
+      }}
+    >
+      {/* jiggle lives on an inner wrapper so framer's FLIP transform is untouched */}
+      <div
+        ref={elRef}
+        className={cn('flex w-full flex-col items-center gap-1.5', editing && !dragging && 'jiggle')}
+        style={
+          editing && !dragging
+            ? { animationDelay: `${(index % 7) * 45}ms`, animationDuration: `${0.3 + (index % 3) * 0.03}s` }
+            : undefined
+        }
+      >
+        {item.kind === 'app' && tool ? (
+          <IconTile tool={tool} hinted={hinted} />
+        ) : item.kind === 'folder' ? (
+          <FolderTile item={item} hinted={hinted} />
+        ) : null}
+        <span
+          className={cn(
+            'w-full max-w-[5rem] truncate text-center text-[11px] font-medium leading-tight sm:text-xs',
+            onLight
+              ? 'text-zinc-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.7)]'
+              : 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]'
+          )}
+        >
+          {label}
+        </span>
+      </div>
+    </motion.div>
+  )
+}
+
+/* ================================================================== */
+/* Premium icon tile — squircle, gloss, per-app glow shadow            */
+/* ================================================================== */
+
+function IconTile({ tool, hinted = false }: { tool: Tool; hinted?: boolean }) {
+  return (
+    <span
+      data-tile-id={tool.id}
+      style={{ '--glow': tool.glow } as CSSProperties}
+      className={cn(
+        'relative block aspect-square w-full overflow-hidden bg-gradient-to-br text-white ring-1 ring-white/25',
+        '[border-radius:26%]',
+        tool.gradient,
+        'shadow-[0_12px_26px_-10px_var(--glow),0_5px_14px_-6px_rgb(0_0_0/0.4),inset_0_1px_1px_rgb(255_255_255/0.4),inset_0_-10px_18px_rgb(0_0_0/0.12)]',
+        hinted && 'scale-[1.08] ring-2 ring-white/90'
+      )}
+    >
+      {/* top gloss */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/30 via-white/10 to-transparent [border-radius:inherit]"
+      />
+      <tool.icon className="absolute inset-0 m-auto h-[50%] w-[50%]" strokeWidth={1.85} aria-hidden />
+    </span>
+  )
+}
+
+/* ================================================================== */
+/* Folder tile — blurred glass squircle with 2×2 mini icons            */
+/* ================================================================== */
+
+function FolderTile({ item, hinted = false }: { item: HomeFolderItem; hinted?: boolean }) {
+  const minis = item.appIds
+    .slice(0, 4)
+    .map((id) => getToolById(id))
+    .filter((t): t is Tool => Boolean(t))
+
+  return (
+    <span
+      data-tile-id={item.id}
+      className={cn(
+        'relative grid aspect-square w-full grid-cols-2 place-items-center gap-[7%] overflow-hidden bg-white/20 p-[9%] ring-1 ring-white/35 backdrop-blur-xl',
+        '[border-radius:26%]',
+        'shadow-[0_12px_26px_-10px_rgb(0_0_0/0.45),inset_0_1px_1px_rgb(255_255_255/0.4)]',
+        hinted && 'scale-[1.08] ring-2 ring-white/90'
+      )}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 via-white/5 to-transparent [border-radius:inherit]"
+      />
+      {minis.map((t) => (
+        <span
+          key={t.id}
+          className={cn(
+            'flex h-full w-full items-center justify-center rounded-[28%] bg-gradient-to-br text-white shadow-[0_3px_8px_-3px_rgb(0_0_0/0.5),inset_0_1px_1px_rgb(255_255_255/0.35)] ring-1 ring-white/20',
+            t.gradient
+          )}
+        >
+          <t.icon className="h-[58%] w-[58%]" strokeWidth={1.9} aria-hidden />
+        </span>
+      ))}
+    </span>
   )
 }
 
@@ -322,22 +625,24 @@ function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>) {
 }
 
 /* ================================================================== */
-/* Status bar — live clock, battery, online state, search              */
+/* Status bar — live clock, battery, online state, search, edit mode   */
 /* ================================================================== */
 
 function StatusBar({
   onLight,
+  editing,
+  onDone,
   onOpenSearch,
   onOpenCustomize,
 }: {
   onLight: boolean
+  editing: boolean
+  onDone: () => void
   onOpenSearch: () => void
   onOpenCustomize: () => void
 }) {
   const [time, setTime] = useState<string | null>(null)
-  const [online, setOnline] = useState(() =>
-    typeof window !== 'undefined' ? navigator.onLine : true
-  )
+  const [online, setOnline] = useState(() => (typeof window !== 'undefined' ? navigator.onLine : true))
   const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null)
 
   useEffect(() => {
@@ -406,9 +711,11 @@ function StatusBar({
           : 'text-white drop-shadow-md'
       )}
     >
-      <time suppressHydrationWarning>{time ?? '--:--'}</time>
+      <time suppressHydrationWarning className="tabular-nums tracking-wide">
+        {time ?? '--:--'}
+      </time>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         {!online && (
           <span className="flex items-center gap-1" title="Offline">
             <WifiOff className="h-4 w-4" aria-label="Offline" />
@@ -420,27 +727,40 @@ function StatusBar({
             <BatteryGlyph level={battery.level} charging={battery.charging} />
           </span>
         )}
-        <button
-          onClick={onOpenCustomize}
-          aria-label="Customize theme"
-          title="Themes & wallpapers"
-          className={cn(
-            'rounded-full p-1 transition-colors active:scale-90',
-            onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
-          )}
-        >
-          <Palette className="h-[18px] w-[18px]" />
-        </button>
-        <button
-          onClick={onOpenSearch}
-          aria-label="Search apps"
-          className={cn(
-            'rounded-full p-1 transition-colors active:scale-90',
-            onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
-          )}
-        >
-          <Search className="h-[18px] w-[18px]" />
-        </button>
+        {editing ? (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={onDone}
+            className="rounded-full bg-primary px-4 py-1 text-[13px] font-bold text-primary-foreground shadow-lg shadow-black/20 transition-transform active:scale-90"
+          >
+            Done
+          </motion.button>
+        ) : (
+          <>
+            <button
+              onClick={onOpenCustomize}
+              aria-label="Customize theme"
+              title="Themes & wallpapers"
+              className={cn(
+                'rounded-full p-1 transition-colors active:scale-90',
+                onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
+              )}
+            >
+              <Palette className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              onClick={onOpenSearch}
+              aria-label="Search apps"
+              className={cn(
+                'rounded-full p-1 transition-colors active:scale-90',
+                onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
+              )}
+            >
+              <Search className="h-[18px] w-[18px]" />
+            </button>
+          </>
+        )}
       </div>
     </header>
   )
@@ -451,58 +771,6 @@ function BatteryGlyph({ level, charging }: { level: number; charging: boolean })
   if (level > 0.75) return <BatteryFull className="h-4.5 w-4.5" />
   if (level > 0.35) return <BatteryMedium className="h-4.5 w-4.5" />
   return <BatteryLow className="h-4.5 w-4.5" />
-}
-
-/* ================================================================== */
-/* App icon                                                            */
-/* ================================================================== */
-
-function AppIcon({
-  tool,
-  onOpen,
-  noLabel = false,
-  onLight = false,
-}: {
-  tool: Tool
-  onOpen: () => void
-  noLabel?: boolean
-  onLight?: boolean
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.55 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 420, damping: 26 }}
-      className="w-full"
-    >
-      <button
-        onClick={onOpen}
-        aria-label={`Open ${tool.name}`}
-        className="group flex w-full flex-col items-center gap-1.5 rounded-2xl p-1 transition-transform duration-150 ease-out hover:scale-[1.04] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-      >
-        <span
-          className={cn(
-            'flex size-[60px] items-center justify-center rounded-[1.15rem] bg-gradient-to-br text-white shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(255,255,255,0.35)] ring-1 ring-white/20 sm:size-[66px] sm:rounded-[1.3rem]',
-            tool.gradient
-          )}
-        >
-          <tool.icon className="h-[52%] w-[52%]" strokeWidth={1.9} aria-hidden />
-        </span>
-        {!noLabel && (
-          <span
-            className={cn(
-              'max-w-[88px] truncate text-[11px] font-medium leading-tight sm:text-xs',
-              onLight
-                ? 'text-zinc-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.7)]'
-                : 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]'
-            )}
-          >
-            {tool.name}
-          </span>
-        )}
-      </button>
-    </motion.div>
-  )
 }
 
 /* ================================================================== */
@@ -523,9 +791,7 @@ function Spotlight({
   const results = useMemo(() => searchTools(query, 'all'), [query])
   const recentTools = useMemo(
     () =>
-      hydrated
-        ? recents.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t))
-        : [],
+      hydrated ? recents.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t)) : [],
     [recents, hydrated]
   )
   const searching = query.trim().length > 0
@@ -634,9 +900,7 @@ function Spotlight({
                       <t.icon className="h-4.5 w-4.5" aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-white">
-                        {t.name}
-                      </span>
+                      <span className="block truncate text-sm font-semibold text-white">{t.name}</span>
                       <span className="block truncate text-xs text-white/60">{t.description}</span>
                     </span>
                     <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-white/45">
@@ -660,11 +924,9 @@ function Spotlight({
 function AppLibrary({
   onOpenApp,
   onOpenFolder,
-  onLight,
 }: {
   onOpenApp: (id: string) => void
   onOpenFolder: (id: ToolCategoryId) => void
-  onLight: boolean
 }) {
   const folders = useMemo(
     () =>
@@ -676,12 +938,7 @@ function AppLibrary({
 
   return (
     <div className="mx-auto max-w-2xl pt-6">
-      <h1
-        className={cn(
-          'mb-5 text-center text-lg font-bold drop-shadow-md',
-          onLight ? 'text-zinc-900' : 'text-white'
-        )}
-      >
+      <h1 className="mb-5 text-center text-lg font-bold tracking-tight text-white drop-shadow-md">
         App Library
       </h1>
       <div className="grid grid-cols-2 justify-items-center gap-x-3 gap-y-6 sm:grid-cols-3">
@@ -716,21 +973,78 @@ function AppLibrary({
           </button>
         ))}
       </div>
+      <p className="mt-6 text-center text-[11px] text-white/60">
+        Tip: long-press any icon on the home screen to rearrange it or create a folder.
+      </p>
     </div>
   )
 }
 
+/* ================================================================== */
+/* Folder overlay — user folders (rename / remove apps) + categories   */
+/* ================================================================== */
+
 function FolderOverlay({
-  categoryId,
+  target,
   onOpenApp,
   onClose,
 }: {
-  categoryId: ToolCategoryId
+  target: NonNullable<OpenFolder>
   onOpenApp: (id: string) => void
   onClose: () => void
 }) {
-  const cat = toolCategories.find((c) => c.id === categoryId)
-  const items = tools.filter((t) => t.category === categoryId)
+  const layout = useAppStore((s) => s.layout)
+  const setLayout = useAppStore((s) => s.setLayout)
+  const [pick, setPick] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+
+  const folder = target.kind === 'user' ? layout.find((i) => i.kind === 'folder' && i.id === target.id) : undefined
+  const cat = target.kind === 'category' ? toolCategories.find((c) => c.id === target.id) : undefined
+
+  const items: Tool[] = useMemo(() => {
+    if (target.kind === 'category') return tools.filter((t) => t.category === target.id)
+    if (folder?.kind === 'folder')
+      return folder.appIds.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t))
+    return []
+  }, [target, folder])
+
+  const suggested = useMemo(() => {
+    if (folder?.kind !== 'folder') return cat?.name ?? 'Folder'
+    return (
+      folder.name ??
+      suggestFolderName(
+        folder.appIds,
+        (id) => getToolById(id)?.category,
+        (cid) => toolCategories.find((c) => c.id === cid)?.name
+      )
+    )
+  }, [folder, cat])
+
+  /* auto-close when a user folder dissolves below two apps */
+  useEffect(() => {
+    if (target.kind === 'user' && !folder) onClose()
+  }, [target, folder, onClose])
+
+  useEffect(() => {
+    setNameDraft(suggested)
+  }, [suggested])
+
+  const commitName = () => {
+    if (!folder || folder.kind !== 'folder') return
+    const next = renameFolderOp(layout, folder.id, nameDraft)
+    setLayout(next)
+  }
+
+  const removeApp = (appId: string) => {
+    if (!folder || folder.kind !== 'folder') return
+    const next = removeFromFolderOp(layout, folder.id, appId)
+    setLayout(next)
+    try {
+      navigator.vibrate?.(10)
+    } catch {}
+  }
+
+  const title = target.kind === 'category' ? (cat?.name ?? 'Folder') : suggested
 
   return (
     <motion.div
@@ -739,9 +1053,12 @@ function FolderOverlay({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
       className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 p-6 backdrop-blur-2xl"
-      onClick={onClose}
+      onClick={() => {
+        if (pick) setPick(false)
+        else onClose()
+      }}
       role="dialog"
-      aria-label={`${cat?.name ?? 'Folder'} apps`}
+      aria-label={`${title} apps`}
     >
       <motion.div
         initial={{ scale: 0.92, opacity: 0 }}
@@ -751,23 +1068,78 @@ function FolderOverlay({
         className="w-full max-w-md rounded-3xl bg-white/12 p-5 ring-1 ring-white/25 backdrop-blur-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold text-white">{cat?.name}</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Close folder"
-            className="h-8 w-8 rounded-full text-white hover:bg-white/20"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          {target.kind === 'user' ? (
+            <input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              }}
+              aria-label="Folder name"
+              placeholder="Folder name"
+              className="w-44 rounded-lg border-b border-white/25 bg-transparent px-1 pb-0.5 text-center text-base font-bold text-white placeholder:text-white/40 focus:border-white/70 focus:outline-none"
+            />
+          ) : (
+            <h2 className="text-base font-bold text-white">{title}</h2>
+          )}
+          <div className="flex items-center gap-2">
+            {target.kind === 'user' && (
+              <button
+                onClick={() => setPick((p) => !p)}
+                className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/25 active:scale-95"
+              >
+                {pick ? 'Done' : 'Remove'}
+              </button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="Close folder"
+              className="h-8 w-8 rounded-full text-white hover:bg-white/20"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+
         <div className="no-scrollbar grid max-h-[56vh] grid-cols-4 gap-x-2 gap-y-5 overflow-y-auto">
           {items.map((t) => (
-            <AppIcon key={t.id} tool={t} onOpen={() => onOpenApp(t.id)} />
+            <div key={t.id} className="relative">
+              <button
+                onClick={() => {
+                  if (pick) return
+                  onOpenApp(t.id)
+                }}
+                aria-label={`Open ${t.name}`}
+                className="group flex w-full flex-col items-center gap-1.5 rounded-2xl p-1 transition-transform duration-150 hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-90"
+              >
+                <IconTile tool={t} />
+                <span className="max-w-[88px] truncate text-[11px] font-medium leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+                  {t.name}
+                </span>
+              </button>
+              {pick && (
+                <button
+                  onClick={() => removeApp(t.id)}
+                  aria-label={`Remove ${t.name} from folder`}
+                  className="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-white text-black shadow-lg ring-2 ring-black/10 transition hover:bg-red-500 hover:text-white active:scale-90"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
           ))}
+          {items.length === 0 && <p className="col-span-4 py-8 text-center text-sm text-white/60">This folder is empty.</p>}
         </div>
+
+        {target.kind === 'user' && !pick && (
+          <p className="mt-4 text-center text-[11px] text-white/50">
+            Tap “Remove”, then tap the badge on an app to pull it out of the folder.
+          </p>
+        )}
       </motion.div>
     </motion.div>
   )
@@ -796,12 +1168,12 @@ function AppWindow({ app, onHome }: { app: Tool; onHome: () => void }) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.84, y: 30 }}
       transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-      className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background text-foreground"
+      className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background text-foreground md:inset-4 md:rounded-[1.75rem] md:shadow-2xl md:ring-1 md:ring-black/10 lg:inset-8"
       role="dialog"
       aria-label={app.name}
     >
       {/* App header */}
-      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b bg-background/85 px-3 backdrop-blur">
+      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b bg-background/85 px-3 backdrop-blur md:rounded-t-[1.75rem]">
         <Button
           variant="ghost"
           size="icon"
@@ -812,15 +1184,17 @@ function AppWindow({ app, onHome }: { app: Tool; onHome: () => void }) {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <span
+          style={{ '--glow': app.glow } as CSSProperties}
           className={cn(
-            'flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ring-1 ring-black/5',
+            'relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-white ring-1 ring-black/5',
+            'shadow-[0_6px_16px_-6px_var(--glow),inset_0_1px_1px_rgb(255_255_255/0.4)]',
             app.gradient
           )}
         >
           <app.icon className="h-5 w-5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-bold leading-tight">{app.name}</h1>
+          <h1 className="truncate text-base font-bold leading-tight tracking-tight">{app.name}</h1>
           <p className="truncate text-[11px] text-muted-foreground">
             {toolCategories.find((c) => c.id === app.category)?.name}
           </p>
@@ -839,7 +1213,7 @@ function AppWindow({ app, onHome }: { app: Tool; onHome: () => void }) {
 
       {/* App body */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto w-full max-w-4xl px-4 pb-28 pt-5">
+        <div className="mx-auto w-full max-w-4xl px-4 pb-28 pt-5 sm:px-6">
           <app.Component />
         </div>
       </div>

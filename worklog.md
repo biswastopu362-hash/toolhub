@@ -248,3 +248,27 @@ Work Log:
 Stage Summary:
 - Browser E2E verified: Control Center opens from status-bar palette (desktop + iPhone 14), Light/Dark/AMOLED/System switching live, AMOLED body computed lab(0 0 0) true black, accent switch emerald→violet propagates into Calculator (DEG chip + window tint), wallpaper sunset→blossom crossfades + status chrome flips white→dark text, persistence survives reload (localStorage + FOUC script, no flash), mobile 4-col grid + wrapping accent dots + scrollable wallpapers, zero console errors, lint clean, tsc clean in src/
 - NOTE: stale SW bundles in dev — cleared via caches.delete + SW unregister when re-verifying (now toolhub-v3)
+
+---
+Task ID: 3
+Agent: main (Z.ai Code)
+Task: Premium design pass — drag & drop home screen with folders, 12 animated wallpapers, glow icons, responsive polish, Vercel deploy prep
+
+Work Log:
+- Created src/lib/home-layout.ts: pure layout engine (HomeItem = app | folder, ops: move/createFolder/addToFolder/mergeFolders/removeFromFolder/rename/migrate/default, folder-name suggestion)
+- Rewrote src/lib/store/app-store.ts: persisted `layout` + `layoutMigrated` flag, persist v2 migration
+- Added Tool.glow (per-app hex ambient shadow) to types + all 19 registry entries; upgraded gradients to 3-stop (from/via/to)
+- Rewrote globals.css wallpaper system: 12 wallpapers (6 dark + 6 light) as layered meshes + 2 slow-drifting animated blobs per live layer (paused when inactive via [data-off]), SVG film-grain overlay, jiggle keyframes, drag-ghost, home-no-callout utilities
+- Created src/components/home/use-home-drag.ts: pointer-based drag engine — 420ms long-press → edit mode + haptics, ghost follows finger via direct DOM transforms (zero re-renders per move), rAF-throttled slot detection, iOS-style hysteresis (tile hover freezes reorder + becomes folder target), edge page-flip interval, click suppression, AbortController listener cleanup, armedRef for non-passive touchmove scroll-cancel
+- Rewrote src/app/page.tsx: layout-driven pages (apps + user folders), HomeItemView (framer-motion layout FLIP, jiggle inner wrapper, label light/dark aware), premium IconTile (squircle 26% radius, gloss, glow shadow), FolderTile (glass 2×2 minis), edit-mode Done pill, StatusBar polish (tabular-nums), elongated active page dot, glassy dock, FolderOverlay v2 (user folders: editable name, Remove mode with X badges, auto-close on dissolve; category folders), AppWindow floating desktop window (md:inset-4 rounded + glow header icon), one-time layout migration effect
+- ControlCenter: live mode-preview tiles (light/dark/amoled/split), 8 accent squircles, 12 wallpaper swatches, "Rearrange icons & folders" entry (onEditIcons)
+- Settings: Home-screen layout card (apps/folders/favorites stats, Reset layout AlertDialog), v2.2 badge
+- Vercel prep: package.json (name toolhub, v1.0.0, build=next build, start=next start, postinstall=prisma generate), next.config.ts (removed standalone output + ignoreBuildErrors), tsconfig excludes sandbox dirs (examples/skills/tests/...), .gitignore sandbox artifacts, README.md with GitHub→Vercel deploy guide + DB rationale
+- DB answer: no database needed now (all data client-side localStorage; Vercel FS ephemeral); Prisma schema kept for future Postgres/Turso upgrade
+- Browser E2E verified: fixed missing tool.gradient in IconTile (icons were transparent glass), fixed drag engine (single-move drop + hysteresis); verified edit mode, folder create (QR+Unit → "Generators"), rename to "Media Lab", app removal + auto-dissolve, light/violet/blossom theme switch, calculator app window, mobile 390×844 (4-col grid), AMOLED mode, spotlight search; zero console errors, lint + tsc clean
+
+Stage Summary:
+- Home screen is now a real launcher: long-press → jiggle → drag to reorder across pages, drop app on app = folder, folder on folder = merge, X-badge removal inside folders, reset from Settings
+- All personalization persists (zustand persist v2): layout, folders, accents, mode, wallpaper
+- Deploy-ready: plain `next build` (Vercel auto-detected), no env vars needed, no DB required
+- Key files: src/lib/home-layout.ts, src/components/home/use-home-drag.ts, src/app/page.tsx, src/app/globals.css, src/lib/theme.ts

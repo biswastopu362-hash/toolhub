@@ -3,9 +3,11 @@
 import {
   Check,
   Info,
+  LayoutGrid,
   Monitor,
   Moon,
   MoreVertical,
+  RotateCcw,
   Share,
   Sparkles,
   Sun,
@@ -16,11 +18,23 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/lib/store/app-store'
 import { ACCENTS, MODES, WALLPAPERS, type ModeId } from '@/lib/theme'
+import { defaultLayout } from '@/lib/home-layout'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { tools } from '@/lib/tools/registry'
 
@@ -52,6 +66,8 @@ export default function SettingsTool() {
   const setAccent = useAppStore((s) => s.setAccent)
   const clearRecents = useAppStore((s) => s.clearRecents)
   const toggleFavorite = useAppStore((s) => s.toggleFavorite)
+  const resetLayout = useAppStore((s) => s.resetLayout)
+  const folderCount = useAppStore((s) => s.layout.filter((i) => i.kind === 'folder').length)
 
   const clearFavorites = () => {
     if (favorites.length === 0) return
@@ -214,6 +230,70 @@ export default function SettingsTool() {
         </p>
       </Card>
 
+      {/* ---------------- Home screen layout ---------------- */}
+      <Card className="gap-4 p-4">
+        <div>
+          <h3 className="font-semibold">Home screen layout</h3>
+          <p className="text-sm text-muted-foreground">
+            Long-press any icon on the home screen to rearrange apps, stack two apps together to
+            create a folder, or hold near a screen edge to flip pages.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-lg bg-muted p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums">{tools.length.toLocaleString('en-US')}</p>
+            <p className="text-xs text-muted-foreground">Apps</p>
+          </div>
+          <div className="rounded-lg bg-muted p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums">{folderCount.toLocaleString('en-US')}</p>
+            <p className="text-xs text-muted-foreground">Folders</p>
+          </div>
+          <div className="rounded-lg bg-muted p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums">{favorites.length.toLocaleString('en-US')}</p>
+            <p className="text-xs text-muted-foreground">Favorites</p>
+          </div>
+        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" className="h-11 gap-2">
+              <RotateCcw className="size-4" /> Reset home screen layout
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset home screen layout?</AlertDialogTitle>
+              <AlertDialogDescription>
+                All folders will be dissolved and every app returns to its original position. Your
+                notes, reminders and favorites are not affected.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  resetLayout(
+                    defaultLayout(
+                      tools.map((t) => t.id),
+                      ['calculator', 'clock', 'weather', 'notes']
+                    )
+                  )
+                  toast({
+                    title: 'Home screen reset ✓',
+                    description: 'Every app is back in its original place.',
+                  })
+                }}
+              >
+                Reset
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <p className="flex items-start gap-2 text-xs text-muted-foreground">
+          <LayoutGrid className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          Tip: you can also tap “Rearrange icons &amp; folders” in quick settings.
+        </p>
+      </Card>
+
       {/* ---------------- Install ---------------- */}
       <Card className="gap-4 p-4">
         <div>
@@ -289,7 +369,7 @@ export default function SettingsTool() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold">ToolHub</h3>
-              <Badge variant="secondary">v2.1</Badge>
+              <Badge variant="secondary">v2.2</Badge>
             </div>
             <p className="text-sm text-muted-foreground">All your apps, one hub</p>
           </div>
