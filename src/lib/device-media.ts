@@ -58,6 +58,16 @@ export interface DeviceEntry {
 export interface DeviceMeta {
   at: number
   count: number
+  /** true when the walk hit the 25k safety cap — index is incomplete */
+  partial?: boolean
+}
+
+/** Thrown when the connected folder was moved/renamed/deleted on disk. */
+export class DeviceRootMissingError extends Error {
+  constructor() {
+    super('The connected folder no longer exists or was moved')
+    this.name = 'DeviceRootMissingError'
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -81,6 +91,8 @@ function openDb(): Promise<IDBDatabase> {
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error ?? new Error('Failed to open toolhub-device'))
+    // another tab holds an older version — fail fast instead of hanging forever
+    req.onblocked = () => reject(new Error('toolhub-device is open in another tab'))
   })
 }
 
@@ -94,9 +106,21 @@ function tx<T>(
       new Promise<T>((resolve, reject) => {
         const t = db.transaction(store, mode)
         const req = run(t.objectStore(store))
-        req.onsuccess = () => resolve(req.result)
-        req.onerror = () => reject(req.error ?? new Error('IndexedDB request failed'))
+        let settled = false
+        req.onsuccess = () => {
+          settled = true
+          resolve(req.result)
+        }
+        req.onerror = () => {
+          settled = true
+          reject(req.error ?? new Error('IndexedDB request failed'))
+        }
         t.oncomplete = () => db.close()
+        // error/abort paths must close too, or connections pile up
+        t.onabort = () => {
+          db.close()
+          if (!settled) reject(t.error ?? new Error('IndexedDB transaction aborted'))
+        }
       })
   )
 }
@@ -114,6 +138,10 @@ function bulkPut(entries: DeviceEntry[]): Promise<void> {
           resolve()
         }
         t.onerror = () => reject(t.error ?? new Error('Index write failed'))
+        t.onabort = () => {
+          db.close()
+          reject(t.error ?? new Error('Index write aborted'))
+        }
       })
   )
 }
@@ -168,7 +196,10 @@ interface RootRecord {
 export async function connectRoot(): Promise<FsDirHandle> {
   const w = window as PickerWindow
   if (!w.showDirectoryPicker) throw new Error('unsupported')
-  const handle = await w.showDirectoryPicker({ mode: 'read', id: 'toolhub-device-root' })
+  // readwrite so Files/Gallery delete truly works — removeEntry() rejects with
+  // read-only handles, so a read-only grant would make every delete fail.
+  const handle = await w.showDirectoryPicker({ mode: 'readwrite', id: 'toolhub-device-root' })
+  clearThumbCache()
   await tx(S_HANDLES, 'readwrite', (s) => s.put({ key: 'root', handle, connectedAt: Date.now() }) as IDBRequest<IDBValidKey>)
   return handle
 }
@@ -198,6 +229,13 @@ export async function accessState(handle: FsDirHandle): Promise<PermissionState>
 
 /** Must be called from a user gesture when state is 'prompt'. */
 export async function requestAccess(handle: FsDirHandle): Promise<boolean> {
+  // Prefer readwrite (enables delete); degrade gracefully to read-only.
+  try {
+    const state = (await handle.requestPermission?.({ mode: 'readwrite' })) ?? 'granted'
+    if (state === 'granted') return true
+  } catch {
+    /* fall through to read-only */
+  }
   try {
     const state = (await handle.requestPermission?.({ mode: 'read' })) ?? 'granted'
     return state === 'granted'
@@ -207,6 +245,7 @@ export async function requestAccess(handle: FsDirHandle): Promise<boolean> {
 }
 
 export async function disconnectRoot(): Promise<void> {
+  clearThumbCache()
   await tx(S_HANDLES, 'readwrite', (s) => s.delete('root') as IDBRequest<undefined>)
   await bulkPut([])
   await tx(S_META, 'readwrite', (s) => s.delete('index') as IDBRequest<undefined>)
@@ -227,6 +266,7 @@ export async function indexRoot(
   let aborted = false
 
   async function walk(dir: FsDirHandle, segs: string[], depth: number): Promise<void> {
+    // (root-missing detection lives in the depth-0 catch below)
     if (depth > 10 || entries.length >= INDEX_LIMIT || signal?.aborted) {
       if (entries.length >= INDEX_LIMIT) aborted = true
       return
@@ -279,17 +319,32 @@ export async function indexRoot(
           if (onProgress && entries.length % 100 === 0) onProgress(entries.length)
         }
       }
-    } catch {
+    } catch (err) {
+      // depth 0 throwing NotFoundError ⇒ the picked folder itself is gone
+      // (moved/renamed/deleted). Everything else is just an unreadable subtree.
+      if (depth === 0 && (err as Error)?.name === 'NotFoundError') throw new DeviceRootMissingError()
       /* unreadable directory — skip */
     }
   }
 
-  await walk(handle, [], 0)
-  const meta: DeviceMeta = { at: Date.now(), count: entries.length }
+  try {
+    await walk(handle, [], 0)
+  } catch (err) {
+    if (err instanceof DeviceRootMissingError) throw err
+    throw err
+  }
+  if (signal?.aborted) {
+    if (onProgress) onProgress(-1)
+    throw new Error('Indexing cancelled')
+  }
+  // A capped walk replaces the old index with a PARTIAL one — mark it so the
+  // UI can say so and ensureFreshIndex keeps retrying instead of trusting it.
+  const meta: DeviceMeta = aborted
+    ? { at: Date.now(), count: entries.length, partial: true }
+    : { at: Date.now(), count: entries.length }
   await bulkPut(entries)
   await tx(S_META, 'readwrite', (s) => s.put({ key: 'index', ...meta }) as IDBRequest<IDBValidKey>)
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('toolhub:device-indexed'))
-  if (aborted && onProgress) onProgress(-1)
   return meta
 }
 
@@ -305,16 +360,27 @@ export async function indexMeta(): Promise<DeviceMeta | undefined> {
 }
 
 /** Index if never done or older than maxAge. Returns fresh meta (or undefined without access). */
+let inFlightIndex: Promise<DeviceMeta | undefined> | undefined
 export async function ensureFreshIndex(
   maxAgeMs = 10 * 60_000,
   onProgress?: (count: number) => void
 ): Promise<DeviceMeta | undefined> {
-  const root = await getRoot()
-  if (!root) return undefined
-  if ((await accessState(root)) !== 'granted') return undefined
-  const meta = await indexMeta()
-  if (meta && Date.now() - meta.at < maxAgeMs) return meta
-  return indexRoot(root, onProgress)
+  // dedupe concurrent callers (Gallery auto-load + manual refresh + Music boot)
+  if (inFlightIndex) return inFlightIndex
+  inFlightIndex = (async () => {
+    const root = await getRoot()
+    if (!root) return undefined
+    if ((await accessState(root)) !== 'granted') return undefined
+    const meta = await indexMeta()
+    // a partial (capped) index is never trusted as fresh — always retry
+    if (meta && !meta.partial && Date.now() - meta.at < maxAgeMs) return meta
+    return indexRoot(root, onProgress)
+  })()
+  try {
+    return await inFlightIndex
+  } finally {
+    inFlightIndex = undefined
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -394,6 +460,13 @@ export async function entryUrl(entry: DeviceEntry): Promise<string> {
 export async function deleteEntry(entry: DeviceEntry): Promise<number> {
   const root = await getRoot()
   if (!root?.removeEntry || !root.getDirectoryHandle) throw new Error('Delete unsupported')
+  // removeEntry needs readwrite — upgrade in-gesture if the handle is read-only
+  try {
+    const st = (await root.queryPermission?.({ mode: 'readwrite' })) ?? 'granted'
+    if (st !== 'granted') await root.requestPermission?.({ mode: 'readwrite' })
+  } catch {
+    /* best effort — removeEntry will reject with a clear error if denied */
+  }
   let dir: FsDirHandle = root
   for (const seg of entry.segs.slice(0, -1)) {
     if (!dir.getDirectoryHandle) throw new Error('Cannot traverse handle')
@@ -409,6 +482,7 @@ export async function deleteEntry(entry: DeviceEntry): Promise<number> {
   await bulkPut(kept)
   const meta = { key: 'index', at: Date.now(), count: kept.length }
   await tx(S_META, 'readwrite', (s) => s.put(meta) as IDBRequest<IDBValidKey>)
+  purgeThumbs(entry)
   return doomed.size
 }
 
@@ -418,29 +492,49 @@ export async function deleteEntry(entry: DeviceEntry): Promise<number> {
 
 const thumbCache = new Map<string, string>()
 const THUMB_CAP = 600
+/** Max simultaneous image/video decodes — prevents main-thread jank when a
+ * big grid mounts and every card asks for its thumbnail at once. */
+const THUMB_CONCURRENCY = 3
 
-export function peekThumb(id: string): string | undefined {
-  return thumbCache.get(id)
+/** Cache key: path + lastModified, so replacing a file at the same path
+ * invalidates its old thumbnail automatically. */
+export function thumbKey(entry: DeviceEntry): string {
+  return `${entry.lastModified}:${entry.id}`
 }
 
-export function cachedThumb(id: string): string | undefined {
-  const hit = thumbCache.get(id)
+export function cachedThumb(entry: DeviceEntry): string | undefined {
+  const key = thumbKey(entry)
+  const hit = thumbCache.get(key)
   if (hit) {
     // refresh recency
-    thumbCache.delete(id)
-    thumbCache.set(id, hit)
+    thumbCache.delete(key)
+    thumbCache.set(key, hit)
   }
   return hit
 }
 
-function stashThumb(id: string, dataUrl: string): string {
+/** Drop every cached thumbnail (connect/disconnect — different root). */
+export function clearThumbCache(): void {
+  thumbCache.clear()
+}
+
+/** Drop thumbnails for a deleted entry and (for folders) its descendants. */
+function purgeThumbs(entry: DeviceEntry): void {
+  const self = `:${entry.id}`
+  const sub = `${self}/`
+  for (const k of [...thumbCache.keys()]) {
+    if (k.endsWith(self) || k.includes(sub)) thumbCache.delete(k)
+  }
+}
+
+function stashThumb(key: string, dataUrl: string): string {
   if (thumbCache.size >= THUMB_CAP) {
     const oldest = thumbCache.keys().next().value
     if (oldest) {
       thumbCache.delete(oldest)
     }
   }
-  thumbCache.set(id, dataUrl)
+  thumbCache.set(key, dataUrl)
   return dataUrl
 }
 
@@ -512,15 +606,37 @@ function videoThumb(file: File): Promise<string> {
   })
 }
 
+/* thumbnail decode slots — bounded fan-out */
+let thumbActive = 0
+const thumbWaiters: (() => void)[] = []
+
+async function withThumbSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (thumbActive >= THUMB_CONCURRENCY) {
+    await new Promise<void>((release) => thumbWaiters.push(release))
+  }
+  thumbActive++
+  try {
+    return await fn()
+  } finally {
+    thumbActive--
+    thumbWaiters.shift()?.()
+  }
+}
+
 /** Resolve a thumbnail for a media entry (images + videos). Falls back gracefully. */
 export async function thumbFor(entry: DeviceEntry): Promise<string | undefined> {
   if (entry.dir || entry.kind === 'audio' || entry.kind === 'file') return undefined
-  const hit = cachedThumb(entry.id)
+  const hit = cachedThumb(entry)
   if (hit) return hit
   try {
-    const file = await getFileFor(entry)
-    const dataUrl = entry.kind === 'image' ? await imageThumb(file) : await videoThumb(file)
-    return stashThumb(entry.id, dataUrl)
+    // bounded: at most THUMB_CONCURRENCY decodes run at any moment
+    return await withThumbSlot(async () => {
+      const double = cachedThumb(entry) // another waiter may have filled it
+      if (double) return double
+      const file = await getFileFor(entry)
+      const dataUrl = entry.kind === 'image' ? await imageThumb(file) : await videoThumb(file)
+      return stashThumb(thumbKey(entry), dataUrl)
+    })
   } catch {
     return undefined
   }

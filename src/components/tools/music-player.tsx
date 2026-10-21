@@ -219,6 +219,15 @@ export default function MusicPlayer() {
       if (reindex) await ensureFreshIndex(10 * 60_000).catch(() => undefined)
       const audios = (await listEntries({ dir: false, kinds: ['audio'] })).sort((a, b) => a.name.localeCompare(b.name))
       devEntriesRef.current = new Map(audios.map((e) => [`dev:${e.id}`, e]))
+      // re-index may reflect renamed/replaced/deleted files — drop cached
+      // object URLs for everything except the track currently playing
+      const keepId = currentIdRef.current
+      for (const [k, u] of devUrlRef.current) {
+        if (k !== keepId) {
+          URL.revokeObjectURL(u)
+          devUrlRef.current.delete(k)
+        }
+      }
       setDevTracks(audios.map((e) => ({ id: `dev:${e.id}`, name: e.name, dataUrl: '', addedAt: e.lastModified || 0 })))
     } catch {
       /* device layer unavailable (unsupported browser / nothing connected) */
@@ -252,11 +261,21 @@ export default function MusicPlayer() {
       setDevSrc(null)
       return
     }
+    // clear the previous track's URL synchronously — the <audio> element must
+    // never keep loading the old blob while the new one resolves
+    setDevSrc(null)
     void entryUrl(entry)
       .then((u) => {
         if (dead) {
           URL.revokeObjectURL(u)
           return
+        }
+        // keep the cache bounded: only the current track stays alive
+        for (const [k, old] of devUrlRef.current) {
+          if (k !== currentTrack.id) {
+            URL.revokeObjectURL(old)
+            devUrlRef.current.delete(k)
+          }
         }
         devUrlRef.current.set(currentTrack.id, u)
         setDevSrc(u)
@@ -558,6 +577,29 @@ export default function MusicPlayer() {
       setPosition(0)
     }
   }, [advance, allTracks])
+
+  /* device file unreadable / moved / permission expired — never leave the
+   * player silently stuck or surprise-autoplay the next track */
+  const audioErrorToastRef = useRef(0)
+  const handleAudioError = () => {
+    autoAdvanceRef.current = false
+    const audio = audioRef.current
+    // ignore the benign "empty src" error fired when src becomes undefined
+    if (!audio?.error || !audio.currentSrc) return
+    setPlaying(false)
+    if (devSrc) {
+      setDevSrc(null)
+      const now = Date.now()
+      if (now - audioErrorToastRef.current > 4000) {
+        audioErrorToastRef.current = now
+        toast({
+          title: 'Cannot play this file',
+          description: 'It may have been moved, renamed or deleted — refresh the device library.',
+          variant: 'destructive',
+        })
+      }
+    }
+  }
 
   const handleTimeUpdate = () => {
     const audio = audioRef.current
@@ -972,6 +1014,7 @@ export default function MusicPlayer() {
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
+        onError={handleAudioError}
         className="hidden"
       />
     </div>

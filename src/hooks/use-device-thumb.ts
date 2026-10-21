@@ -11,12 +11,12 @@ import { cachedThumb, thumbFor, type DeviceEntry } from '@/lib/device-media'
 export function useDeviceThumb(entry: DeviceEntry | undefined): string | undefined {
   const [state, setState] = useState<{ id?: string; thumb?: string }>(() => ({
     id: entry?.id,
-    thumb: entry ? cachedThumb(entry.id) : undefined,
+    thumb: entry ? cachedThumb(entry) : undefined,
   }))
 
   // Derived-state adjustment: reset immediately when the entry changes.
   if (state.id !== entry?.id) {
-    setState({ id: entry?.id, thumb: entry ? cachedThumb(entry.id) : undefined })
+    setState({ id: entry?.id, thumb: entry ? cachedThumb(entry) : undefined })
   }
 
   useEffect(() => {

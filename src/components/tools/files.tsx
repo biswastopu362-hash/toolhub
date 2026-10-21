@@ -51,6 +51,7 @@ import {
   connectRoot,
   deleteEntry,
   disconnectRoot,
+  DeviceRootMissingError,
   ensureFreshIndex,
   entryUrl,
   fsSupported,
@@ -207,6 +208,24 @@ export default function FilesApp() {
 
   const [deleteTarget, setDeleteTarget] = useState<DeviceEntry | null>(null)
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null)
+  /** guards openEntry against out-of-order async resolutions */
+  const openTokenRef = useRef(0)
+
+  /* latest preview URLs for unmount cleanup (closing the app mid-preview
+   * must not leak blob URLs / pin huge File objects) */
+  const previewUrlsRef = useRef<{ img?: string; vid?: string; audio?: string }>({})
+  useEffect(() => {
+    previewUrlsRef.current = { img: imgView?.url, vid: vidView?.url, audio: audio?.url }
+  }, [imgView, vidView, audio])
+  useEffect(
+    () => () => {
+      const p = previewUrlsRef.current
+      if (p.img) URL.revokeObjectURL(p.img)
+      if (p.vid) URL.revokeObjectURL(p.vid)
+      if (p.audio) URL.revokeObjectURL(p.audio)
+    },
+    []
+  )
 
   /* -------- boot: restore root handle + access state -------- */
   useEffect(() => {
@@ -226,6 +245,16 @@ export default function FilesApp() {
         setIdxBusy(true)
         void ensureFreshIndex(10 * 60_000, (n) => !cancelled && setIdxCount(Math.max(0, n)))
           .then((m) => !cancelled && setMeta(m))
+          .catch((err) => {
+            if (cancelled) return
+            if (err instanceof DeviceRootMissingError) {
+              toast({
+                title: 'Connected folder is gone',
+                description: `“${handle.name}” was moved, renamed or deleted — disconnect and connect it again.`,
+                variant: 'destructive',
+              })
+            }
+          })
           .finally(() => !cancelled && setIdxBusy(false))
       }
       void navigator.storage?.estimate?.().then((est) => {
@@ -271,6 +300,30 @@ export default function FilesApp() {
     if (audio) URL.revokeObjectURL(audio.url)
   }, [audio])
 
+  /* Escape closes the image lightbox / video modal (same as Gallery's viewer) */
+  const previewOpen = imgView !== null || vidView !== null
+  const closePreview = useCallback(() => {
+    if (imgView) {
+      URL.revokeObjectURL(imgView.url)
+      setImgView(null)
+    }
+    if (vidView) {
+      URL.revokeObjectURL(vidView.url)
+      setVidView(null)
+    }
+  }, [imgView, vidView])
+  useEffect(() => {
+    if (!previewOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        closePreview()
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [previewOpen, closePreview])
+
   /* -------- actions -------- */
 
   const doIndex = useCallback(
@@ -280,12 +333,27 @@ export default function FilesApp() {
       try {
         const m = await indexRoot(handle, (n) => setIdxCount(Math.max(0, n)))
         setMeta(m)
-        toast({
-          title: 'Device library updated',
-          description: `${m.count.toLocaleString('en-US')} items indexed from “${handle.name}”.`,
-        })
-      } catch {
-        toast({ title: 'Indexing failed', description: 'Could not read the connected folder.', variant: 'destructive' })
+        if (m.partial) {
+          toast({
+            title: 'Large folder — index is partial',
+            description: `${m.count.toLocaleString('en-US')} of ${m.count.toLocaleString('en-US')}+ items indexed from “${handle.name}” (25,000-item safety limit).`,
+          })
+        } else {
+          toast({
+            title: 'Device library updated',
+            description: `${m.count.toLocaleString('en-US')} items indexed from “${handle.name}”.`,
+          })
+        }
+      } catch (err) {
+        if (err instanceof DeviceRootMissingError) {
+          toast({
+            title: 'Folder not found',
+            description: '“' + handle.name + '” was moved or deleted — disconnect and connect it again.',
+            variant: 'destructive',
+          })
+        } else {
+          toast({ title: 'Indexing failed', description: 'Could not read the connected folder.', variant: 'destructive' })
+        }
       } finally {
         setIdxBusy(false)
       }
@@ -344,11 +412,27 @@ export default function FilesApp() {
         setPath((p) => [...p, e.name])
         return
       }
+      // token guards against slow getFile() resolving out of order — a stale
+      // result must never overwrite a newer pick (and its URL is revoked)
+      const token = ++openTokenRef.current
       if (e.kind === 'image' || e.kind === 'video') {
         try {
           const url = await entryUrl(e)
-          if (e.kind === 'image') setImgView({ entry: e, url })
-          else setVidView({ entry: e, url })
+          if (openTokenRef.current !== token) {
+            URL.revokeObjectURL(url)
+            return
+          }
+          if (e.kind === 'image') {
+            setImgView((prev) => {
+              if (prev) URL.revokeObjectURL(prev.url)
+              return { entry: e, url }
+            })
+          } else {
+            setVidView((prev) => {
+              if (prev) URL.revokeObjectURL(prev.url)
+              return { entry: e, url }
+            })
+          }
         } catch {
           toast({ title: 'Cannot open file', description: 'Access may need renewal — press Refresh.', variant: 'destructive' })
         }
@@ -357,7 +441,12 @@ export default function FilesApp() {
       if (e.kind === 'audio') {
         try {
           revokeAudio()
+          setAudio(null)
           const url = await entryUrl(e)
+          if (openTokenRef.current !== token) {
+            URL.revokeObjectURL(url)
+            return
+          }
           setAudio({ entry: e, url })
           setAudioPlaying(true)
           window.setTimeout(() => {
@@ -479,7 +568,7 @@ export default function FilesApp() {
               <Link2 className="size-4" aria-hidden /> Connect a device folder
             </Button>
             <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <ShieldCheck className="size-3.5" aria-hidden /> Read-only access · revoke anytime · stored only on this device
+              <ShieldCheck className="size-3.5" aria-hidden /> Private to this device · revoke anytime · nothing is uploaded
             </p>
           </div>
         )}

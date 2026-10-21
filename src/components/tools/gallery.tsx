@@ -49,6 +49,7 @@ import {
   accessState,
   connectRoot,
   deleteEntry,
+  DeviceRootMissingError,
   ensureFreshIndex,
   entryUrl,
   fsSupported,
@@ -254,18 +255,30 @@ export default function GalleryApp() {
     }
   }, [])
 
-  const loadDevice = useCallback(async (reindex: boolean) => {
-    setDevBusy(true)
-    try {
-      if (reindex) await ensureFreshIndex(10 * 60_000)
-      const media = (await listEntries({ dir: false, kinds: ['image', 'video'] })).sort(
-        (a, b) => b.lastModified - a.lastModified
-      )
-      setDevEntries(media)
-    } finally {
-      setDevBusy(false)
-    }
-  }, [])
+  const loadDevice = useCallback(
+    async (reindex: boolean) => {
+      setDevBusy(true)
+      try {
+        if (reindex) await ensureFreshIndex(10 * 60_000)
+        const media = (await listEntries({ dir: false, kinds: ['image', 'video'] })).sort(
+          (a, b) => b.lastModified - a.lastModified
+        )
+        setDevEntries(media)
+      } catch (err) {
+        // ensureFreshIndex never resolved before — surface why (moved/renamed folder etc.)
+        if (err instanceof DeviceRootMissingError) {
+          toast({
+            title: 'Device folder is gone',
+            description: `“${devRoot?.name ?? 'The folder'}” was moved or deleted — reconnect it to refresh.`,
+            variant: 'destructive',
+          })
+        }
+      } finally {
+        setDevBusy(false)
+      }
+    },
+    [devRoot?.name, toast]
+  )
 
   /* Auto-load when the Device tab opens — the native "it's just there" feel. */
   useEffect(() => {
@@ -762,7 +775,7 @@ export default function GalleryApp() {
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
               Connect a folder that contains photos or videos — or add files to it, then press refresh.
             </p>
-            <Button variant="outline" onClick={() => void loadDevice(true)} className="mt-4 h-10 gap-2 rounded-xl">
+            <Button variant="outline" onClick={() => void loadDevice(true)} disabled={devBusy} className="mt-4 h-10 gap-2 rounded-xl">
               <RefreshCw className="size-4" aria-hidden /> Refresh
             </Button>
           </div>
@@ -772,7 +785,7 @@ export default function GalleryApp() {
               <p className="text-xs text-muted-foreground">
                 {devEntries.length.toLocaleString('en-US')} item{devEntries.length === 1 ? '' : 's'} from “{devRoot.name}” — live from your device
               </p>
-              <Button variant="ghost" size="sm" onClick={() => void loadDevice(true)} className="h-8 gap-1.5 rounded-lg text-xs text-muted-foreground" aria-label="Refresh device media">
+              <Button variant="ghost" size="sm" onClick={() => void loadDevice(true)} disabled={devBusy} className="h-8 gap-1.5 rounded-lg text-xs text-muted-foreground" aria-label="Refresh device media">
                 <RefreshCw className={cn('size-3.5', devBusy && 'animate-spin')} aria-hidden /> Refresh
               </Button>
             </div>
