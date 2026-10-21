@@ -61,3 +61,8 @@ download/
 agent-ctx/
 /db/*.db
 /db/*.db-journal
+
+# local env & sandbox runtime
+.env
+.env*.local
+.zscripts/
