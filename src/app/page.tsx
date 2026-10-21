@@ -573,7 +573,8 @@ function HomeItemView({
       aria-label={item.kind === 'app' ? `Open ${label}` : `Open folder ${label}`}
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' && !editing) onClick()
+        // keyboard activation reuses the keydown's currentTarget — identical element
+        if (e.key === 'Enter' && !editing) onClick(e as unknown as React.MouseEvent<HTMLElement>)
       }}
     >
       {/* jiggle lives on an inner wrapper so framer's FLIP transform is untouched */}
