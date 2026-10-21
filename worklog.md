@@ -394,3 +394,20 @@ Work Log:
 Stage Summary:
 - Root cause: dev-mode hot reload doesn't type-check, and next build is banned in sandbox — tsc --noEmit is now the mandatory pre-push gate for this project
 - Vercel auto-redeploys from the push (repo connected); no other action needed
+
+---
+Task ID: 10 (Desktop icon-size fix)
+Agent: main (Z.ai Code)
+Task: Fix gigantic app icons on desktop/wide screens (home grid + App Library)
+
+Work Log:
+- Root cause: useGridMetrics capped columns at 8 while the grid spanned full viewport width with no max-width -> tiles grew to ~125-230px on 1150-1900px screens (user screenshots). App Library was 3 cols on a max-w-2xl container (oversized folder tiles)
+- Fix (real-launcher behavior: tile size constant, columns grow with width):
+  1. useGridMetrics: cols = min(12, max(4, floor((w-40)/92))), rows = min(6, max(2, floor((h-176)/112)))
+  2. Home grid container: mx-auto max-w-[1080px] -> tiles stay ~85-100px on every screen (390px mobile unchanged at 4 cols)
+  3. App Library: max-w-3xl + grid-cols-2 sm:3 md:4 lg:5 responsive columns
+- Verified via agent-browser at 1900x1000, 1440x900 (App Library page), 1150x800, 390x844: tiles ~85-95px on desktop, zero console errors; tsc --noEmit + eslint clean
+
+Stage Summary:
+- Grid metrics + width cap keep icon size device-independent: mobile 4-col (unchanged), tablet ~8 cols, desktop ~11 cols within a centered 1080px rail, ultrawide no longer blows tiles up
+- Drag/drop and folder math unaffected (they read live grid metrics/element rects)

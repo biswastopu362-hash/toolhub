@@ -384,7 +384,7 @@ function HomeScreen({
                 if (el) gridEls.current.set(page, el)
                 else gridEls.current.delete(page)
               }}
-              className="grid content-start justify-items-center gap-x-1.5 gap-y-4 pt-2 sm:gap-x-2"
+              className="mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-1.5 gap-y-4 pt-2 sm:gap-x-2"
               style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
             >
               {items.map((item, slot) => (
@@ -728,8 +728,10 @@ function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>) {
     const el = ref.current
     if (!el) return
     const measure = () => {
-      const cols = Math.min(8, Math.max(4, Math.floor((el.clientWidth - 40) / 92)))
-      const rows = Math.min(5, Math.max(2, Math.floor((el.clientHeight - 176) / 106)))
+      // Tile size stays ~85-100px on every screen: columns grow with width
+      // (real-launcher behavior) instead of tiles growing with width.
+      const cols = Math.min(12, Math.max(4, Math.floor((el.clientWidth - 40) / 92)))
+      const rows = Math.min(6, Math.max(2, Math.floor((el.clientHeight - 176) / 112)))
       setGrid((g) => (g.cols === cols && g.rows === rows ? g : { cols, rows }))
     }
     const ro = new ResizeObserver(measure)
@@ -1110,11 +1112,11 @@ function AppLibrary({
   )
 
   return (
-    <div className="mx-auto max-w-2xl pt-6">
+    <div className="mx-auto max-w-3xl pt-6">
       <h1 className="mb-5 text-center text-lg font-bold tracking-tight text-white drop-shadow-md">
         App Library
       </h1>
-      <div className="grid grid-cols-2 justify-items-center gap-x-3 gap-y-6 sm:grid-cols-3">
+      <div className="grid grid-cols-2 justify-items-center gap-x-3 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {folders.map(({ cat, items }) => (
           <button
             key={cat.id}
