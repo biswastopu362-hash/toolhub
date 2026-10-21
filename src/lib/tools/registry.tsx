@@ -13,6 +13,7 @@ import {
   CalendarDays,
   Cake,
   Camera,
+  CirclePlay,
   CircleDollarSign,
   Clapperboard,
   Clock,
@@ -33,6 +34,7 @@ import {
   StickyNote,
   Store as StoreIcon,
   Sun,
+  Target,
   Type,
   Settings as SettingsIcon,
 } from 'lucide-react'
@@ -89,6 +91,8 @@ const FilesApp = load(() => import('@/components/tools/files'))
 const GalleryApp = load(() => import('@/components/tools/gallery'))
 const CameraApp = load(() => import('@/components/tools/camera'))
 const VideoStudioApp = load(() => import('@/components/tools/video-studio'))
+const VideoPlayerApp = load(() => import('@/components/tools/video-player'))
+const GoalTrackerApp = load(() => import('@/components/tools/goal-tracker'))
 const MusicPlayerApp = load(() => import('@/components/tools/music-player'))
 const PaintStudioApp = load(() => import('@/components/tools/paint-studio'))
 const CalendarApp = load(() => import('@/components/tools/calendar'))
@@ -161,16 +165,30 @@ export const tools: Tool[] = [
   {
     id: 'video-studio',
     name: 'Video Studio',
-    description: 'Trim, filter and enhance videos with frame capture',
-    tagline: 'A tiny editing suite for your videos',
+    description: 'Trim, filter and enhance videos — then send them anywhere with a QR code',
+    tagline: 'Edit locally, share with a scan',
     category: 'media',
     icon: Clapperboard,
     gradient: 'from-rose-400 via-red-500 to-orange-600',
     glow: '#ef4444',
-    keywords: ['video', 'editor', 'trim', 'cut', 'filters', 'movie', 'clip', 'editing'],
+    keywords: ['video', 'editor', 'trim', 'cut', 'filters', 'movie', 'clip', 'editing', 'qr', 'transfer', 'share'],
     featured: true,
-    version: '1.1.0',
+    version: '2.0.0',
     Component: VideoStudioApp,
+  },
+  {
+    id: 'video-player',
+    name: 'Video Player',
+    description: 'Watch saved clips and every video on this device — cinema-grade playback',
+    tagline: 'Your screen, your cinema',
+    category: 'media',
+    icon: CirclePlay,
+    gradient: 'from-fuchsia-500 via-violet-600 to-purple-800',
+    glow: '#c026d3',
+    keywords: ['video', 'player', 'watch', 'movies', 'clips', 'cinema', 'playback', 'resume', 'device'],
+    featured: true,
+    version: '1.0.0',
+    Component: VideoPlayerApp,
   },
   {
     id: 'music-player',
@@ -210,6 +228,20 @@ export const tools: Tool[] = [
     keywords: ['calendar', 'events', 'schedule', 'plan', 'month', 'date', 'agenda'],
     version: '1.0.0',
     Component: CalendarApp,
+  },
+  {
+    id: 'goal-tracker',
+    name: 'Goal Tracker',
+    description: 'Build streaks that stick — daily goals, rings, flames and heatmaps',
+    tagline: 'Small wins, every single day',
+    category: 'daily',
+    icon: Target,
+    gradient: 'from-teal-300 via-emerald-500 to-green-600',
+    glow: '#2dd4bf',
+    keywords: ['goal', 'tracker', 'habit', 'streak', 'routine', 'target', 'productivity', 'daily', 'heatmap'],
+    featured: true,
+    version: '1.0.0',
+    Component: GoalTrackerApp,
   },
   {
     id: 'ai-chat',

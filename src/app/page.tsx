@@ -57,6 +57,7 @@ import {
 } from '@/lib/tools/registry'
 import { cn } from '@/lib/utils'
 import { DOCK_IDS } from '@/lib/constants'
+import { setPendingTransfer } from '@/lib/transfer'
 import { useHomeDrag } from '@/components/home/use-home-drag'
 
 /* ================================================================== */
@@ -145,6 +146,30 @@ export default function Home() {
     window.addEventListener('toolhub:open-app', handler)
     return () => window.removeEventListener('toolhub:open-app', handler)
   }, [openApp])
+
+  /* QR transfer deep link: /?transfer=<id> — strip the query, stash the id
+     and open Video Studio, which receives the clip automatically. The
+     navigation is deferred to a microtask so no state is set synchronously
+     inside the effect body. */
+  useEffect(() => {
+    if (!hydrated) return
+    const sp = new URLSearchParams(window.location.search)
+    const tid = sp.get('transfer')
+    if (!tid) return
+    sp.delete('transfer')
+    const qs = sp.toString()
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`
+    )
+    setPendingTransfer(tid)
+    queueMicrotask(() => {
+      useAppStore.getState().addRecent('video-studio')
+      if (window.location.hash !== '#/app/video-studio') window.location.hash = '#/app/video-studio'
+      window.dispatchEvent(new CustomEvent('toolhub:transfer'))
+    })
+  }, [hydrated])
 
   const goHome = useCallback(() => navigate('#/'), [navigate])
 
