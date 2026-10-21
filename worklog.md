@@ -360,3 +360,22 @@ Work Log:
 Stage Summary:
 - E2E verified via agent-browser (mobile 390x844 + desktop 1440x900): first-run defaults, store browse/search/install (progress ring + toast + icon pop), open AI chat (real Bengali LLM reply end-to-end), Music/Gallery (10 sample artworks)/Calendar/2048/Video/Paint (draws after fix)/Camera (graceful no-camera state), jiggle edit mode + uninstall with grid reflow, control-center theming (Light+Rose, Dark+Emerald), desktop window insets, zero console errors on fresh load, lint clean
 - DATABASE ANSWER: no DB needed now — everything client-side (localStorage/IndexedDB); Prisma placeholder stays wired for future accounts/sync (Vercel Postgres/Turso)
+
+---
+Task ID: 8 (GitHub push + Vercel prep)
+Agent: main (Z.ai Code)
+Task: Push finished ToolHub v3.0 to user's GitHub for Vercel deployment
+
+Work Log:
+- Re-verified app health in new session: dev server 200, `bun run lint` clean
+- Browser E2E smoke test (agent-browser, 390x844): home launcher renders (status bar, grid, dock, page dots) → opened App Store → installed Video Studio (progress + icon landed on home) → opened the app window → closed via home gesture; zero console errors throughout
+- Repo hygiene before push: added .env + .zscripts/ + tool-results/ + agent-ctx/ + tests/ + db/ to gitignore, untracked them; verified no tokens/secrets in tracked set (129 files); .env contained only local DATABASE_URL and is now untracked
+- Validated user token → GET /user = biswastopu362-hash
+- Created repo via API: biswastopu362-hash/toolhub (public, description + homepage + topics)
+- Pushed main (one-shot token URL so no token persists in .git/config); added clean origin remote; verified remote HEAD matches local commit
+- Added topics: pwa, nextjs, app-store, tools, progressive-web-app, typescript, tailwindcss, vercel, phone-os, launcher
+
+Stage Summary:
+- LIVE REPO: https://github.com/biswastopu362-hash/toolhub (main branch, deploy-ready)
+- Vercel: import repo at vercel.com/new → auto-detects Next.js → zero env vars needed; only the AI Assistant app depends on SDK credentials (all other 27 apps are fully client-side and unaffected)
+- Security note: user shared token in chat; recommend regenerating it after Vercel is connected
