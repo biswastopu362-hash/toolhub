@@ -137,6 +137,40 @@ export function renameFolderOp(layout: HomeItem[], folderId: string, name: strin
   )
 }
 
+/**
+ * Remove an uninstalled app from the layout:
+ *  - drops its icon from the grid
+ *  - pulls it out of any folder (folders that shrink below 2 apps dissolve,
+ *    exactly like `removeFromFolderOp`)
+ * Returns the same array reference when nothing had to change.
+ */
+export function uninstallPruneOp(layout: HomeItem[], appId: string): HomeItem[] {
+  const touched =
+    layout.some((it) => it.kind === 'app' && it.id === appId) ||
+    layout.some((it) => it.kind === 'folder' && it.appIds.includes(appId))
+  if (!touched) return layout
+
+  const out: HomeItem[] = []
+  for (const it of layout) {
+    if (it.kind === 'app') {
+      if (it.id !== appId) out.push(it)
+      continue
+    }
+    if (!it.appIds.includes(appId)) {
+      out.push(it)
+      continue
+    }
+    const appIds = it.appIds.filter((id) => id !== appId)
+    if (appIds.length >= 2) {
+      out.push({ ...it, appIds })
+    } else if (appIds.length === 1) {
+      out.push({ kind: 'app', id: appIds[0] })
+    }
+    // 0 apps → folder dissolves entirely
+  }
+  return out
+}
+
 /** Fresh default layout — every non-dock app, in registry order. */
 export function defaultLayout(allAppIds: string[], dockIds: string[]): HomeItem[] {
   const dock = new Set(dockIds)

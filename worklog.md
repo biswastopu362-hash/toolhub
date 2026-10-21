@@ -272,3 +272,91 @@ Stage Summary:
 - All personalization persists (zustand persist v2): layout, folders, accents, mode, wallpaper
 - Deploy-ready: plain `next build` (Vercel auto-detected), no env vars needed, no DB required
 - Key files: src/lib/home-layout.ts, src/components/home/use-home-drag.ts, src/app/page.tsx, src/app/globals.css, src/lib/theme.ts
+
+---
+Task ID: 6-c
+Agent: Agent 6-c (full-stack-developer)
+Task: Build AI Assistant and 2048 game
+
+Work Log:
+- Read worklog conventions + AppWindow host (page.tsx 1148–1232) + calculator.tsx golden reference; verified shadcn/ui exports, use-toast path, react-markdown ^10, framer-motion, active react-hooks/set-state-in-effect lint rule; confirmed /api/ai not yet present → coded against the given contract only (did NOT create it)
+- ai-chat.tsx (default export AiChatApp): messages {id, role:'user'|'assistant', content, ts} persisted to 'toolhub.ai-chat.messages' (cap 100, shape-validating lazy load, hydration-safe); POST /api/ai sends last 12 msgs, AbortController on Stop/unmount/New chat; inline error bubble + Retry resends last user msg (no duplicate); non-2xx {error} parsed with status fallback; empty reply → error
+- ai-chat UX: user bubbles right (bg-primary), assistant cards left with gradient Bot avatar (amber→orange→rose = registry gradient) + ReactMarkdown styled via Tailwind arbitrary selectors; Copy/Check swap per assistant msg; 2-digit en-US timestamps; 3-dot bouncing typing indicator (framer-motion, AnimatePresence) while pending (send disabled → Stop square button); composer: auto-grow textarea (44–120px, IME-safe Enter=send/Shift+Enter), 2000-char cap + live counter, gradient send; header w/ New chat (Trash2 + AlertDialog confirm, clears storage, toast); empty state hero + 5 suggestion chips (min-h-11, tap-to-send); chat area min-h-[320px] max-h-[55vh] overflow-y-auto with smooth scrollTo bottom; message entrance animations
+- game-2048.tsx (default export Game2048App): pure engine (buildGrid/linePos/placePos/moveTiles/canMove/spawnTile 90%2-10%4), single-merge-per-move via mergedFrom guard; arrows+WASD keydown (preventDefault, input-guard) + touch swipe (24px threshold, preventDefault, touch-none board); Score + Best ('toolhub.2048.best' lazy-read, persisted in handler), one-step Undo (pre-move snapshot, flags stripped so no animation replay), New Game
+- game-2048 visuals: aspect-square board max-w-[min(92vw,420px)] rounded-3xl ring-border, 16 slots in gap-[2.5%] grid, tiles absolute % positioned (left/top = c/r×25.625%, size 23.125% — exact slot alignment, framer-motion-safe %-interpolation) with slide tween 0.14s, fresh pop-in scale 0→1, merge pulse via inner span keyed `m-${v}` (reliable re-trigger); classic palette 2…2048 (>2048 #3c3a32) + digit-based font shrink; gradient title/Score chip/Best chip/Undo2 (disabled)/gradient New Game; spring win/lose overlays (backdrop-blur) with Keep going (keepGoing flag suppresses re-trigger), Undo, New Game
+- Verification: eslint on my 2 files → 0 problems; tsc --noEmit → 0 errors in ai-chat.tsx/game-2048.tsx; full lint/tsc issues are in parallel agents' files (camera.tsx set-state-in-effect; registry.tsx imports missing '@/components/os/app-store' → GET / 500 until that agent's file lands — untouched by me); only my 2 files + agent-ctx record written
+- Full details: agent-ctx/6-c-agent-6-c.md
+
+Stage Summary:
+- AI Assistant + 2048 shipped per contract: 'use client', default exports, no props, English UI, no emojis, no any, hydration-safe localStorage, 44px touch targets, aria-labels, responsive 360px→desktop
+- API CONTRACT for backend agent: POST /api/ai receives { messages: [{role:'user'|'assistant', content}] } (last 12, oldest→newest) and must return 2xx { reply: string } or non-2xx { error: string } — client already handles both + aborts
+- Storage keys added: 'toolhub.ai-chat.messages' (array of {id, role, content, ts}, cap 100), 'toolhub.2048.best' (number); no state writes inside effects anywhere (set-state-in-effect safe)
+- 2048 engine is pure & testable (moveTiles/canMove/spawnTile); win overlay suppressed after Keep going; undo strips animation flags
+
+---
+Task ID: 6-a
+Agent: agent-6-a (full-stack-developer)
+Task: Build Gallery, Camera and Video Studio apps
+
+Work Log:
+- Read context first: worklog.md (architecture + phone-OS contracts), page.tsx AppWindow host, calculator.tsx (style reference), media-db.ts (shared IndexedDB contract), app-placeholder.tsx (replaced)
+- gallery.tsx: media-db-backed library; Tabs Photos | Albums | Favorites; staggered grid; fullscreen viewer (prev/next, heart, download, delete, keyboard); drag-and-drop import; 10 procedural seeded canvas artworks
+- camera.tsx: getUserMedia stage, flip camera, mirror/grid toggles, 3s/10s timer, 6 live filter chips, capture with ctx.filter + mirror handling -> putPhoto('camera'), film strip, full permission/no-device error states
+- video-studio.tsx: import via object URL, transport (play/seek/volume/speed/loop), 7 filters, rotate/flip, clamped trim sliders + looping preview, capture-frame -> PNG download + putPhoto('video')
+
+Stage Summary:
+- Gallery, Camera and Video Studio share one media pipeline: captures/frames land in IndexedDB ('toolhub-media'/'photos') and appear in Gallery on next open
+- Viewer uses fixed positioning (correct under transformed ancestors); capture-phase keydown isolates viewer shortcuts from the shell
+
+---
+Task ID: 6-b
+Agent: Agent 6-b (full-stack-developer)
+Task: Build Music Player, Paint Studio and Calendar apps
+
+Work Log:
+- music-player.tsx: private IndexedDB ('toolhub-audio'/'tracks'), import with >25MB warning, gradient art, 32-bar AnalyserNode visualizer, full transport (shuffle/repeat/volume), playlist with animated equalizer, session restore (paused)
+- paint-studio.tsx: DPR-aware canvas with offscreen-copy resize preservation, pointer capture + smoothed strokes, brush/eraser, 12 swatches + custom color, undo/redo (cap 30), White/Dark/Transparent backgrounds, PNG download + Save to Gallery (source 'paint')
+- calendar.tsx: date-fns month grid, events in localStorage 'toolhub.calendar.events' with 3 seed events, add/edit/delete dialog with 6-color picker, upcoming strip, directional month transitions
+
+Stage Summary:
+- Music owns 'toolhub-audio' DB; Paint exports into shared 'toolhub-media' — no schema collisions
+- Restore always paused; week starts Sunday; deletions persist (no re-seed)
+
+---
+Task ID: 6-c
+Agent: Agent 6-c (full-stack-developer)
+Task: Build AI Assistant and 2048 game
+
+Work Log:
+- ai-chat.tsx: POST /api/ai ({ messages } -> { reply } | { error }), last-12 context, AbortController Stop, inline error + Retry, ReactMarkdown replies, copy button, suggestion chips, history persisted ('toolhub.ai-chat.messages', cap 100), auto-grow composer (2000 chars)
+- game-2048.tsx: pure engine (move/canMove/spawn), arrows+WASD+swipe, Score/Best ('toolhub.2048.best'), one-step Undo, classic tile palette with %-based absolute positioning + framer-motion pop/merge, win/lose overlays
+
+Stage Summary:
+- API contract honored: POST /api/ai receives { messages: [{role, content}] } and returns 2xx { reply } or non-2xx { error }
+- 2048 engine is pure and testable; board geometry uses one exact coordinate space for slots and animated tiles
+
+---
+Task ID: 7-8 (core integration + store + animations + verification)
+Agent: main (Z.ai Code)
+Task: App Store install/uninstall system, iPad-style window animations, new-app registry, settings/CC updates, AI backend, bug fixes, E2E verification
+
+Work Log:
+- Registry: added App Store (system) + 8 new apps (gallery, camera, video-studio, music-player, paint-studio, calendar, ai-chat, game-2048) + 'games' category; store metadata helper storeStats() (deterministic rating/size/downloads/version per id); system flags on store/settings
+- Types: Tool extended with tagline/developer/size/rating/downloads/featured/system/version
+- Zustand v3 (migration from v2 derives installed from old layout): installed[], installApp (appends to home layout), uninstallApp (prunes grid + dissolves folders via new uninstallPruneOp in home-layout.ts, cleans favorites), storeDeepLink; constants.ts (DOCK_IDS now store/calculator/clock/settings, DEFAULT_INSTALLED starter set, SYSTEM_APP_IDS)
+- App Store app (src/components/os/app-store.tsx): featured carousel, categories grid, top charts, search (installed vs "From the App Store"), app detail (hero, stats row, CSS preview mocks, description, what's new, info table, related), GET button with eased progress ring -> install + toast, uninstall confirm, My Apps manager with storage total; deep-link consumption; toolhub:open-app CustomEvent to open installed apps
+- page.tsx: iPad-style open/close animation (window scales from tapped icon rect via transform-origin + scaleX/scaleY + borderRadius, home recedes to 0.92/0.4; falls back to center-zoom when no rect); openApp captures icon tile rect; edit-mode X badge on icons (system apps protected) with uninstall dialog; Spotlight shows only installed + "From the App Store" section (deep-links into store); App Library shows installed only + "Get more apps" tile; category folders filtered to installed; home recede wrapper
+- Settings: new Apps card (installed/available/folders + Open App Store button), reset layout uses installed + DOCK_IDS
+- Control Center: "Browse apps in the App Store" quick action
+- /api/ai route: z-ai-web-dev-sdk chat completion, system prompt, message sanitization (cap 16), { reply } / { error } contract, nodejs runtime
+- README rewritten for GitHub/Vercel deployment + incremental app-development guide
+- Bug fixes found during verification:
+  1. AppStoreApp called installApp/toast inside a setState updater ("Cannot update a component while rendering") -> moved side effects out of updaters (progressRef pattern)
+  2. searchTools matched 'ai' inside category id 'daily' -> haystack now uses category display name instead of id
+  3. Paint canvas stuck at 78x64: getBoundingClientRect measured the window mid-zoom (scale 0.1) -> switched to transform-immune offsetWidth/offsetHeight; verified drawing works
+  4. Removed stray src/app/verify-6b test route created by an agent (single-route rule)
+  5. "1 apps" grammar in store category tiles
+
+Stage Summary:
+- E2E verified via agent-browser (mobile 390x844 + desktop 1440x900): first-run defaults, store browse/search/install (progress ring + toast + icon pop), open AI chat (real Bengali LLM reply end-to-end), Music/Gallery (10 sample artworks)/Calendar/2048/Video/Paint (draws after fix)/Camera (graceful no-camera state), jiggle edit mode + uninstall with grid reflow, control-center theming (Light+Rose, Dark+Emerald), desktop window insets, zero console errors on fresh load, lint clean
+- DATABASE ANSWER: no DB needed now — everything client-side (localStorage/IndexedDB); Prisma placeholder stays wired for future accounts/sync (Vercel Postgres/Turso)

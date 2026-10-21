@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Share,
   Sparkles,
+  Store,
   Sun,
   Trash2,
   Wrench,
@@ -35,6 +36,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/lib/store/app-store'
 import { ACCENTS, MODES, WALLPAPERS, type ModeId } from '@/lib/theme'
 import { defaultLayout } from '@/lib/home-layout'
+import { DOCK_IDS } from '@/lib/constants'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { tools } from '@/lib/tools/registry'
 
@@ -67,6 +69,7 @@ export default function SettingsTool() {
   const clearRecents = useAppStore((s) => s.clearRecents)
   const toggleFavorite = useAppStore((s) => s.toggleFavorite)
   const resetLayout = useAppStore((s) => s.resetLayout)
+  const installed = useAppStore((s) => s.installed)
   const folderCount = useAppStore((s) => s.layout.filter((i) => i.kind === 'folder').length)
 
   const clearFavorites = () => {
@@ -230,6 +233,39 @@ export default function SettingsTool() {
         </p>
       </Card>
 
+      {/* ---------------- Apps ---------------- */}
+      <Card className="gap-4 p-4">
+        <div>
+          <h3 className="font-semibold">Apps</h3>
+          <p className="text-sm text-muted-foreground">
+            {installed.length.toLocaleString('en-US')} of {tools.length.toLocaleString('en-US')}{' '}
+            apps installed. Browse, install and uninstall apps from the store.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-lg bg-muted p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums">{installed.length.toLocaleString('en-US')}</p>
+            <p className="text-xs text-muted-foreground">Installed</p>
+          </div>
+          <div className="rounded-lg bg-muted p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums">
+              {(tools.length - installed.length).toLocaleString('en-US')}
+            </p>
+            <p className="text-xs text-muted-foreground">Available</p>
+          </div>
+          <div className="rounded-lg bg-muted p-3 text-center">
+            <p className="text-2xl font-bold tabular-nums">{folderCount.toLocaleString('en-US')}</p>
+            <p className="text-xs text-muted-foreground">Folders</p>
+          </div>
+        </div>
+        <Button
+          className="h-11 gap-2"
+          onClick={() => window.dispatchEvent(new CustomEvent<string>('toolhub:open-app', { detail: 'store' }))}
+        >
+          <Store className="size-4" /> Open App Store
+        </Button>
+      </Card>
+
       {/* ---------------- Home screen layout ---------------- */}
       <Card className="gap-4 p-4">
         <div>
@@ -241,7 +277,7 @@ export default function SettingsTool() {
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-lg bg-muted p-3 text-center">
-            <p className="text-2xl font-bold tabular-nums">{tools.length.toLocaleString('en-US')}</p>
+            <p className="text-2xl font-bold tabular-nums">{installed.length.toLocaleString('en-US')}</p>
             <p className="text-xs text-muted-foreground">Apps</p>
           </div>
           <div className="rounded-lg bg-muted p-3 text-center">
@@ -271,12 +307,7 @@ export default function SettingsTool() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
-                  resetLayout(
-                    defaultLayout(
-                      tools.map((t) => t.id),
-                      ['calculator', 'clock', 'weather', 'notes']
-                    )
-                  )
+                  resetLayout(defaultLayout(installed, [...DOCK_IDS]))
                   toast({
                     title: 'Home screen reset ✓',
                     description: 'Every app is back in its original place.',

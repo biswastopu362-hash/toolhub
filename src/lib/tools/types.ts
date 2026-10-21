@@ -9,6 +9,7 @@ export type ToolCategoryId =
   | 'developer'
   | 'daily'
   | 'media'
+  | 'games'
   | 'utilities'
 
 export interface ToolCategoryMeta {
@@ -22,7 +23,7 @@ export interface Tool {
   id: string
   /** display name (English) */
   name: string
-  /** short description (English) */
+  /** short description (English) — shown under the name on the store */
   description: string
   category: ToolCategoryId
   icon: LucideIcon
@@ -34,4 +35,20 @@ export interface Tool {
   keywords: string[]
   /** component that renders the app body (lazy loaded) */
   Component: ComponentType
+  /** one-line store tagline (defaults to description) */
+  tagline?: string
+  /** publisher shown on the store page */
+  developer?: string
+  /** human readable download size, e.g. "4.2 MB" (derived when omitted) */
+  size?: string
+  /** store rating 4.x (derived when omitted) */
+  rating?: number
+  /** download badge, e.g. "1M+" (derived when omitted) */
+  downloads?: string
+  /** surfaced in the store's featured carousel */
+  featured?: boolean
+  /** system apps cannot be uninstalled */
+  system?: boolean
+  /** app store version string */
+  version?: string
 }

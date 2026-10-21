@@ -10,6 +10,7 @@ import {
   Palette,
   Settings2,
   Sparkles,
+  Store,
   Sun,
   X,
 } from 'lucide-react'
@@ -226,6 +227,19 @@ export function ControlCenter({
               })}
             </div>
           </section>
+
+          {/* ---------------- app store ---------------- */}
+          <button
+            type="button"
+            onClick={() => {
+              onClose()
+              onOpenApp('store')
+            }}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-md shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.98]"
+          >
+            <Store className="size-4" aria-hidden />
+            Browse apps in the App Store
+          </button>
 
           {/* ---------------- home screen layout ---------------- */}
           <button

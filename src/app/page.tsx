@@ -11,6 +11,7 @@ import {
   BatteryMedium,
   Folder,
   Palette,
+  Plus,
   Search,
   SearchX,
   Star,
@@ -18,6 +19,17 @@ import {
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { useToast } from '@/hooks/use-toast'
 import { ControlCenter } from '@/components/control-center'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useHydrated } from '@/hooks/use-hydrated'
@@ -44,15 +56,29 @@ import {
   type ToolCategoryId,
 } from '@/lib/tools/registry'
 import { cn } from '@/lib/utils'
+import { DOCK_IDS } from '@/lib/constants'
 import { useHomeDrag } from '@/components/home/use-home-drag'
 
 /* ================================================================== */
 /* Constants                                                           */
 /* ================================================================== */
 
-const DOCK_IDS = ['calculator', 'clock', 'weather', 'notes']
-
 type OpenFolder = { kind: 'user'; id: string } | { kind: 'category'; id: ToolCategoryId } | null
+
+/** Viewport-space rect of the icon a window launched from (iPad-style zoom). */
+interface IconRect {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+function tileRectOf(el: HTMLElement | null | undefined): IconRect | null {
+  const tile = el?.querySelector('[data-tile-id]') as HTMLElement | null
+  if (!tile) return null
+  const r = tile.getBoundingClientRect()
+  return { left: r.left, top: r.top, width: r.width, height: r.height }
+}
 
 /* ================================================================== */
 /* Page — the whole "phone OS" lives on this single route              */
@@ -74,32 +100,51 @@ export default function Home() {
   const showApp = hydrated && Boolean(app)
   const wallpaperId = hydrated ? wallpaper : DEFAULT_WALLPAPER
 
-  /* one-time consistency pass for the persisted home layout */
+  /* one-time consistency pass for the persisted home layout (installed only) */
   useEffect(() => {
     if (!hydrated) return
     const s = useAppStore.getState()
     if (s.layoutMigrated) return
-    const next = migrateLayout(
-      s.layout,
-      tools.map((t) => t.id),
-      DOCK_IDS
-    )
+    const next = migrateLayout(s.layout, s.installed, [...DOCK_IDS])
     if (next) s.setLayout(next)
     s.setLayoutMigrated()
   }, [hydrated])
 
+  /* icon rect the current window zoomed out of (for the open animation) */
+  const [winOrigin, setWinOrigin] = useState<IconRect | null>(null)
+
   const openApp = useCallback(
-    (id: string) => {
+    (id: string, origin?: HTMLElement | null) => {
       try {
         navigator.vibrate?.(8)
       } catch {
         /* haptics unsupported */
       }
+      setWinOrigin(tileRectOf(origin))
       useAppStore.getState().addRecent(id)
       navigate(`#/app/${id}`)
     },
     [navigate]
   )
+
+  /** Deep-open the store on an app's detail page (from Spotlight / Library). */
+  const openInStore = useCallback(
+    (id: string) => {
+      useAppStore.getState().setStoreDeepLink(id)
+      openApp('store')
+    },
+    [openApp]
+  )
+
+  /* apps (e.g. the store) can request the shell to open another app */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail
+      if (typeof id === 'string') openApp(id)
+    }
+    window.addEventListener('toolhub:open-app', handler)
+    return () => window.removeEventListener('toolhub:open-app', handler)
+  }, [openApp])
 
   const goHome = useCallback(() => navigate('#/'), [navigate])
 
@@ -131,13 +176,21 @@ export default function Home() {
           />
         </div>
 
-        <HomeScreen
-          onOpenApp={openApp}
-          onOpenSearch={() => setSpotlightOpen(true)}
-          onOpenCustomize={() => setCcOpen(true)}
-          editing={editing}
-          setEditing={setEditing}
-        />
+        <motion.div
+          aria-hidden={showApp}
+          className="absolute inset-0"
+          animate={showApp ? { scale: 0.92, opacity: 0.4 } : { scale: 1, opacity: 1 }}
+          transition={{ duration: 0.42, ease: [0.32, 0.72, 0, 1] }}
+        >
+          <HomeScreen
+            onOpenApp={openApp}
+            onOpenSearch={() => setSpotlightOpen(true)}
+            onOpenCustomize={() => setCcOpen(true)}
+            onOpenInStore={openInStore}
+            editing={editing}
+            setEditing={setEditing}
+          />
+        </motion.div>
 
         {/* Quick-settings control center */}
         <AnimatePresence>
@@ -159,17 +212,20 @@ export default function Home() {
           {spotlightOpen && (
             <Spotlight
               key="spotlight"
-              onOpenApp={(id) => {
+              onOpenApp={(id, el) => {
                 setSpotlightOpen(false)
-                openApp(id)
+                openApp(id, el)
               }}
+              onOpenInStore={openInStore}
               onClose={() => setSpotlightOpen(false)}
             />
           )}
         </AnimatePresence>
 
-        {/* Full-screen app window with iOS-like zoom transition */}
-        <AnimatePresence>{showApp && app && <AppWindow key={app.id} app={app} onHome={goHome} />}</AnimatePresence>
+        {/* Full-screen app window with iPad-style zoom transition */}
+        <AnimatePresence>
+          {showApp && app && <AppWindow key={app.id} app={app} onHome={goHome} originRect={winOrigin} />}
+        </AnimatePresence>
       </div>
     </MotionConfig>
   )
@@ -183,12 +239,14 @@ function HomeScreen({
   onOpenApp,
   onOpenSearch,
   onOpenCustomize,
+  onOpenInStore,
   editing,
   setEditing,
 }: {
-  onOpenApp: (id: string) => void
+  onOpenApp: (id: string, origin?: HTMLElement | null) => void
   onOpenSearch: () => void
   onOpenCustomize: () => void
+  onOpenInStore: (id: string) => void
   editing: boolean
   setEditing: (v: boolean) => void
 }) {
@@ -199,7 +257,13 @@ function HomeScreen({
   const [openFolder, setOpenFolder] = useState<OpenFolder>(null)
 
   const layout = useAppStore((s) => s.layout)
+  const installed = useAppStore((s) => s.installed)
   const onLight = !getWallpaper(useAppStore((s) => s.wallpaper)).dark
+
+  const installedTools = useMemo(
+    () => installed.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t)),
+    [installed]
+  )
 
   const capacity = grid.cols * grid.rows
   const pageCount = Math.max(1, Math.ceil(layout.length / capacity)) + 1 // + App Library
@@ -334,9 +398,9 @@ function HomeScreen({
                   onLight={onLight}
                   onPointerDown={onItemPointerDown}
                   armedRef={armedRef}
-                  onClick={() => {
+                  onClick={(e) => {
                     if (editing || shouldSuppressClick()) return
-                    if (item.kind === 'app') onOpenApp(item.id)
+                    if (item.kind === 'app') onOpenApp(item.id, e.currentTarget)
                     else setOpenFolder({ kind: 'user', id: item.id })
                   }}
                 />
@@ -350,7 +414,12 @@ function HomeScreen({
           aria-label="App Library"
           className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
         >
-          <AppLibrary onOpenApp={onOpenApp} onOpenFolder={(id) => setOpenFolder({ kind: 'category', id })} />
+          <AppLibrary
+            installedTools={installedTools}
+            onOpenApp={onOpenApp}
+            onOpenFolder={(id) => setOpenFolder({ kind: 'category', id })}
+            onOpenStore={() => onOpenApp('store')}
+          />
         </section>
       </div>
 
@@ -399,7 +468,7 @@ function HomeScreen({
                 key={`dock-${t.id}`}
                 whileTap={{ scale: 0.86 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 24 }}
-                onClick={() => onOpenApp(t.id)}
+                onClick={(e) => onOpenApp(t.id, e.currentTarget)}
                 aria-label={`Open ${t.name}`}
                 className="w-[56px] shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:w-[62px]"
               >
@@ -416,9 +485,9 @@ function HomeScreen({
           <FolderOverlay
             key="folder"
             target={openFolder}
-            onOpenApp={(id) => {
+            onOpenApp={(id, el) => {
               setOpenFolder(null)
-              onOpenApp(id)
+              onOpenApp(id, el)
             }}
             onClose={() => setOpenFolder(null)}
           />
@@ -457,8 +526,10 @@ function HomeItemView({
   onLight: boolean
   onPointerDown: (e: React.PointerEvent<HTMLElement>, id: string) => void
   armedRef: React.RefObject<boolean>
-  onClick: () => void
+  onClick: (e: React.MouseEvent<HTMLElement>) => void
 }) {
+  const { toast } = useToast()
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const tool = item.kind === 'app' ? getToolById(item.id) : undefined
   const label =
     item.kind === 'app'
@@ -516,7 +587,23 @@ function HomeItemView({
         }
       >
         {item.kind === 'app' && tool ? (
-          <IconTile tool={tool} hinted={hinted} />
+          <span className="relative block w-full">
+            <IconTile tool={tool} hinted={hinted} />
+            {/* edit-mode uninstall badge (system apps are protected) */}
+            {editing && !dragging && !tool.system && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setConfirmRemove(true)
+                }}
+                aria-label={`Remove ${tool.name}`}
+                className="absolute -left-1.5 -top-1.5 z-10 grid size-6 place-items-center rounded-full bg-white text-black shadow-lg ring-2 ring-black/10 transition hover:bg-red-500 hover:text-white active:scale-90"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+              </button>
+            )}
+          </span>
         ) : item.kind === 'folder' ? (
           <FolderTile item={item} hinted={hinted} />
         ) : null}
@@ -531,6 +618,34 @@ function HomeItemView({
           {label}
         </span>
       </div>
+
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {tool?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The app and its icon will be removed from this device. You can reinstall it anytime
+              from the App Store.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => {
+                if (!tool) return
+                useAppStore.getState().uninstallApp(tool.id)
+                toast({
+                  title: `${tool.name} uninstalled`,
+                  description: 'Reinstall it anytime from the App Store.',
+                })
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   )
 }
@@ -779,24 +894,38 @@ function BatteryGlyph({ level, charging }: { level: number; charging: boolean })
 
 function Spotlight({
   onOpenApp,
+  onOpenInStore,
   onClose,
 }: {
-  onOpenApp: (id: string) => void
+  onOpenApp: (id: string, el?: HTMLElement | null) => void
+  onOpenInStore: (id: string) => void
   onClose: () => void
 }) {
   const [query, setQuery] = useState('')
   const hydrated = useHydrated()
   const recents = useAppStore((s) => s.recents)
+  const installed = useAppStore((s) => s.installed)
 
   const results = useMemo(() => searchTools(query, 'all'), [query])
+  const installedResults = useMemo(() => results.filter((t) => installed.includes(t.id)), [results, installed])
+  const availableResults = useMemo(() => results.filter((t) => !installed.includes(t.id)), [results, installed])
+  const installedTools = useMemo(
+    () => installed.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t)),
+    [installed]
+  )
   const recentTools = useMemo(
     () =>
-      hydrated ? recents.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t)) : [],
-    [recents, hydrated]
+      hydrated
+        ? recents
+            .filter((id) => installed.includes(id))
+            .map((id) => getToolById(id))
+            .filter((t): t is Tool => Boolean(t))
+        : [],
+    [recents, hydrated, installed]
   )
   const searching = query.trim().length > 0
 
-  const list = searching ? results : tools
+  const list = searching ? installedResults : installedTools
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onClose()
@@ -870,22 +999,24 @@ function Spotlight({
             </section>
           )}
 
-          {/* All / matching apps */}
+          {/* Installed / matching apps */}
           <section aria-label={searching ? 'Search results' : 'All apps'}>
             <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
-              {searching ? `Results for “${query.trim()}”` : 'All Apps'}
+              {searching ? 'Installed' : 'All Apps'}
             </h2>
             {list.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-white/70">
                 <SearchX className="h-8 w-8" aria-hidden />
-                <p className="text-sm">No apps found for “{query.trim()}”</p>
+                <p className="text-sm">
+                  {searching ? `No installed apps found for “${query.trim()}”` : 'No apps installed yet'}
+                </p>
               </div>
             ) : (
               <div className="overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/15">
                 {list.map((t, i) => (
                   <button
                     key={t.id}
-                    onClick={() => onOpenApp(t.id)}
+                    onClick={(e) => onOpenApp(t.id, e.currentTarget)}
                     className={cn(
                       'flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/15 active:bg-white/20',
                       i > 0 && 'border-t border-white/10'
@@ -911,6 +1042,43 @@ function Spotlight({
               </div>
             )}
           </section>
+
+          {/* Available from the store (only while searching) */}
+          {searching && availableResults.length > 0 && (
+            <section aria-label="Available from the App Store">
+              <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+                From the App Store
+              </h2>
+              <div className="overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/15">
+                {availableResults.map((t, i) => (
+                  <button
+                    key={t.id}
+                    onClick={() => onOpenInStore(t.id)}
+                    className={cn(
+                      'flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/15 active:bg-white/20',
+                      i > 0 && 'border-t border-white/10'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ring-1 ring-white/20',
+                        t.gradient
+                      )}
+                    >
+                      <t.icon className="h-4.5 w-4.5" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-white">{t.name}</span>
+                      <span className="block truncate text-xs text-white/60">{t.description}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-white/90 px-3.5 py-1 text-xs font-bold uppercase tracking-wide text-zinc-900">
+                      Get
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </motion.div>
@@ -922,18 +1090,22 @@ function Spotlight({
 /* ================================================================== */
 
 function AppLibrary({
+  installedTools,
   onOpenApp,
   onOpenFolder,
+  onOpenStore,
 }: {
-  onOpenApp: (id: string) => void
+  installedTools: Tool[]
+  onOpenApp: (id: string, el?: HTMLElement | null) => void
   onOpenFolder: (id: ToolCategoryId) => void
+  onOpenStore: () => void
 }) {
   const folders = useMemo(
     () =>
       toolCategories
-        .map((c) => ({ cat: c, items: tools.filter((t) => t.category === c.id) }))
+        .map((c) => ({ cat: c, items: installedTools.filter((t) => t.category === c.id) }))
         .filter(({ items }) => items.length > 0),
-    []
+    [installedTools]
   )
 
   return (
@@ -972,9 +1144,26 @@ function AppLibrary({
             </span>
           </button>
         ))}
+
+        {/* Get more apps */}
+        <button
+          onClick={onOpenStore}
+          aria-label="Open the App Store to get more apps"
+          className="group flex w-full max-w-[150px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+        >
+          <span className="grid w-full place-items-center rounded-[1.4rem] bg-white/15 p-2.5 shadow-lg ring-1 ring-white/25 backdrop-blur-xl">
+            <span className="grid aspect-square w-full place-items-center rounded-[0.7rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-sm ring-1 ring-white/20">
+              <Plus className="h-[45%] w-[45%]" strokeWidth={2.2} aria-hidden />
+            </span>
+          </span>
+          <span className="truncate text-xs font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
+            Get more apps
+          </span>
+        </button>
       </div>
       <p className="mt-6 text-center text-[11px] text-white/60">
-        Tip: long-press any icon on the home screen to rearrange it or create a folder.
+        Tip: long-press any icon on the home screen to rearrange it or create a folder. Visit the
+        App Store to get more apps.
       </p>
     </div>
   )
@@ -990,11 +1179,12 @@ function FolderOverlay({
   onClose,
 }: {
   target: NonNullable<OpenFolder>
-  onOpenApp: (id: string) => void
+  onOpenApp: (id: string, el?: HTMLElement | null) => void
   onClose: () => void
 }) {
   const layout = useAppStore((s) => s.layout)
   const setLayout = useAppStore((s) => s.setLayout)
+  const installed = useAppStore((s) => s.installed)
   const [pick, setPick] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
 
@@ -1002,11 +1192,12 @@ function FolderOverlay({
   const cat = target.kind === 'category' ? toolCategories.find((c) => c.id === target.id) : undefined
 
   const items: Tool[] = useMemo(() => {
-    if (target.kind === 'category') return tools.filter((t) => t.category === target.id)
+    if (target.kind === 'category')
+      return tools.filter((t) => t.category === target.id && installed.includes(t.id))
     if (folder?.kind === 'folder')
       return folder.appIds.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t))
     return []
-  }, [target, folder])
+  }, [target, folder, installed])
 
   const suggested = useMemo(() => {
     if (folder?.kind !== 'folder') return cat?.name ?? 'Folder'
@@ -1109,9 +1300,9 @@ function FolderOverlay({
           {items.map((t) => (
             <div key={t.id} className="relative">
               <button
-                onClick={() => {
+                onClick={(e) => {
                   if (pick) return
-                  onOpenApp(t.id)
+                  onOpenApp(t.id, e.currentTarget)
                 }}
                 aria-label={`Open ${t.name}`}
                 className="group flex w-full flex-col items-center gap-1.5 rounded-2xl p-1 transition-transform duration-150 hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-90"
@@ -1149,7 +1340,7 @@ function FolderOverlay({
 /* App window — full-screen with zoom transition + home indicator      */
 /* ================================================================== */
 
-function AppWindow({ app, onHome }: { app: Tool; onHome: () => void }) {
+function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void; originRect: IconRect | null }) {
   const favorites = useAppStore((s) => s.favorites)
   const toggleFavorite = useAppStore((s) => s.toggleFavorite)
   const isFav = favorites.includes(app.id)
@@ -1162,12 +1353,57 @@ function AppWindow({ app, onHome }: { app: Tool; onHome: () => void }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onHome])
 
+  /*
+   * iPad-style zoom transition: the full-size window scales out of the
+   * tapped icon (transform-origin = icon center), then relaxes to fill
+   * the screen — so the window stays fully responsive once settled.
+   */
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const md = window.matchMedia('(min-width: 768px)').matches
+  const lg = window.matchMedia('(min-width: 1024px)').matches
+  const inset = md ? (lg ? 32 : 16) : 0
+  const boxW = Math.max(1, vw - inset * 2)
+  const boxH = Math.max(1, vh - inset * 2)
+  const origin = originRect
+  const sx = origin ? origin.width / boxW : 1
+  const sy = origin ? origin.height / boxH : 1
+  const originRadius = origin ? origin.width * 0.26 : 24
+  const targetRadius = md ? 28 : 0
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.84, y: 30 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.84, y: 30 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+      initial={
+        origin
+          ? { scaleX: sx, scaleY: sy, borderRadius: originRadius, opacity: 0.92 }
+          : { opacity: 0, scale: 0.86, y: 26 }
+      }
+      animate={
+        origin
+          ? { scaleX: 1, scaleY: 1, borderRadius: targetRadius, opacity: 1 }
+          : { opacity: 1, scale: 1, y: 0 }
+      }
+      exit={
+        origin
+          ? {
+              scaleX: sx,
+              scaleY: sy,
+              borderRadius: originRadius,
+              opacity: 0.92,
+              transition: { duration: 0.36, ease: [0.32, 0.72, 0, 1] },
+            }
+          : { opacity: 0, scale: 0.86, y: 26, transition: { duration: 0.24 } }
+      }
+      transition={{ duration: 0.44, ease: [0.32, 0.72, 0, 1] }}
+      style={
+        origin
+          ? {
+              transformOrigin: `${
+                origin.left + origin.width / 2 - inset
+              }px ${origin.top + origin.height / 2 - inset}px`,
+            }
+          : undefined
+      }
       className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background text-foreground md:inset-4 md:rounded-[1.75rem] md:shadow-2xl md:ring-1 md:ring-black/10 lg:inset-8"
       role="dialog"
       aria-label={app.name}

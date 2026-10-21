@@ -6,21 +6,31 @@ import {
   ArrowLeftRight,
   Banknote,
   Binary,
+  Bot,
   Braces,
+  Brush,
   Calculator,
+  CalendarDays,
   Cake,
+  Camera,
   CircleDollarSign,
+  Clapperboard,
   Clock,
   CloudSun,
+  Gamepad2,
+  Grid2x2,
   Image as ImageIcon,
+  Images,
   KeyRound,
   ListChecks,
   Mic,
+  Music,
   Palette,
   QrCode,
   Smartphone,
   Sparkles,
   StickyNote,
+  Store as StoreIcon,
   Sun,
   Type,
   Settings as SettingsIcon,
@@ -38,8 +48,9 @@ export const toolCategories: ToolCategoryMeta[] = [
   { id: 'generator', name: 'Generators', icon: Sparkles },
   { id: 'text', name: 'Text', icon: Type },
   { id: 'developer', name: 'Developer', icon: Braces },
-  { id: 'daily', name: 'Everyday', icon: Sun },
   { id: 'media', name: 'Media', icon: ImageIcon },
+  { id: 'daily', name: 'Everyday', icon: Sun },
+  { id: 'games', name: 'Games', icon: Gamepad2 },
   { id: 'utilities', name: 'Utilities', icon: SettingsIcon },
 ]
 
@@ -72,12 +83,144 @@ const ImageToolsTool = load(() => import('@/components/tools/image-tools'))
 const VoiceRecorderTool = load(() => import('@/components/tools/voice-recorder'))
 const DeviceInfoTool = load(() => import('@/components/tools/device-info'))
 const SettingsTool = load(() => import('@/components/tools/settings'))
+const AppStoreApp = load(() => import('@/components/os/app-store'))
+const GalleryApp = load(() => import('@/components/tools/gallery'))
+const CameraApp = load(() => import('@/components/tools/camera'))
+const VideoStudioApp = load(() => import('@/components/tools/video-studio'))
+const MusicPlayerApp = load(() => import('@/components/tools/music-player'))
+const PaintStudioApp = load(() => import('@/components/tools/paint-studio'))
+const CalendarApp = load(() => import('@/components/tools/calendar'))
+const AiChatApp = load(() => import('@/components/tools/ai-chat'))
+const Game2048App = load(() => import('@/components/tools/game-2048'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
 /* ------------------------------------------------------------------ */
 
 export const tools: Tool[] = [
+  {
+    id: 'store',
+    name: 'App Store',
+    description: 'Discover, install and manage apps for every need',
+    tagline: 'Everything your device needs, one tap away',
+    category: 'utilities',
+    icon: StoreIcon,
+    gradient: 'from-emerald-400 via-teal-500 to-cyan-600',
+    glow: '#10b981',
+    keywords: ['store', 'apps', 'install', 'uninstall', 'discover', 'market', 'get', 'download'],
+    featured: true,
+    system: true,
+    version: '3.0.0',
+    Component: AppStoreApp,
+  },
+  {
+    id: 'gallery',
+    name: 'Gallery',
+    description: 'Your photos, beautifully organized in albums',
+    tagline: 'Every moment, one gallery',
+    category: 'media',
+    icon: Images,
+    gradient: 'from-pink-400 via-fuchsia-500 to-purple-600',
+    glow: '#d946ef',
+    keywords: ['photos', 'images', 'gallery', 'albums', 'pictures', 'viewer', 'media'],
+    featured: true,
+    version: '1.4.0',
+    Component: GalleryApp,
+  },
+  {
+    id: 'camera',
+    name: 'Camera',
+    description: 'Take photos with live filters, timer and selfie mode',
+    tagline: 'Snap stunning photos instantly',
+    category: 'media',
+    icon: Camera,
+    gradient: 'from-slate-500 via-zinc-700 to-zinc-900',
+    glow: '#71717a',
+    keywords: ['camera', 'photo', 'selfie', 'webcam', 'capture', 'filters', 'shoot'],
+    featured: true,
+    version: '1.4.0',
+    Component: CameraApp,
+  },
+  {
+    id: 'video-studio',
+    name: 'Video Studio',
+    description: 'Trim, filter and enhance videos with frame capture',
+    tagline: 'A tiny editing suite for your videos',
+    category: 'media',
+    icon: Clapperboard,
+    gradient: 'from-rose-400 via-red-500 to-orange-600',
+    glow: '#ef4444',
+    keywords: ['video', 'editor', 'trim', 'cut', 'filters', 'movie', 'clip', 'editing'],
+    featured: true,
+    version: '1.1.0',
+    Component: VideoStudioApp,
+  },
+  {
+    id: 'music-player',
+    name: 'Music Player',
+    description: 'Play your tracks with playlists and a live visualizer',
+    tagline: 'Your sound, your way',
+    category: 'media',
+    icon: Music,
+    gradient: 'from-emerald-300 via-teal-500 to-cyan-600',
+    glow: '#14b8a6',
+    keywords: ['music', 'audio', 'player', 'songs', 'playlist', 'visualizer', 'sound'],
+    version: '1.2.0',
+    Component: MusicPlayerApp,
+  },
+  {
+    id: 'paint-studio',
+    name: 'Paint Studio',
+    description: 'Draw, sketch and doodle with brushes and colors',
+    tagline: 'A canvas for your imagination',
+    category: 'media',
+    icon: Brush,
+    gradient: 'from-violet-400 via-purple-500 to-fuchsia-600',
+    glow: '#a855f7',
+    keywords: ['paint', 'draw', 'sketch', 'doodle', 'canvas', 'art', 'brush', 'design'],
+    version: '1.0.0',
+    Component: PaintStudioApp,
+  },
+  {
+    id: 'calendar',
+    name: 'Calendar',
+    description: 'Plan months ahead with events, colors and reminders',
+    tagline: 'Your days, beautifully planned',
+    category: 'daily',
+    icon: CalendarDays,
+    gradient: 'from-red-400 via-rose-500 to-pink-600',
+    glow: '#f43f5e',
+    keywords: ['calendar', 'events', 'schedule', 'plan', 'month', 'date', 'agenda'],
+    version: '1.0.0',
+    Component: CalendarApp,
+  },
+  {
+    id: 'ai-chat',
+    name: 'AI Assistant',
+    description: 'Ask anything — write, translate, summarize and brainstorm',
+    tagline: 'A smart friend, always ready',
+    category: 'utilities',
+    icon: Bot,
+    gradient: 'from-amber-300 via-orange-500 to-rose-500',
+    glow: '#f59e0b',
+    keywords: ['ai', 'chat', 'assistant', 'gpt', 'writer', 'translate', 'summarize', 'bot'],
+    featured: true,
+    version: '1.3.0',
+    Component: AiChatApp,
+  },
+  {
+    id: 'game-2048',
+    name: '2048',
+    description: 'The classic tile puzzle — swipe, merge, beat your best',
+    tagline: 'Simple to learn, hard to master',
+    category: 'games',
+    icon: Grid2x2,
+    gradient: 'from-orange-300 via-amber-500 to-yellow-600',
+    glow: '#f59e0b',
+    keywords: ['2048', 'game', 'puzzle', 'tiles', 'merge', 'numbers', 'swipe'],
+    version: '1.0.0',
+    Component: Game2048App,
+  },
   {
     id: 'calculator',
     name: 'Calculator',
@@ -285,6 +428,8 @@ export const tools: Tool[] = [
     gradient: 'from-gray-300 via-gray-400 to-gray-600',
     glow: '#9ca3af',
     keywords: ['settings', 'theme', 'dark mode', 'wallpaper', 'install', 'about', 'preferences'],
+    system: true,
+    version: '3.0.0',
     Component: SettingsTool,
   },
 ]
@@ -296,12 +441,45 @@ export function getToolById(id: string | null): Tool | undefined {
   return tools.find((t) => t.id === id)
 }
 
+/* ------------------------------------------------------------------ */
+/* Deterministic store metadata — stable per app, no manual upkeep      */
+/* ------------------------------------------------------------------ */
+
+function hashId(s: string): number {
+  let h = 7
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+export interface StoreStats {
+  developer: string
+  size: string
+  rating: number
+  downloads: string
+  version: string
+  tagline: string
+}
+
+/** Fill in any store metadata an app entry omits (stable per id). */
+export function storeStats(t: Tool): StoreStats {
+  const h = hashId(t.id)
+  return {
+    developer: t.developer ?? 'ToolHub Labs',
+    size: t.size ?? `${(0.8 + (h % 96) / 10).toFixed(1)} MB`,
+    rating: t.rating ?? Number((4.1 + (h % 8) / 10).toFixed(1)),
+    downloads: t.downloads ?? ['10K+', '50K+', '100K+', '250K+', '500K+', '1M+', '5M+'][h % 7],
+    version: t.version ?? '2.1.' + (h % 5),
+    tagline: t.tagline ?? t.description,
+  }
+}
+
 export function searchTools(query: string, category: ToolCategoryId | 'all'): Tool[] {
   const q = query.trim().toLowerCase()
   return tools.filter((t) => {
     if (category !== 'all' && t.category !== category) return false
     if (!q) return true
-    const haystack = [t.name, t.description, t.keywords.join(' '), t.category].join(' ').toLowerCase()
+    const catName = toolCategories.find((c) => c.id === t.category)?.name.toLowerCase() ?? ''
+    const haystack = [t.name, t.description, t.keywords.join(' '), catName].join(' ').toLowerCase()
     return haystack.includes(q)
   })
 }
