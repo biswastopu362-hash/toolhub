@@ -460,3 +460,27 @@ Stage Summary:
 - Committed 37b6af2 and pushed to main (Vercel auto-redeploys)
 - Core correction: device delete was broken by design (read-only grant) — now the whole promise (browse, preview, download, DELETE) is real
 - All 12 audit defects closed; cache/race/leak classes fixed at the library level so future apps inheriting device-media are safe
+
+---
+Task ID: 13 (Video suite expansion + QR cross-device transfer + Goal Tracker)
+Agent: main (Z.ai Code)
+Task: User 6-point directive — video editing + video viewing tools, Goal Tracker, QR-code video transfer between devices, premium graphics, rearrangeable icons
+
+Work Log:
+- Built /api/transfer relay: POST init/chunk/done (3 MB base64 chunks, under the 4.5 MB serverless body cap), GET assembled binary with X-Transfer-Name; in-memory Map on globalThis, 30-min TTL sweep, 120 MB cap, 40 concurrent-transfer guard; curl round-trip verified (bytes identical, 404 for unknown ids)
+- Built src/lib/video-transfer.ts (chunked upload with stack-safe base64, streamed download with progress) + src/lib/transfer.ts (pending-transfer handoff + transferIdFromUrl + transferShareUrl)
+- Built src/lib/video-db.ts: shared clip library (toolhub-video v1) — clips store (metadata+poster) split from blobs store so listing never loads video bytes; makePoster + posterFromElement helpers
+- Video Studio v2.0.0: persistent "My clips" rail (posters, duration/size badges, QR badge for received clips, tap-to-edit, 2-tap delete), Save-to-library from editor, per-clip QR share modal (upload progress ring → live QR + copy link + 30-min countdown, session cache avoids re-upload), Receive modal (paste link/code, BarcodeDetector live camera scan where supported, download progress → auto-save → auto-load into editor), auto-receive via pendingTransfer on mount + toolhub:transfer event
+- NEW Video Player app (fuchsia/violet cinema): My Library tab (shared clips) + My Device tab (device index videos via ensureFreshIndex, useDeviceThumb posters, connect/allow/unsupported states); premium player — resume position per clip (localStorage), ±10s, speed chips, volume, loop, PiP, fullscreen, prev/next + auto-advance, keyboard shortcuts (space/arrows/f/Escape)
+- NEW Goal Tracker app (teal/emerald): daily/weekly count targets, one-tap check-ins (target 1 → big check, >1 → +/-), SVG progress rings, flame streaks (today-pending doesn't break yesterday's streak), 28-day heatmap, add-goal modal (emoji/color/target/period), localStorage persistence via lazy-init hook
+- Shell: /?transfer=<id> deep-link — strips query via replaceState, stashes id, defers navigation to queueMicrotask (lint-safe), dispatches toolhub:transfer; Video Studio picks it up on mount or via event
+- Registry: video-player (CirclePlay, fuchsia-500→violet-600→purple-800, glow #c026d3) + goal-tracker (Target, teal-300→emerald-500→green-600, glow #2dd4bf), both featured; video-studio bumped to 2.0.0 with QR keywords
+- Lint hardening: 3 react-hooks/set-state-in-effect errors fixed (page.tsx deferred navigation, goal-tracker lazy-init hydration, video-player reuses existing useDeviceThumb hook); 4 unused eslint-disable directives removed
+- Caught + fixed pre-push: TDZ crash risk (unmount effect referenced stopScan before declaration), toggleDone double-write, TS null-safety on posterFromElement
+- E2E (agent-browser): installed all 3 apps from store; Goal Tracker create→3×check-in→"All done today — legendary" + flame streak ✓; Studio import sample.mp4→Save→QR modal with real QR (link + 29:58 countdown) ✓; NEW TAB opened /?transfer=<id> → URL stripped → studio auto-opened → "Video received" toast → clip in library with QR badge → auto-loaded into editor ✓; Video Player plays clip (seek advancing, full control bar) ✓; Device tab connect hero ✓; 390×844 + 1900×1000 layouts ✓ (launcher tiles ~85px on desktop); ZERO console errors, ZERO page errors
+- tsc --noEmit clean, eslint clean, dev.log clean (transfer GET 200 in 15ms)
+
+Stage Summary:
+- The video loop is complete: Studio (edit/save) → QR share → any device scans → clip lands in their Studio library AND Video Player — no accounts, no uploads stored anywhere (30-min in-memory relay)
+- Catalog now 31 apps; home shows installed only; store installs verified for all three new apps
+- Known platform caveat (documented): on Vercel serverless the relay is per-instance — transfers within a short warm window work; for guaranteed delivery at scale, swap the in-memory store for Vercel Blob/KV later
