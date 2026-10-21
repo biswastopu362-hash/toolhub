@@ -432,3 +432,31 @@ Stage Summary:
 - The hub now feels like native software: connect once → Files/Gallery/Music surface the device's real media automatically on every open (one-tap re-allow between sessions on Chrome/Android; Chrome desktop PWA often persists permission)
 - DATABASE ANSWER UNCHANGED: still zero-server — handles/index/thumbs live in IndexedDB; nothing uploads
 - Limitations (by browser design, documented in UI): iOS/Safari/Firefox lack folder access → import fallback; permission may need a one-tap renewal per session
+
+---
+Task ID: 12 (Find & fix all problems — device-media stack audit)
+Agent: main (Z.ai Code)
+Task: Full-project problem hunt + fix everything found
+
+Work Log:
+- Working tree had mode-only changes (644→755) on 3 files — chmod restored, tree clean
+- Dispatched a full review of the device-media stack (device-media.ts, files.tsx, gallery.tsx, music-player.tsx, use-device-thumb.ts, media-db.ts): 1 high, 7 medium, 4 low real defects found
+- H-1 delete could NEVER work on real devices: handles picked/requested read-only but removeEntry requires readwrite → connectRoot now picks readwrite, requestAccess prefers readwrite (falls back to read), deleteEntry upgrades permission in-gesture
+- M-1 Files preview blob URLs leaked on app close → previewUrlsRef + unmount revoke effect (img/vid/audio)
+- M-2 openEntry race: slow getFile() resolved out of order → token ref; stale results revoked + never overwrite newer pick; replaced previews revoke previous URL
+- M-3 indexRoot stamped truncated indexes "fresh" → partial flag on 25k cap (ensureFreshIndex never trusts it, Files toast explains); signal-abort writes nothing
+- M-4 stale/wrong thumbnails across re-index/root-change → cache keyed by lastModified:path (thumbKey), purgeThumbs on delete, clearThumbCache on connect/disconnect
+- M-5 Music device URL cache unbounded+stale → only current track kept, evicted on re-index
+- M-6 unbounded thumb decode fan-out → withThumbSlot queue (3 concurrent) with double-check on slot entry
+- M-7 moved/renamed root silently indexed empty → depth-0 NotFoundError → DeviceRootMissingError; Files boot/doIndex + Gallery loadDevice surface reconnect toasts
+- L-1 boot/loadDevice unhandled rejections → .catch added; L-2 IDB conns closed on abort/error + onblocked reject; L-3 music stale src cleared synchronously + audio onError (cancel autoAdvance, reset play, debounced toast); L-4 ensureFreshIndex in-flight dedupe + Gallery refresh disabled while busy
+- UX gap found in testing: Files lightbox/video had no Escape-close (Gallery did) → capture-phase Escape handler added
+- next.config.ts: allowedDevOrigins ["*.space-z.ai"] — kills the per-request cross-origin dev warning (verified gone after restart)
+- E2E (agent-browser): synthetic device tree injected via dev hook → index 7 entries ✓, Files tree/breadcrumb/filters ✓, PNG thumb decoded via bounded pipeline ✓, lightbox open/backdrop-close/Escape-close ✓, delete flow calls removeEntry + row removed ✓, audio mini-player ✓, Gallery Device tab "2 items live from your device" + thumb ✓, Music "1 track · 1 live from your device" + blob streaming bound ✓, invalid-file error path resets cleanly (no stuck state) ✓
+- Viewports 390/1150/1900: tiles 82–83px everywhere; zero console errors, zero page errors
+- tsc --noEmit + eslint clean; dev server restarted for config change (HTTP 200)
+
+Stage Summary:
+- Committed 37b6af2 and pushed to main (Vercel auto-redeploys)
+- Core correction: device delete was broken by design (read-only grant) — now the whole promise (browse, preview, download, DELETE) is real
+- All 12 audit defects closed; cache/race/leak classes fixed at the library level so future apps inheriting device-media are safe
