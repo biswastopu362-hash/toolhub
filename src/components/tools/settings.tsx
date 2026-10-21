@@ -1,6 +1,5 @@
 'use client'
 
-import { useTheme } from 'next-themes'
 import {
   Check,
   Info,
@@ -8,9 +7,11 @@ import {
   Moon,
   MoreVertical,
   Share,
+  Sparkles,
   Sun,
   Trash2,
   Wrench,
+  type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -19,7 +20,7 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/lib/store/app-store'
-import type { WallpaperId } from '@/lib/store/app-store'
+import { ACCENTS, MODES, WALLPAPERS, type ModeId } from '@/lib/theme'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { tools } from '@/lib/tools/registry'
 
@@ -27,18 +28,12 @@ import { tools } from '@/lib/tools/registry'
 /* Options                                                             */
 /* ================================================================== */
 
-const THEME_OPTIONS = [
-  { id: 'light', label: 'Light', icon: Sun },
-  { id: 'dark', label: 'Dark', icon: Moon },
-  { id: 'system', label: 'System', icon: Monitor },
-] as const
-
-const WALLPAPERS: { id: WallpaperId; name: string; className: string }[] = [
-  { id: 'sunset', name: 'Sunset', className: 'wallpaper wp-sunset' },
-  { id: 'ocean', name: 'Ocean', className: 'wallpaper wp-ocean' },
-  { id: 'forest', name: 'Forest', className: 'wallpaper wp-forest' },
-  { id: 'midnight', name: 'Midnight', className: 'wallpaper wp-midnight' },
-]
+const MODE_ICONS: Record<ModeId, LucideIcon> = {
+  light: Sun,
+  dark: Moon,
+  amoled: Sparkles,
+  system: Monitor,
+}
 
 /* ================================================================== */
 /* Component                                                           */
@@ -46,12 +41,15 @@ const WALLPAPERS: { id: WallpaperId; name: string; className: string }[] = [
 
 export default function SettingsTool() {
   const { toast } = useToast()
-  const { theme, setTheme } = useTheme()
 
   const favorites = useAppStore((s) => s.favorites)
   const recents = useAppStore((s) => s.recents)
   const wallpaper = useAppStore((s) => s.wallpaper)
   const setWallpaper = useAppStore((s) => s.setWallpaper)
+  const mode = useAppStore((s) => s.mode)
+  const setMode = useAppStore((s) => s.setMode)
+  const accent = useAppStore((s) => s.accent)
+  const setAccent = useAppStore((s) => s.setAccent)
   const clearRecents = useAppStore((s) => s.clearRecents)
   const toggleFavorite = useAppStore((s) => s.toggleFavorite)
 
@@ -74,48 +72,107 @@ export default function SettingsTool() {
     })
   }
 
+  const activeAccent = ACCENTS.find((a) => a.id === accent)
+  const activeWallpaper = WALLPAPERS.find((w) => w.id === wallpaper)
+
   return (
     <div className="space-y-4">
-      {/* ---------------- Appearance ---------------- */}
+      {/* ---------------- Appearance · Mode ---------------- */}
       <Card className="gap-4 p-4">
         <div>
-          <h3 className="font-semibold">Appearance</h3>
-          <p className="text-sm text-muted-foreground">Choose how ToolHub looks on this device.</p>
+          <h3 className="font-semibold">Color mode</h3>
+          <p className="text-sm text-muted-foreground">
+            Light, dark, true-black AMOLED — or follow your device automatically.
+          </p>
         </div>
-        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Theme">
-          {THEME_OPTIONS.map((opt) => {
-            const active = theme === opt.id
-            const Icon = opt.icon
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Color mode">
+          {MODES.map((m) => {
+            const active = mode === m.id
+            const Icon = MODE_ICONS[m.id]
             return (
               <button
-                key={opt.id}
+                key={m.id}
                 type="button"
-                onClick={() => setTheme(opt.id)}
+                onClick={() => setMode(m.id)}
                 aria-pressed={active}
-                aria-label={`${opt.label} theme`}
+                aria-label={`${m.name} mode — ${m.description}`}
                 className={cn(
-                  'flex h-11 items-center justify-center gap-2 rounded-lg border text-sm font-medium transition-colors',
+                  'flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-medium transition-all active:scale-95',
                   active
-                    ? 'border-primary bg-primary/10 text-primary'
+                    ? 'border-transparent bg-primary text-primary-foreground shadow-md shadow-primary/25'
                     : 'border-border text-muted-foreground hover:bg-muted'
                 )}
               >
-                <Icon className="size-4" aria-hidden="true" />
-                {opt.label}
-                {active && <Check className="size-3.5" aria-hidden="true" />}
+                <Icon className="size-5" aria-hidden="true" />
+                {m.name}
+                <span
+                  className={cn(
+                    'text-center text-[10px] leading-tight',
+                    active ? 'text-primary-foreground/75' : 'text-muted-foreground/80'
+                  )}
+                >
+                  {m.description}
+                </span>
               </button>
             )
           })}
         </div>
       </Card>
 
-      {/* ---------------- Wallpaper ---------------- */}
+      {/* ---------------- Appearance · Accent ---------------- */}
+      <Card className="gap-4 p-4">
+        <div>
+          <h3 className="font-semibold">Accent color</h3>
+          <p className="text-sm text-muted-foreground">
+            Tints every app, button and highlight — currently{' '}
+            <span className="font-semibold text-foreground">{activeAccent?.name}</span>.
+          </p>
+        </div>
+        <div className="grid grid-cols-4 gap-3 sm:grid-cols-8" role="group" aria-label="Accent color">
+          {ACCENTS.map((a) => {
+            const active = accent === a.id
+            return (
+              <div key={a.id} className="flex flex-col items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAccent(a.id)}
+                  aria-pressed={active}
+                  aria-label={`${a.name} accent`}
+                  title={a.name}
+                  className={cn(
+                    'relative grid size-12 place-items-center rounded-full bg-gradient-to-br shadow-md transition-all active:scale-90',
+                    a.swatch,
+                    active
+                      ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+                      : 'hover:scale-110'
+                  )}
+                >
+                  {active && <Check className="size-5 text-white drop-shadow-md" aria-hidden="true" />}
+                </button>
+                <span
+                  className={cn(
+                    'text-[11px]',
+                    active ? 'font-semibold text-primary' : 'text-muted-foreground'
+                  )}
+                >
+                  {a.name}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </Card>
+
+      {/* ---------------- Appearance · Wallpaper ---------------- */}
       <Card className="gap-4 p-4">
         <div>
           <h3 className="font-semibold">Wallpaper</h3>
-          <p className="text-sm text-muted-foreground">Pick a background for your home screen.</p>
+          <p className="text-sm text-muted-foreground">
+            Pick a background for your home screen — currently{' '}
+            <span className="font-semibold text-foreground">{activeWallpaper?.name}</span>.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-4" role="group" aria-label="Wallpaper">
+        <div className="grid grid-cols-4 gap-3 sm:grid-cols-8" role="group" aria-label="Wallpaper">
           {WALLPAPERS.map((wp) => {
             const active = wallpaper === wp.id
             return (
@@ -125,10 +182,13 @@ export default function SettingsTool() {
                   onClick={() => setWallpaper(wp.id)}
                   aria-pressed={active}
                   aria-label={`${wp.name} wallpaper`}
+                  title={wp.name}
                   className={cn(
                     'relative size-16 rounded-xl transition-all',
                     wp.className,
-                    active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : 'hover:scale-105'
+                    active
+                      ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+                      : 'hover:scale-105'
                   )}
                 >
                   {active && (
@@ -137,13 +197,21 @@ export default function SettingsTool() {
                     </span>
                   )}
                 </button>
-                <span className={cn('text-xs', active ? 'font-semibold text-primary' : 'text-muted-foreground')}>
+                <span
+                  className={cn(
+                    'text-xs',
+                    active ? 'font-semibold text-primary' : 'text-muted-foreground'
+                  )}
+                >
                   {wp.name}
                 </span>
               </div>
             )
           })}
         </div>
+        <p className="text-xs text-muted-foreground">
+          Tip: the palette button in the status bar opens quick settings from anywhere.
+        </p>
       </Card>
 
       {/* ---------------- Install ---------------- */}
@@ -221,7 +289,7 @@ export default function SettingsTool() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold">ToolHub</h3>
-              <Badge variant="secondary">v2.0</Badge>
+              <Badge variant="secondary">v2.1</Badge>
             </div>
             <p className="text-sm text-muted-foreground">All your apps, one hub</p>
           </div>

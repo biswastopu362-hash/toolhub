@@ -178,7 +178,7 @@ function WorldClockTab() {
                           className={cn(
                             'h-4 px-1.5 text-[10px] font-medium',
                             offset === 0
-                              ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                              ? 'border-primary/40 text-primary'
                               : 'text-muted-foreground'
                           )}
                         >
@@ -335,7 +335,7 @@ function StopwatchTab() {
                     {l.n - 1 === bestIdx && (
                       <Badge
                         variant="outline"
-                        className="border-emerald-500/40 text-[10px] text-emerald-600 dark:text-emerald-400"
+                        className="border-primary/40 text-[10px] text-primary"
                       >
                         Fastest
                       </Badge>
@@ -353,7 +353,7 @@ function StopwatchTab() {
                     <span
                       className={cn(
                         'w-20 text-right font-medium',
-                        l.n - 1 === bestIdx && 'text-emerald-600 dark:text-emerald-400',
+                        l.n - 1 === bestIdx && 'text-primary',
                         l.n - 1 === worstIdx && 'text-rose-600 dark:text-rose-400'
                       )}
                     >

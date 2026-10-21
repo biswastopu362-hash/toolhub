@@ -1,5 +1,5 @@
 /* ToolHub Service Worker — offline-first app shell */
-const CACHE_NAME = 'toolhub-v2'
+const CACHE_NAME = 'toolhub-v3'
 
 /* Precache the app shell; every tool runs fully client-side */
 const PRECACHE = [

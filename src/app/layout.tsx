@@ -53,11 +53,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#2e1065" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f0a1e" },
-  ],
 };
+
+/** Applied before first paint to avoid theme flash (mirrors ThemeProvider). */
+const themeInitScript = `(function(){try{var m=localStorage.getItem('toolhub.mode')||'system';var a=localStorage.getItem('toolhub.accent')||'emerald';var d=m==='dark'||m==='amoled'||(m==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',!!d);r.classList.toggle('amoled',m==='amoled');r.dataset.accent=a;r.style.colorScheme=d?'dark':'light';}catch(e){}})()`;
 
 export default function RootLayout({
   children,
@@ -65,20 +64,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-accent="emerald">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground min-h-screen`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster />
-          <RegisterServiceWorker />
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
+        <Toaster />
+        <RegisterServiceWorker />
       </body>
     </html>
   );

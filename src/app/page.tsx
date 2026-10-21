@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import {
   ArrowLeft,
   Battery,
@@ -10,6 +10,7 @@ import {
   BatteryLow,
   BatteryMedium,
   Folder,
+  Palette,
   Search,
   SearchX,
   Star,
@@ -17,9 +18,11 @@ import {
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ControlCenter } from '@/components/control-center'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useHydrated } from '@/hooks/use-hydrated'
-import { useAppStore, type WallpaperId } from '@/lib/store/app-store'
+import { useAppStore } from '@/lib/store/app-store'
+import { DEFAULT_WALLPAPER, WALLPAPERS, getWallpaper, type WallpaperId } from '@/lib/theme'
 import {
   getToolById,
   searchTools,
@@ -35,13 +38,6 @@ import { cn } from '@/lib/utils'
 /* ================================================================== */
 
 const DOCK_IDS = ['calculator', 'clock', 'weather', 'notes']
-
-const WALLPAPER_CLASS: Record<WallpaperId, string> = {
-  sunset: 'wp-sunset',
-  ocean: 'wp-ocean',
-  forest: 'wp-forest',
-  midnight: 'wp-midnight',
-}
 
 /* ================================================================== */
 /* Page — the whole "phone OS" lives on this single route              */
@@ -65,6 +61,11 @@ export default function Home() {
 
   const openApp = useCallback(
     (id: string) => {
+      try {
+        navigator.vibrate?.(8)
+      } catch {
+        /* haptics unsupported */
+      }
       useAppStore.getState().addRecent(id)
       navigate(`#/app/${id}`)
     },
@@ -74,18 +75,43 @@ export default function Home() {
   const goHome = useCallback(() => navigate('#/'), [navigate])
 
   const [spotlightOpen, setSpotlightOpen] = useState(false)
+  const [ccOpen, setCcOpen] = useState(false)
+  const wpDark = getWallpaper(wallpaperId).dark
 
   return (
-    <div
-      className={cn(
-        'wallpaper relative h-dvh w-full overflow-hidden',
-        WALLPAPER_CLASS[wallpaperId] ?? WALLPAPER_CLASS.sunset
-      )}
-    >
-      {/* subtle vignette for depth */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/10" />
+    <MotionConfig reducedMotion="user">
+      <div className="relative h-dvh w-full overflow-hidden">
+        {/* crossfading wallpaper stack */}
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          {WALLPAPERS.map((w) => (
+            <div
+              key={w.id}
+              className={cn('absolute inset-0 transition-opacity duration-700', w.className)}
+              style={{ opacity: wallpaperId === w.id ? 1 : 0 }}
+            />
+          ))}
+        </div>
 
-      <HomeScreen onOpenApp={openApp} onOpenSearch={() => setSpotlightOpen(true)} />
+        {/* subtle vignette for depth */}
+        <div
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute inset-0 transition-colors duration-700',
+            wpDark ? 'bg-black/10' : 'bg-black/[0.04]'
+          )}
+        />
+
+      <HomeScreen
+        wallpaperId={wallpaperId}
+        onOpenApp={openApp}
+        onOpenSearch={() => setSpotlightOpen(true)}
+        onOpenCustomize={() => setCcOpen(true)}
+      />
+
+      {/* Quick-settings control center */}
+      <AnimatePresence>
+        {ccOpen && <ControlCenter key="cc" onClose={() => setCcOpen(false)} onOpenApp={openApp} />}
+      </AnimatePresence>
 
       {/* Spotlight search overlay */}
       <AnimatePresence>
@@ -107,7 +133,8 @@ export default function Home() {
           <AppWindow key={app.id} app={app} onHome={goHome} />
         )}
       </AnimatePresence>
-    </div>
+      </div>
+    </MotionConfig>
   )
 }
 
@@ -116,16 +143,21 @@ export default function Home() {
 /* ================================================================== */
 
 function HomeScreen({
+  wallpaperId,
   onOpenApp,
   onOpenSearch,
+  onOpenCustomize,
 }: {
+  wallpaperId: WallpaperId
   onOpenApp: (id: string) => void
   onOpenSearch: () => void
+  onOpenCustomize: () => void
 }) {
   const pagesRef = useRef<HTMLDivElement>(null)
   const grid = useGridMetrics(pagesRef)
   const [activePage, setActivePage] = useState(0)
   const [openFolder, setOpenFolder] = useState<ToolCategoryId | null>(null)
+  const onLight = !getWallpaper(wallpaperId).dark
 
   const capacity = grid.cols * grid.rows
 
@@ -158,13 +190,17 @@ function HomeScreen({
 
   return (
     <>
-      <StatusBar onOpenSearch={onOpenSearch} />
+      <StatusBar
+        onLight={onLight}
+        onOpenSearch={onOpenSearch}
+        onOpenCustomize={onOpenCustomize}
+      />
 
       {/* Pages (horizontal scroll-snap) */}
       <div
         ref={pagesRef}
         onScroll={onScroll}
-        className="no-scrollbar absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden pb-32 pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.5rem))]"
+        className="no-scrollbar absolute inset-0 flex snap-x snap-mandatory select-none overflow-x-auto overflow-y-hidden pb-32 pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.5rem))]"
         aria-label="Home screen pages"
       >
         {pages.map((pageApps, i) => (
@@ -178,7 +214,7 @@ function HomeScreen({
               style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
             >
               {pageApps.map((t) => (
-                <AppIcon key={t.id} tool={t} onOpen={() => onOpenApp(t.id)} />
+                <AppIcon key={t.id} tool={t} onOpen={() => onOpenApp(t.id)} onLight={onLight} />
               ))}
             </div>
           </section>
@@ -189,24 +225,33 @@ function HomeScreen({
           aria-label="App Library"
           className="h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
         >
-          <AppLibrary onOpenApp={onOpenApp} onOpenFolder={setOpenFolder} />
+          <AppLibrary onOpenApp={onOpenApp} onOpenFolder={setOpenFolder} onLight={onLight} />
         </section>
       </div>
 
       {/* Page dots */}
-      <div className="absolute inset-x-0 bottom-28 z-20 flex justify-center gap-2">
+      <div className="absolute inset-x-0 bottom-28 z-20 flex select-none justify-center gap-2">
         {Array.from({ length: pageCount }).map((_, i) => (
           <button
             key={i}
             onClick={() => scrollToPage(i)}
             aria-label={`Go to page ${i + 1}`}
             aria-current={activePage === i}
-            className="p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-full"
+            className={cn(
+              'rounded-full p-1 focus-visible:outline-none focus-visible:ring-2',
+              onLight ? 'focus-visible:ring-zinc-900/50' : 'focus-visible:ring-white/70'
+            )}
           >
             <span
               className={cn(
                 'block h-1.5 w-1.5 rounded-full transition-colors',
-                activePage === i ? 'bg-white' : 'bg-white/40 hover:bg-white/60'
+                activePage === i
+                  ? onLight
+                    ? 'bg-zinc-900'
+                    : 'bg-white'
+                  : onLight
+                    ? 'bg-zinc-900/30 hover:bg-zinc-900/50'
+                    : 'bg-white/40 hover:bg-white/60'
               )}
             />
           </button>
@@ -214,11 +259,22 @@ function HomeScreen({
       </div>
 
       {/* Dock */}
-      <div className="absolute inset-x-0 bottom-0 z-20 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="mx-auto w-fit max-w-[calc(100%-2rem)] rounded-[1.75rem] bg-white/15 px-4 py-3 shadow-lg ring-1 ring-white/25 backdrop-blur-xl">
+      <div className="absolute inset-x-0 bottom-0 z-20 select-none pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div
+          className={cn(
+            'mx-auto w-fit max-w-[calc(100%-2rem)] rounded-[1.75rem] px-4 py-3 shadow-lg ring-1 backdrop-blur-xl',
+            onLight ? 'bg-white/55 ring-black/10' : 'bg-white/15 ring-white/25'
+          )}
+        >
           <div className="flex gap-6">
             {dockApps.map((t) => (
-              <AppIcon key={`dock-${t.id}`} tool={t} onOpen={() => onOpenApp(t.id)} noLabel />
+              <AppIcon
+                key={`dock-${t.id}`}
+                tool={t}
+                onOpen={() => onOpenApp(t.id)}
+                noLabel
+                onLight={onLight}
+              />
             ))}
           </div>
         </div>
@@ -269,7 +325,15 @@ function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>) {
 /* Status bar — live clock, battery, online state, search              */
 /* ================================================================== */
 
-function StatusBar({ onOpenSearch }: { onOpenSearch: () => void }) {
+function StatusBar({
+  onLight,
+  onOpenSearch,
+  onOpenCustomize,
+}: {
+  onLight: boolean
+  onOpenSearch: () => void
+  onOpenCustomize: () => void
+}) {
   const [time, setTime] = useState<string | null>(null)
   const [online, setOnline] = useState(() =>
     typeof window !== 'undefined' ? navigator.onLine : true
@@ -334,7 +398,14 @@ function StatusBar({ onOpenSearch }: { onOpenSearch: () => void }) {
   }, [])
 
   return (
-    <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-6 pb-2 pt-[max(0.9rem,env(safe-area-inset-top))] text-sm font-semibold text-white drop-shadow-md">
+    <header
+      className={cn(
+        'absolute inset-x-0 top-0 z-30 flex select-none items-center justify-between px-6 pb-2 pt-[max(0.9rem,env(safe-area-inset-top))] text-sm font-semibold',
+        onLight
+          ? 'text-zinc-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.65)]'
+          : 'text-white drop-shadow-md'
+      )}
+    >
       <time suppressHydrationWarning>{time ?? '--:--'}</time>
 
       <div className="flex items-center gap-3">
@@ -350,9 +421,23 @@ function StatusBar({ onOpenSearch }: { onOpenSearch: () => void }) {
           </span>
         )}
         <button
+          onClick={onOpenCustomize}
+          aria-label="Customize theme"
+          title="Themes & wallpapers"
+          className={cn(
+            'rounded-full p-1 transition-colors active:scale-90',
+            onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
+          )}
+        >
+          <Palette className="h-[18px] w-[18px]" />
+        </button>
+        <button
           onClick={onOpenSearch}
           aria-label="Search apps"
-          className="rounded-full p-1 transition-colors hover:bg-white/15 active:scale-90"
+          className={cn(
+            'rounded-full p-1 transition-colors active:scale-90',
+            onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
+          )}
         >
           <Search className="h-[18px] w-[18px]" />
         </button>
@@ -376,31 +461,47 @@ function AppIcon({
   tool,
   onOpen,
   noLabel = false,
+  onLight = false,
 }: {
   tool: Tool
   onOpen: () => void
   noLabel?: boolean
+  onLight?: boolean
 }) {
   return (
-    <button
-      onClick={onOpen}
-      aria-label={`Open ${tool.name}`}
-      className="group flex w-full flex-col items-center gap-1.5 rounded-2xl p-1 transition-transform duration-150 ease-out hover:scale-[1.04] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+    <motion.div
+      initial={{ opacity: 0, scale: 0.55 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 26 }}
+      className="w-full"
     >
-      <span
-        className={cn(
-          'flex size-[60px] items-center justify-center rounded-[1.15rem] bg-gradient-to-br text-white shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(255,255,255,0.35)] ring-1 ring-white/20 sm:size-[66px] sm:rounded-[1.3rem]',
-          tool.gradient
-        )}
+      <button
+        onClick={onOpen}
+        aria-label={`Open ${tool.name}`}
+        className="group flex w-full flex-col items-center gap-1.5 rounded-2xl p-1 transition-transform duration-150 ease-out hover:scale-[1.04] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
       >
-        <tool.icon className="h-[52%] w-[52%]" strokeWidth={1.9} aria-hidden />
-      </span>
-      {!noLabel && (
-        <span className="max-w-[88px] truncate text-[11px] font-medium leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] sm:text-xs">
-          {tool.name}
+        <span
+          className={cn(
+            'flex size-[60px] items-center justify-center rounded-[1.15rem] bg-gradient-to-br text-white shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(255,255,255,0.35)] ring-1 ring-white/20 sm:size-[66px] sm:rounded-[1.3rem]',
+            tool.gradient
+          )}
+        >
+          <tool.icon className="h-[52%] w-[52%]" strokeWidth={1.9} aria-hidden />
         </span>
-      )}
-    </button>
+        {!noLabel && (
+          <span
+            className={cn(
+              'max-w-[88px] truncate text-[11px] font-medium leading-tight sm:text-xs',
+              onLight
+                ? 'text-zinc-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.7)]'
+                : 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]'
+            )}
+          >
+            {tool.name}
+          </span>
+        )}
+      </button>
+    </motion.div>
   )
 }
 
@@ -559,9 +660,11 @@ function Spotlight({
 function AppLibrary({
   onOpenApp,
   onOpenFolder,
+  onLight,
 }: {
   onOpenApp: (id: string) => void
   onOpenFolder: (id: ToolCategoryId) => void
+  onLight: boolean
 }) {
   const folders = useMemo(
     () =>
@@ -573,7 +676,14 @@ function AppLibrary({
 
   return (
     <div className="mx-auto max-w-2xl pt-6">
-      <h1 className="mb-5 text-center text-lg font-bold text-white drop-shadow-md">App Library</h1>
+      <h1
+        className={cn(
+          'mb-5 text-center text-lg font-bold drop-shadow-md',
+          onLight ? 'text-zinc-900' : 'text-white'
+        )}
+      >
+        App Library
+      </h1>
       <div className="grid grid-cols-2 justify-items-center gap-x-3 gap-y-6 sm:grid-cols-3">
         {folders.map(({ cat, items }) => (
           <button

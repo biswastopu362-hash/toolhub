@@ -227,3 +227,24 @@ Work Log:
 Stage Summary:
 - Browser E2E verified: home renders (19 apps, dock, dots), Calculator 7×8=56, Clock live world times + stopwatch lap, Weather live Dhaka 26°C (Open-Meteo), Notes persisted to localStorage, Reminders add+complete persisted, Currency live 1 USD=123.5846 BDT, Device Info populated, Settings wallpaper switch (sunset→ocean) persisted, Spotlight search→Enter opens app, App Library folders + overlay, legacy #/tool/ route works, mobile iPhone 14 → 4-col grid perfect, zero console errors after fixes, lint 0 errors, tsc clean in src/
 - NOTE: dev-mode service worker can serve stale bundles after edits — unregister SW/clear caches when re-verifying (cache now versioned toolhub-v2)
+
+---
+Task ID: 7
+Agent: main (Z.ai Code)
+Task: Full theme customization system — accent colors, 4 color modes (incl. AMOLED), light wallpapers, Control Center quick settings
+
+Work Log:
+- Created src/lib/theme.ts: single source of truth — 8 accent palettes (emerald/ocean/azure/violet/rose/sunset/gold/crimson with swatch + chrome colors), 4 modes (light/dark/amoled/system), 8 wallpapers (4 dark + 4 light: pearl/mint/blossom/haze with dark flag for adaptive chrome)
+- store/app-store.ts: added persisted mode + accent (+setters); wallpaper/type imports now from lib/theme
+- Rewrote theme-provider.tsx as custom engine (dropped next-themes): applies dark/amoled classes + data-accent + colorScheme on <html>, mirrors prefs to localStorage, updates theme-color meta per accent, follows OS changes when mode=system
+- layout.tsx: pre-paint FOUC inline script (reads toolhub.mode/toolhub.accent), removed static theme-color viewport metas
+- globals.css: token-based accent engine — :root/.dark derive all color vars from OKLCH tokens (--hue, --pr-*, --ring-*, --acc-*, --tint); 8 [data-accent] light blocks + 8 .dark[data-accent] dark blocks; html.amoled true-black overrides; ::selection + scrollbars accent-tinted; 4 new light wallpaper gradients
+- New ControlCenter component (src/components/control-center.tsx): iOS-style draggable bottom sheet — 4 mode tiles, 8 accent dots, wallpaper thumb scroller, "More in Settings" link; Escape/drag/backdrop dismiss
+- page.tsx: crossfading wallpaper stack (8 layers, opacity transition), adaptive status bar/dots/dock/labels via wallpaper.dark flag (dark text on light wallpapers), Palette button in status bar, spring pop-in AppIcon animation, haptic navigator.vibrate(8) on app open, MotionConfig reducedMotion="user", select-none on home chrome
+- settings.tsx: redesigned Appearance — Color mode tiles (4 with descriptions), Accent grid (8 named swatches), Wallpaper grid (8), v2.1
+- Fixed accent leakage: calculator DEG chip, clock best-lap/local badges, age-calculator header gradient → token-based (text-primary/bg-primary); semantic success greens kept (Valid JSON, password strength, saved badges)
+- Bumped sw.js cache toolhub-v2→v3; manifest theme/background colors updated to emerald defaults
+
+Stage Summary:
+- Browser E2E verified: Control Center opens from status-bar palette (desktop + iPhone 14), Light/Dark/AMOLED/System switching live, AMOLED body computed lab(0 0 0) true black, accent switch emerald→violet propagates into Calculator (DEG chip + window tint), wallpaper sunset→blossom crossfades + status chrome flips white→dark text, persistence survives reload (localStorage + FOUC script, no flash), mobile 4-col grid + wrapping accent dots + scrollable wallpapers, zero console errors, lint clean, tsc clean in src/
+- NOTE: stale SW bundles in dev — cleared via caches.delete + SW unregister when re-verifying (now toolhub-v3)

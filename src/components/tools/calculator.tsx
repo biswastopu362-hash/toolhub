@@ -399,7 +399,7 @@ export default function CalculatorTool() {
 
   const keys: { label: string; key: string; cls?: string; aria?: string }[][] = [
     [
-      { label: deg ? 'DEG' : 'RAD', key: 'deg', cls: 'text-xs font-bold text-emerald-700 dark:text-emerald-400' },
+      { label: deg ? 'DEG' : 'RAD', key: 'deg', cls: 'text-xs font-bold text-primary' },
       { label: 'sin', key: 'sin' },
       { label: 'cos', key: 'cos' },
       { label: 'tan', key: 'tan' },

@@ -236,7 +236,7 @@ export default function AgeCalculatorTool() {
         <>
           {/* Big highlight */}
           <Card className="overflow-hidden border-0 shadow-md">
-            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white sm:p-6">
+            <div className="bg-primary p-5 text-primary-foreground sm:p-6">
               <p className="text-sm font-medium text-white/80">Your age</p>
               <p
                 className="mt-1 text-2xl font-bold leading-snug sm:text-3xl"

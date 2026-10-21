@@ -2,8 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-export type WallpaperId = 'sunset' | 'ocean' | 'forest' | 'midnight'
+import { DEFAULT_ACCENT, DEFAULT_MODE, DEFAULT_WALLPAPER, type AccentId, type ModeId, type WallpaperId } from '@/lib/theme'
 
 interface AppState {
   /** favorite app ids */
@@ -12,11 +11,17 @@ interface AppState {
   recents: string[]
   /** home screen wallpaper */
   wallpaper: WallpaperId
+  /** UI color mode: light / dark / amoled / system */
+  mode: ModeId
+  /** accent palette id */
+  accent: AccentId
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
   addRecent: (id: string) => void
   clearRecents: () => void
   setWallpaper: (w: WallpaperId) => void
+  setMode: (m: ModeId) => void
+  setAccent: (a: AccentId) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -24,7 +29,9 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       favorites: [],
       recents: [],
-      wallpaper: 'sunset',
+      wallpaper: DEFAULT_WALLPAPER,
+      mode: DEFAULT_MODE,
+      accent: DEFAULT_ACCENT,
       toggleFavorite: (id) =>
         set((s) => ({
           favorites: s.favorites.includes(id)
@@ -38,6 +45,8 @@ export const useAppStore = create<AppState>()(
         })),
       clearRecents: () => set({ recents: [] }),
       setWallpaper: (w) => set({ wallpaper: w }),
+      setMode: (m) => set({ mode: m }),
+      setAccent: (a) => set({ accent: a }),
     }),
     { name: 'toolhub-store' }
   )
