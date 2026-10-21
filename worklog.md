@@ -379,3 +379,18 @@ Stage Summary:
 - LIVE REPO: https://github.com/biswastopu362-hash/toolhub (main branch, deploy-ready)
 - Vercel: import repo at vercel.com/new → auto-detects Next.js → zero env vars needed; only the AI Assistant app depends on SDK credentials (all other 27 apps are fully client-side and unaffected)
 - Security note: user shared token in chat; recommend regenerating it after Vercel is connected
+
+---
+Task ID: 9 (Vercel build fix)
+Agent: main (Z.ai Code)
+Task: Fix TypeScript build error blocking Vercel deployment
+
+Work Log:
+- Vercel `next build` failed: src/app/page.tsx:576 — "Expected 1 arguments, but got 0" (HomeItemView keyboard handler called onClick() without the MouseEvent argument)
+- Fix: pass the keydown event cast to React.MouseEvent — safe because the handler only reads e.currentTarget, and a keydown's currentTarget is the same element
+- Ran full `bunx tsc --noEmit` (same TS phase Vercel runs) → 0 errors project-wide; lint clean; dev server 200; browser render verified, zero errors
+- Committed + pushed: c996c8e "fix: pass keydown event to onClick in HomeItemView keyboard handler"
+
+Stage Summary:
+- Root cause: dev-mode hot reload doesn't type-check, and next build is banned in sandbox — tsc --noEmit is now the mandatory pre-push gate for this project
+- Vercel auto-redeploys from the push (repo connected); no other action needed
