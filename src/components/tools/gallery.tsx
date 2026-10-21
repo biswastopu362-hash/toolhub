@@ -13,10 +13,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Film,
+  HardDrive,
   Heart,
   ImagePlus,
   Images,
+  Link2,
   Loader2,
+  Play,
+  RefreshCw,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -38,6 +44,20 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { useDeviceThumb } from '@/hooks/use-device-thumb'
+import {
+  accessState,
+  connectRoot,
+  deleteEntry,
+  ensureFreshIndex,
+  entryUrl,
+  fsSupported,
+  getRoot,
+  listEntries,
+  requestAccess,
+  type DeviceEntry,
+  type FsDirHandle,
+} from '@/lib/device-media'
 import {
   deletePhoto,
   fileToDataUrl,
@@ -188,7 +208,7 @@ const shortDate = (ts: number) =>
 const downloadName = (p: PhotoRecord) =>
   `${(p.name ?? 'photo').replace(/\.[^.]+$/, '')}-${p.id}.jpg`
 
-type GalleryTab = 'photos' | 'albums' | 'favorites'
+type GalleryTab = 'photos' | 'albums' | 'favorites' | 'device'
 
 /* ================================================================== */
 /* Component                                                           */
@@ -207,6 +227,141 @@ export default function GalleryApp() {
   const [sampleBusy, setSampleBusy] = useState(false)
   const [sampleProgress, setSampleProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  /* -------- Device access (File System Access API — real files, no upload) -------- */
+  const [devRoot, setDevRoot] = useState<FsDirHandle | undefined>(undefined)
+  const [devAccess, setDevAccess] = useState<'none' | PermissionState>('none')
+  const [devEntries, setDevEntries] = useState<DeviceEntry[]>([])
+  const [devBusy, setDevBusy] = useState(false)
+  const [devViewer, setDevViewer] = useState<number | null>(null)
+  const [devDeleteTarget, setDevDeleteTarget] = useState<DeviceEntry | null>(null)
+  const devSupported = useMemo(() => fsSupported(), [])
+
+  useEffect(() => {
+    let cancelled = false
+    void getRoot().then(async (handle) => {
+      if (cancelled) return
+      setDevRoot(handle)
+      if (!handle) {
+        setDevAccess('none')
+        return
+      }
+      const st = await accessState(handle)
+      if (!cancelled) setDevAccess(st)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const loadDevice = useCallback(async (reindex: boolean) => {
+    setDevBusy(true)
+    try {
+      if (reindex) await ensureFreshIndex(10 * 60_000)
+      const media = (await listEntries({ dir: false, kinds: ['image', 'video'] })).sort(
+        (a, b) => b.lastModified - a.lastModified
+      )
+      setDevEntries(media)
+    } finally {
+      setDevBusy(false)
+    }
+  }, [])
+
+  /* Auto-load when the Device tab opens — the native "it's just there" feel. */
+  useEffect(() => {
+    if (tab !== 'device' || !devRoot || devAccess !== 'granted') return
+    void loadDevice(true)
+  }, [tab, devRoot, devAccess, loadDevice])
+
+  /* Stay in sync when the Files app re-indexes. */
+  useEffect(() => {
+    const onIndexed = () => {
+      if (tab === 'device' && devRoot && devAccess === 'granted') void loadDevice(false)
+    }
+    window.addEventListener('toolhub:device-indexed', onIndexed)
+    return () => window.removeEventListener('toolhub:device-indexed', onIndexed)
+  }, [tab, devRoot, devAccess, loadDevice])
+
+  const devConnect = useCallback(async () => {
+    try {
+      const handle = await connectRoot()
+      setDevRoot(handle)
+      setDevAccess(await accessState(handle))
+      toast({
+        title: `“${handle.name}” connected`,
+        description: 'Photos and videos from this folder now appear automatically.',
+      })
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        toast({ title: 'Could not connect', description: 'Folder access was cancelled or unavailable.', variant: 'destructive' })
+      }
+    }
+  }, [toast])
+
+  const devReconnect = useCallback(async () => {
+    if (!devRoot) return
+    if (await requestAccess(devRoot)) setDevAccess('granted')
+  }, [devRoot])
+
+  const devGo = useCallback(
+    (d: number) =>
+      setDevViewer((i) => (i === null || devEntries.length === 0 ? i : (i + d + devEntries.length) % devEntries.length)),
+    [devEntries.length]
+  )
+
+  const devClose = useCallback(() => setDevViewer(null), [])
+
+  const devItem = devViewer !== null ? devEntries[devViewer] : undefined
+
+  /* Capture-phase keys for the device viewer (isolated from shell handlers) */
+  const devViewerOpen = devViewer !== null
+  useEffect(() => {
+    if (!devViewerOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        devClose()
+      } else if (e.key === 'ArrowRight') {
+        e.stopPropagation()
+        devGo(1)
+      } else if (e.key === 'ArrowLeft') {
+        e.stopPropagation()
+        devGo(-1)
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [devViewerOpen, devGo, devClose])
+
+  const devDownload = useCallback(
+    async (e: DeviceEntry) => {
+      try {
+        const url = await entryUrl(e)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = e.name
+        a.click()
+        window.setTimeout(() => URL.revokeObjectURL(url), 4000)
+      } catch {
+        toast({ title: 'Download failed', description: 'Access may need renewal.', variant: 'destructive' })
+      }
+    },
+    [toast]
+  )
+
+  const devDelete = useCallback(
+    async (e: DeviceEntry) => {
+      try {
+        await deleteEntry(e)
+        setDevEntries((prev) => prev.filter((x) => x.id !== e.id))
+        setDevViewer(null)
+        toast({ title: `${e.name} deleted`, description: 'Removed from your device.' })
+      } catch {
+        toast({ title: 'Could not delete', description: 'The device folder may be read-only or access expired.', variant: 'destructive' })
+      }
+    },
+    [toast]
+  )
 
   /* -------- Initial load (async, cancelled-flag guarded) -------- */
   useEffect(() => {
@@ -403,7 +558,7 @@ export default function GalleryApp() {
     setOpenAlbum(null)
   }
 
-  const showEmptyState = !loading && photos.length === 0
+  const showEmptyState = !loading && photos.length === 0 && tab !== 'device'
 
   /* ================================================================== */
   /* Render                                                              */
@@ -481,9 +636,12 @@ export default function GalleryApp() {
 
       {/* Segmented tabs */}
       <Tabs value={tab} onValueChange={handleTabChange} className="mt-4">
-        <TabsList className="grid h-11 w-full max-w-sm grid-cols-3 rounded-xl p-1">
+        <TabsList className="grid h-11 w-full max-w-md grid-cols-4 rounded-xl p-1">
           <TabsTrigger value="photos" className="rounded-lg text-xs sm:text-sm">
             Photos
+          </TabsTrigger>
+          <TabsTrigger value="device" className="rounded-lg text-xs sm:text-sm">
+            Device
           </TabsTrigger>
           <TabsTrigger value="albums" className="rounded-lg text-xs sm:text-sm">
             Albums
@@ -546,6 +704,85 @@ export default function GalleryApp() {
             </Button>
           </div>
         </motion.div>
+      )}
+
+      {/* ---------------- On this device (real files, zero upload) ---------------- */}
+      {tab === 'device' && (
+        !devSupported ? (
+          <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+            <p className="font-semibold">Direct folder access isn’t available in this browser</p>
+            <p className="mt-1 text-muted-foreground">
+              Use Chrome or Edge (desktop or Android) to see your device’s real photos &amp; videos here. The Photos tab’s
+              import button works everywhere.
+            </p>
+          </div>
+        ) : !devRoot ? (
+          <div className="mt-4 flex flex-col items-center rounded-3xl border border-border/70 bg-gradient-to-b from-muted/60 to-background px-6 py-10 text-center">
+            <span className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-teal-500 to-emerald-500 text-white shadow-lg shadow-teal-500/25">
+              <HardDrive className="size-8" aria-hidden />
+            </span>
+            <h3 className="mt-4 text-lg font-bold tracking-tight">Show your device’s photos &amp; videos</h3>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+              Connect your Pictures folder (or any folder) once — everything in it appears here automatically from then
+              on. Nothing is uploaded; files stay on your device.
+            </p>
+            <Button
+              onClick={() => void devConnect()}
+              className="mt-5 h-11 gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 px-6 text-white shadow-lg shadow-teal-500/25 hover:from-cyan-400 hover:to-teal-400"
+              size="lg"
+            >
+              <Link2 className="size-4" aria-hidden /> Connect a folder
+            </Button>
+            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <ShieldCheck className="size-3.5" aria-hidden /> Read-only · revoke anytime · never leaves this device
+            </p>
+          </div>
+        ) : devAccess !== 'granted' ? (
+          <div className="mt-4 flex flex-col items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">“{devRoot.name}” needs permission again</p>
+              <p className="text-xs text-muted-foreground">One tap to re-allow, then your library reloads instantly.</p>
+            </div>
+            <Button onClick={() => void devReconnect()} className="h-10 rounded-xl bg-amber-500 text-black hover:bg-amber-400">
+              <ShieldCheck className="size-4" aria-hidden /> Re-allow
+            </Button>
+          </div>
+        ) : devBusy && devEntries.length === 0 ? (
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-square rounded-xl" />
+            ))}
+          </div>
+        ) : devEntries.length === 0 ? (
+          <div className="mt-4 flex flex-col items-center rounded-3xl border border-border/70 bg-muted/30 px-6 py-12 text-center">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-teal-500/10 text-teal-500">
+              <Images className="size-7" aria-hidden />
+            </span>
+            <h3 className="mt-4 text-base font-semibold">No media found in “{devRoot.name}”</h3>
+            <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+              Connect a folder that contains photos or videos — or add files to it, then press refresh.
+            </p>
+            <Button variant="outline" onClick={() => void loadDevice(true)} className="mt-4 h-10 gap-2 rounded-xl">
+              <RefreshCw className="size-4" aria-hidden /> Refresh
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="mt-3 flex items-center justify-between px-0.5">
+              <p className="text-xs text-muted-foreground">
+                {devEntries.length.toLocaleString('en-US')} item{devEntries.length === 1 ? '' : 's'} from “{devRoot.name}” — live from your device
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => void loadDevice(true)} className="h-8 gap-1.5 rounded-lg text-xs text-muted-foreground" aria-label="Refresh device media">
+                <RefreshCw className={cn('size-3.5', devBusy && 'animate-spin')} aria-hidden /> Refresh
+              </Button>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6" role="list" aria-label="Device media">
+              {devEntries.map((e, i) => (
+                <DeviceCard key={e.id} entry={e} index={i} onOpen={setDevViewer} />
+              ))}
+            </div>
+          </>
+        )
       )}
 
       {/* ---------------- Photos grid (or album drill-down) ---------------- */}
@@ -724,6 +961,21 @@ export default function GalleryApp() {
         )}
       </AnimatePresence>
 
+      {/* ---------------- Device file viewer (real files) ---------------- */}
+      <AnimatePresence>
+        {devItem && (
+          <DeviceViewer
+            item={devItem}
+            index={devViewer ?? 0}
+            total={devEntries.length}
+            onClose={devClose}
+            onNav={devGo}
+            onDownload={devDownload}
+            onDelete={(e) => setDevDeleteTarget(e)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Delete confirmation */}
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -738,6 +990,31 @@ export default function GalleryApp() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void confirmDelete()}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Device file delete confirmation */}
+      <AlertDialog open={devDeleteTarget !== null} onOpenChange={(open) => !open && setDevDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {devDeleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This file will be permanently removed from your device. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const t = devDeleteTarget
+                setDevDeleteTarget(null)
+                if (t) void devDelete(t)
+              }}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               Delete
@@ -838,5 +1115,217 @@ function ViewerAction({
     >
       {children}
     </Button>
+  )
+}
+
+/* ================================================================== */
+/* Device media card + viewer (real files via File System Access API)  */
+/* ================================================================== */
+
+function DeviceCard({
+  entry,
+  index,
+  onOpen,
+}: {
+  entry: DeviceEntry
+  index: number
+  onOpen: (index: number) => void
+}) {
+  const thumb = useDeviceThumb(entry)
+  return (
+    <motion.button
+      type="button"
+      role="listitem"
+      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: Math.min(index, 16) * 0.025, type: 'spring', stiffness: 320, damping: 28 }}
+      onClick={() => onOpen(index)}
+      aria-label={`Open ${entry.name}`}
+      className="group relative block aspect-square overflow-hidden rounded-xl bg-muted ring-1 ring-border transition-shadow hover:ring-2 hover:ring-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
+      {thumb ? (
+        <img
+          src={thumb}
+          alt=""
+          loading="lazy"
+          className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
+        />
+      ) : (
+        <span
+          className={cn(
+            'grid size-full place-items-center text-white',
+            entry.kind === 'video'
+              ? 'bg-gradient-to-br from-rose-400 via-red-500 to-orange-500'
+              : 'bg-gradient-to-br from-fuchsia-400 via-purple-500 to-indigo-400'
+          )}
+        >
+          {entry.kind === 'video' ? <Film className="size-7" aria-hidden /> : <Images className="size-7" aria-hidden />}
+        </span>
+      )}
+      {entry.kind === 'video' && (
+        <span className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm">
+          <Play className="size-3 fill-current" aria-hidden />
+        </span>
+      )}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-5 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+        {entry.name}
+      </span>
+    </motion.button>
+  )
+}
+
+function DeviceViewer({
+  item,
+  index,
+  total,
+  onClose,
+  onNav,
+  onDownload,
+  onDelete,
+}: {
+  item: DeviceEntry
+  index: number
+  total: number
+  onClose: () => void
+  onNav: (delta: number) => void
+  onDownload: (e: DeviceEntry) => void
+  onDelete: (e: DeviceEntry) => void
+}) {
+  const [loaded, setLoaded] = useState<{ id: string; url: string | null; failed: boolean }>({
+    id: item.id,
+    url: null,
+    failed: false,
+  })
+
+  // Derived-state reset when the item changes (no synchronous effect churn).
+  if (loaded.id !== item.id) {
+    setLoaded({ id: item.id, url: null, failed: false })
+  }
+
+  useEffect(() => {
+    if (loaded.id !== item.id || loaded.url || loaded.failed) return
+    let dead = false
+    let made: string | undefined
+    entryUrl(item)
+      .then((u) => {
+        if (dead) {
+          URL.revokeObjectURL(u)
+          return
+        }
+        made = u
+        setLoaded({ id: item.id, url: u, failed: false })
+      })
+      .catch(() => !dead && setLoaded({ id: item.id, url: null, failed: true }))
+    return () => {
+      dead = true
+      if (made) URL.revokeObjectURL(made)
+    }
+  }, [item, loaded])
+
+  const url = loaded.url
+  const failed = loaded.failed
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-50 flex flex-col bg-black/95 backdrop-blur-md"
+      role="dialog"
+      aria-label="Device file viewer"
+    >
+      <div className="flex items-center gap-3 px-4 pb-2 pt-[max(0.9rem,env(safe-area-inset-top))] text-white">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{item.name}</p>
+          <p className="truncate text-xs text-white/60">
+            {index + 1} of {total} · live from your device
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          aria-label="Close viewer"
+          className="size-11 rounded-full text-white hover:bg-white/15 hover:text-white"
+        >
+          <X className="size-5" aria-hidden />
+        </Button>
+      </div>
+
+      <div className="relative flex min-h-0 flex-1 items-center justify-center p-3 sm:p-6">
+        {failed ? (
+          <div className="max-w-xs text-center text-sm text-white/70">
+            <p className="font-semibold text-white">Could not open this file</p>
+            <p className="mt-1">Device access may have expired — go back and press Refresh to re-index.</p>
+          </div>
+        ) : !url ? (
+          <Loader2 className="size-8 animate-spin text-white/60" aria-hidden />
+        ) : item.kind === 'video' ? (
+          <motion.video
+            key={item.id}
+            src={url}
+            controls
+            autoPlay
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="max-h-full max-w-full rounded-lg bg-black shadow-2xl"
+          />
+        ) : (
+          <motion.img
+            key={item.id}
+            src={url}
+            alt={item.name}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+            draggable={false}
+          />
+        )}
+      </div>
+
+      <div className="flex items-center justify-center gap-1.5 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 sm:gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onNav(-1)}
+          disabled={total < 2}
+          aria-label="Previous item"
+          className="size-11 rounded-full text-white hover:bg-white/15 hover:text-white"
+        >
+          <ChevronLeft className="size-5" aria-hidden />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onDownload(item)}
+          aria-label="Download file"
+          className="size-11 rounded-full text-white hover:bg-white/15 hover:text-white"
+        >
+          <Download className="size-5" aria-hidden />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(item)}
+          aria-label="Delete file from device"
+          className="size-11 rounded-full text-red-400 hover:bg-red-500/20 hover:text-red-300"
+        >
+          <Trash2 className="size-5" aria-hidden />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onNav(1)}
+          disabled={total < 2}
+          aria-label="Next item"
+          className="size-11 rounded-full text-white hover:bg-white/15 hover:text-white"
+        >
+          <ChevronRight className="size-5" aria-hidden />
+        </Button>
+      </div>
+    </motion.div>
   )
 }

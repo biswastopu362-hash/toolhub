@@ -6,7 +6,7 @@
  * controls and a phone-OS style playlist.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   ListMusic,
@@ -28,6 +28,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { ensureFreshIndex, entryUrl, listEntries } from '@/lib/device-media'
 
 /* ================================================================== */
 /* IndexedDB — tiny private store for imported audio tracks            */
@@ -204,7 +205,76 @@ export default function MusicPlayer() {
   const lastSaveRef = useRef(0)
   const attemptedRef = useRef<Set<string>>(new Set())
 
-  const currentTrack = tracks.find((t) => t.id === currentId) ?? null
+  /* ---- device audio (real files, streamed in place — never copied) ---- */
+  const [devTracks, setDevTracks] = useState<TrackRecord[]>([])
+  const devEntriesRef = useRef<Map<string, import('@/lib/device-media').DeviceEntry>>(new Map())
+  const devUrlRef = useRef<Map<string, string>>(new Map())
+  const [devSrc, setDevSrc] = useState<string | null>(null)
+
+  const allTracks = useMemo(() => [...tracks, ...devTracks], [tracks, devTracks])
+  const currentTrack = allTracks.find((t) => t.id === currentId) ?? null
+
+  const loadDeviceTracks = useCallback(async (reindex: boolean) => {
+    try {
+      if (reindex) await ensureFreshIndex(10 * 60_000).catch(() => undefined)
+      const audios = (await listEntries({ dir: false, kinds: ['audio'] })).sort((a, b) => a.name.localeCompare(b.name))
+      devEntriesRef.current = new Map(audios.map((e) => [`dev:${e.id}`, e]))
+      setDevTracks(audios.map((e) => ({ id: `dev:${e.id}`, name: e.name, dataUrl: '', addedAt: e.lastModified || 0 })))
+    } catch {
+      /* device layer unavailable (unsupported browser / nothing connected) */
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadDeviceTracks(true)
+  }, [loadDeviceTracks])
+
+  useEffect(() => {
+    const onIndexed = () => void loadDeviceTracks(false)
+    window.addEventListener('toolhub:device-indexed', onIndexed)
+    return () => window.removeEventListener('toolhub:device-indexed', onIndexed)
+  }, [loadDeviceTracks])
+
+  /* resolve a streaming URL for the current device track */
+  useEffect(() => {
+    if (!currentTrack || !currentTrack.id.startsWith('dev:')) {
+      setDevSrc(null)
+      return
+    }
+    let dead = false
+    const entry = devEntriesRef.current.get(currentTrack.id)
+    const cached = entry ? devUrlRef.current.get(currentTrack.id) : undefined
+    if (cached) {
+      setDevSrc(cached)
+      return
+    }
+    if (!entry) {
+      setDevSrc(null)
+      return
+    }
+    void entryUrl(entry)
+      .then((u) => {
+        if (dead) {
+          URL.revokeObjectURL(u)
+          return
+        }
+        devUrlRef.current.set(currentTrack.id, u)
+        setDevSrc(u)
+      })
+      .catch(() => !dead && setDevSrc(null))
+    return () => {
+      dead = true
+    }
+  }, [currentTrack])
+
+  /* cleanup device object URLs on unmount */
+  useEffect(
+    () => () => {
+      for (const u of devUrlRef.current.values()) URL.revokeObjectURL(u)
+      devUrlRef.current.clear()
+    },
+    []
+  )
 
   /* latest settings snapshot for persistence from event handlers */
   const settingsRef = useRef({ volume, muted, shuffle, repeat })
@@ -264,6 +334,7 @@ export default function MusicPlayer() {
     if (!ready) return
     const created: HTMLAudioElement[] = []
     for (const t of tracks) {
+      if (t.id.startsWith('dev:')) continue
       if (attemptedRef.current.has(t.id)) continue
       attemptedRef.current.add(t.id)
       const probe = new Audio()
@@ -408,20 +479,20 @@ export default function MusicPlayer() {
 
   const advance = useCallback(
     (dir: 1 | -1, autoPlay: boolean) => {
-      if (tracks.length === 0) return
-      const idx = tracks.findIndex((t) => t.id === currentIdRef.current)
+      if (allTracks.length === 0) return
+      const idx = allTracks.findIndex((t) => t.id === currentIdRef.current)
       const cur = idx >= 0 ? idx : 0
       let nextIdx: number
-      if (settingsRef.current.shuffle && tracks.length > 1 && dir === 1) {
+      if (settingsRef.current.shuffle && allTracks.length > 1 && dir === 1) {
         do {
-          nextIdx = Math.floor(Math.random() * tracks.length)
+          nextIdx = Math.floor(Math.random() * allTracks.length)
         } while (nextIdx === cur)
       } else {
-        nextIdx = (cur + dir + tracks.length) % tracks.length
+        nextIdx = (cur + dir + allTracks.length) % allTracks.length
       }
-      skipTo(tracks[nextIdx].id, autoPlay)
+      skipTo(allTracks[nextIdx].id, autoPlay)
     },
-    [tracks, skipTo]
+    [allTracks, skipTo]
   )
 
   const togglePlay = useCallback(() => {
@@ -479,14 +550,14 @@ export default function MusicPlayer() {
       advance(1, true)
       return
     }
-    const idx = tracks.findIndex((t) => t.id === currentIdRef.current)
-    if (idx >= 0 && idx < tracks.length - 1) {
+    const idx = allTracks.findIndex((t) => t.id === currentIdRef.current)
+    if (idx >= 0 && idx < allTracks.length - 1) {
       advance(1, true)
     } else {
       positionRef.current = 0
       setPosition(0)
     }
-  }, [advance, tracks])
+  }, [advance, allTracks])
 
   const handleTimeUpdate = () => {
     const audio = audioRef.current
@@ -588,7 +659,7 @@ export default function MusicPlayer() {
   /* Render                                                              */
   /* ================================================================== */
 
-  const canPlay = tracks.length > 0
+  const canPlay = allTracks.length > 0
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-5">
@@ -601,7 +672,9 @@ export default function MusicPlayer() {
           <div className="min-w-0">
             <h2 className="text-base font-bold leading-tight tracking-tight">Your Library</h2>
             <p className="truncate text-[11px] text-muted-foreground">
-              {ready ? `${tracks.length} track${tracks.length === 1 ? '' : 's'} · stored on this device` : 'Loading library…'}
+              {ready
+                ? `${allTracks.length} track${allTracks.length === 1 ? '' : 's'}${devTracks.length > 0 ? ` · ${devTracks.length} live from your device` : ' · stored on this device'}`
+                : 'Loading library…'}
             </p>
           </div>
         </div>
@@ -632,7 +705,7 @@ export default function MusicPlayer() {
           <div className="h-80 animate-pulse rounded-3xl bg-muted" />
           <div className="h-24 animate-pulse rounded-2xl bg-muted" />
         </div>
-      ) : tracks.length === 0 ? (
+      ) : allTracks.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-14 text-center">
           <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white shadow-xl shadow-emerald-500/30">
             <Music className="h-9 w-9" aria-hidden />
@@ -817,11 +890,12 @@ export default function MusicPlayer() {
           <Card className="border-border/70 shadow-lg shadow-black/5">
             <CardContent className="p-2 sm:p-3">
               <p className="px-2 pb-1.5 pt-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Playlist · {tracks.length}
+                Playlist · {allTracks.length}
               </p>
               <div className={cn('max-h-72 overflow-y-auto pr-1', SCROLLBAR_Y)}>
-                {tracks.map((t, i) => {
+                {allTracks.map((t, i) => {
                   const isActive = t.id === currentId
+                  const isDev = t.id.startsWith('dev:')
                   const dur = durations[t.id]
                   return (
                     <div
@@ -858,21 +932,27 @@ export default function MusicPlayer() {
                           {stripExtension(t.name)}
                         </p>
                         <p className="text-[11px] tabular-nums text-muted-foreground">
-                          {typeof dur === 'number' ? formatTime(dur) : '—:—'}
+                          {isDev
+                            ? 'Live from your device'
+                            : typeof dur === 'number'
+                              ? formatTime(dur)
+                              : '—:—'}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Remove ${stripExtension(t.name)}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          void removeTrack(t.id)
-                        }}
-                        className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </Button>
+                      {!isDev && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove ${stripExtension(t.name)}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void removeTrack(t.id)
+                          }}
+                          className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </Button>
+                      )}
                     </div>
                   )
                 })}
@@ -886,7 +966,7 @@ export default function MusicPlayer() {
       <audio
         ref={audioRef}
         preload="metadata"
-        src={currentTrack?.dataUrl}
+        src={currentTrack ? (currentTrack.id.startsWith('dev:') ? (devSrc ?? undefined) : currentTrack.dataUrl) : undefined}
         onPlay={handlePlay}
         onPause={handlePause}
         onTimeUpdate={handleTimeUpdate}

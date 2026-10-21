@@ -4,12 +4,13 @@ A Progressive Web App that works like a phone OS: a home screen with draggable i
 
 ## Features
 
-- **App Store with install / uninstall** — apps are stored in the store; users install what they need with a progress animation, uninstall anytime (long-press → ✕ or from the store), and system apps stay protected
+- **App Store pre-installed** — the store ships on every device (dock + home, uninstall-proof); users install what they need with a progress animation, uninstall anytime (long-press → ✕ or from the store), and system apps stay protected
 - **Native phone-OS feel** — home-screen pages, dock, App Library, spotlight search, and iPad-style zoom open/minimize animations for every app window
 - **Drag & drop + folders** — long-press any icon to enter edit mode: drag to rearrange, drop one app on another to create a folder, merge folders, hold near a screen edge to flip pages
 - **Deep theming** — Light / Dark / AMOLED / System modes × 8 accent palettes × 12 animated wallpapers, switchable from the control center or Settings
 - **28 apps across 9 categories** — media (Gallery, Camera, Video Studio, Music, Paint), productivity (Notes, Calendar, Reminders, Clock), utilities (AI Assistant with server-side LLM, Weather, converters, generators) and games (2048)
 - **Offline-first PWA** — installable on Android, iOS and desktop; service worker caches the app shell
+- **Device-wide file access (native-software feel)** — the **Files** app (system app) connects a real device folder once via the File System Access API: browse every photo, video, song and document, preview inline, download or delete — **nothing is uploaded, no manual importing**. Gallery's **Device** tab shows the device's photos & videos automatically; Music Player lists & plays the device's audio tracks live. Works on Chrome/Edge (desktop + Android); graceful import fallback elsewhere
 - **Everything on-device** — photos, recordings, notes, events and layout persist in localStorage / IndexedDB (no account, no server)
 
 ## Tech Stack

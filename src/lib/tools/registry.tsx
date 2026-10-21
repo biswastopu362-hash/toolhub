@@ -19,6 +19,7 @@ import {
   CloudSun,
   Gamepad2,
   Grid2x2,
+  FolderOpen,
   Image as ImageIcon,
   Images,
   KeyRound,
@@ -84,6 +85,7 @@ const VoiceRecorderTool = load(() => import('@/components/tools/voice-recorder')
 const DeviceInfoTool = load(() => import('@/components/tools/device-info'))
 const SettingsTool = load(() => import('@/components/tools/settings'))
 const AppStoreApp = load(() => import('@/components/os/app-store'))
+const FilesApp = load(() => import('@/components/tools/files'))
 const GalleryApp = load(() => import('@/components/tools/gallery'))
 const CameraApp = load(() => import('@/components/tools/camera'))
 const VideoStudioApp = load(() => import('@/components/tools/video-studio'))
@@ -98,6 +100,21 @@ const Game2048App = load(() => import('@/components/tools/game-2048'))
 /* ------------------------------------------------------------------ */
 
 export const tools: Tool[] = [
+  {
+    id: 'files',
+    name: 'Files',
+    description: 'Browse every file on this device — photos, videos, music, documents. No uploading.',
+    tagline: 'Your whole device, one file manager',
+    category: 'utilities',
+    icon: FolderOpen,
+    gradient: 'from-lime-400 via-green-500 to-emerald-600',
+    glow: '#22c55e',
+    keywords: ['files', 'file manager', 'explorer', 'device', 'storage', 'folder', 'browse', 'documents'],
+    featured: true,
+    system: true,
+    version: '1.0.0',
+    Component: FilesApp,
+  },
   {
     id: 'store',
     name: 'App Store',

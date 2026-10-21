@@ -10,7 +10,7 @@ import {
   type ModeId,
   type WallpaperId,
 } from '@/lib/theme'
-import { DEFAULT_INSTALLED_IDS, DOCK_IDS } from '@/lib/constants'
+import { DEFAULT_INSTALLED_IDS, DOCK_IDS, SYSTEM_APP_IDS } from '@/lib/constants'
 import { uninstallPruneOp, type HomeItem } from '@/lib/home-layout'
 
 interface AppState {
@@ -118,12 +118,28 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'toolhub-store',
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const state = persisted as Partial<AppState>
         const next = { ...state, layout: state.layout ?? [], layoutMigrated: false }
-        if (!Array.isArray(state.installed)) {
-          next.installed = deriveInstalled(state)
+        const installed = Array.isArray(state.installed) ? state.installed : deriveInstalled(state)
+        next.installed = installed
+        /* v4: system apps (App Store, Settings, Files) are always present —
+         * backfill installs for profiles created before they existed. */
+        const missing = SYSTEM_APP_IDS.filter((id) => !installed.includes(id))
+        if (missing.length > 0) {
+          next.installed = [...installed, ...missing]
+          const docked = DOCK_IDS as readonly string[]
+          const placed = new Set<string>()
+          for (const it of next.layout) {
+            if (it.kind === 'app') placed.add(it.id)
+            else for (const a of it.appIds) placed.add(a)
+          }
+          for (const id of missing) {
+            if (!docked.includes(id) && !placed.has(id)) {
+              next.layout.push({ kind: 'app', id } as HomeItem)
+            }
+          }
         }
         return next
       },

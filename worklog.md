@@ -411,3 +411,24 @@ Work Log:
 Stage Summary:
 - Grid metrics + width cap keep icon size device-independent: mobile 4-col (unchanged), tablet ~8 cols, desktop ~11 cols within a centered 1080px rail, ultrawide no longer blows tiles up
 - Drag/drop and folder math unaffected (they read live grid metrics/element rects)
+
+---
+Task ID: 11 (Device-wide file access — native feel)
+Agent: main (Z.ai Code)
+Task: Make the hub access the device's real files (images/videos/audio) with zero uploading; App Store always pre-installed
+
+Work Log:
+- Confirmed App Store (and now Files/Settings) are system apps: in DOCK_IDS, uninstall-protected, backfilled into existing profiles via store v3→v4 migration (SYSTEM_APP_IDS always installed)
+- Built src/lib/device-media.ts — File System Access API layer: connectRoot (one-time folder pick), persisted dir handle in IDB ('toolhub-device': handles/entries/meta), fast recursive metadata indexing (skip hidden/node_modules/AppData, depth≤10, 25k cap, progress cb + abort), duck-typed FsDirHandle/FsFileHandle (testable), permission query/request flows, getEntryFile via handle walk, deleteEntry (removeEntry recursive + index purge), lazy in-memory LRU thumbnails (image decode + video frame @1/3), dev-only __deviceMedia test hook (NODE_ENV-guarded, stripped in prod builds)
+- New system app **Files** (src/components/tools/files.tsx): connect hero ("Your whole device, one tap away"), reconnect banner (browsers re-ask per session), breadcrumb tree browser over the index, All/Images/Videos/Audio/Docs filters, inline image lightbox + video modal + audio mini-player, download & delete (confirm), storage estimate footer, refresh/re-index with progress; iOS/Firefox fallback notice
+- Gallery: new **Device** tab — auto-loads device photos/videos on open (ensureFreshIndex), lazy thumbs via useDeviceThumb, video play-badge, live count header, dedicated fullscreen viewer (prev/next/download/delete-from-device), connect/reconnect states, unsupported-browser notice
+- Music Player: device audio merged as live tracks (dev: ids) — playlist shows "Live from your device", lazy object-URL streaming per track (revoked on unmount), advance/shuffle/repeat over combined list, delete hidden for device tracks
+- Registry/constants: 'files' system entry (lime→emerald gradient), DEFAULT_INSTALLED + DOCK_IDS + SYSTEM_APP_IDS updated; app-store v4 migration backfills system apps for existing profiles
+- Fixes during build: tx() call-sign mismatches, ASI pitfall (line starting with '('), duplicate imports, react-hooks/set-state-in-effect (moved cache-hits to render-derive pattern in useDeviceThumb + DeviceViewer), unused eslint-disable directives
+- E2E (agent-browser + synthetic handles): v3→v4 migration put Files on dock ✓, index of fake tree = 7 entries ✓, Files tree/breadcrumb/filters/footer stats ✓, image lightbox via getFile→objectURL ✓, Gallery Device tab = real PNG thumb decoded + video fallback badge ✓, Music header "1 track · 1 live from your device" ✓, zero console errors; tsc --noEmit + eslint clean
+- Note: SW cache-first served stale chunks during dev verification — cleared via unregister+caches.delete (dev-only annoyance, prod unaffected)
+
+Stage Summary:
+- The hub now feels like native software: connect once → Files/Gallery/Music surface the device's real media automatically on every open (one-tap re-allow between sessions on Chrome/Android; Chrome desktop PWA often persists permission)
+- DATABASE ANSWER UNCHANGED: still zero-server — handles/index/thumbs live in IndexedDB; nothing uploads
+- Limitations (by browser design, documented in UI): iOS/Safari/Firefox lack folder access → import fallback; permission may need a one-tap renewal per session
