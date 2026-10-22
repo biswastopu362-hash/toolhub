@@ -1,7 +1,9 @@
 'use client'
 
 /**
- * Design Studio v2 — a Canva-style design AND document editor, fully on-device.
+ * Design Studio v3 — a Canva-style design AND document editor, fully on-device.
+ * v3 adds a freehand drawing engine: pen, marker and highlighter strokes plus
+ * drag-arrows — all as regular, editable elements (WYSIWYG in every export).
  *
  * Pages model: the design is a stack of Pages, each with its own elements,
  * background and size (so imported PDF pages keep their real proportions).
@@ -24,7 +26,9 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  ArrowUpRight,
   Bold,
+  Brush,
   Check,
   ChevronDown,
   ChevronUp,
@@ -36,10 +40,12 @@ import {
   FileImage,
   FileText,
   FolderOpen,
+  Highlighter,
   Italic,
   LayoutTemplate,
   Loader2,
   Palette,
+  PenTool,
   Pipette,
   Plus,
   Redo2,
@@ -84,8 +90,9 @@ import {
 /* Data                                                               */
 /* ================================================================== */
 
-type ShapeKind = 'rect' | 'circle' | 'triangle' | 'star' | 'heart' | 'line'
-type ElType = 'text' | 'shape' | 'emoji' | 'image' | 'cover'
+type ShapeKind = 'rect' | 'circle' | 'triangle' | 'star' | 'heart' | 'line' | 'arrow'
+type ElType = 'text' | 'shape' | 'emoji' | 'image' | 'cover' | 'draw'
+type DrawTool = 'pen' | 'marker' | 'highlighter' | 'arrow'
 
 interface DesignElement {
   id: string
@@ -111,6 +118,10 @@ interface DesignElement {
   char?: string
   /* image */
   src?: string
+  /* draw strokes + arrows — points in element-local coordinates */
+  points?: { x: number; y: number }[]
+  drawTool?: DrawTool
+  strokeW?: number
 }
 
 interface Page {
@@ -159,6 +170,7 @@ const FONTS = [
 
 const SHAPE_LIST: { kind: ShapeKind; label: string }[] = [
   { kind: 'rect', label: 'Rectangle' },
+  { kind: 'arrow', label: 'Arrow' },
   { kind: 'circle', label: 'Circle' },
   { kind: 'triangle', label: 'Triangle' },
   { kind: 'star', label: 'Star' },
@@ -504,7 +516,50 @@ function ShapeSvg({ shape, fill }: { shape: ShapeKind; fill: string }) {
   return <div style={{ width: '100%', height: '100%', background: fill, borderRadius: shape === 'circle' ? '50%' : shape === 'line' ? 999 : 18 }} />
 }
 
+/** Freehand strokes + arrows — vector-perfect at any zoom or export scale. */
+function StrokeSvg({ el }: { el: DesignElement }) {
+  const stroke = el.fill ?? el.color ?? '#0f172a'
+  const sw = Math.max(1, el.strokeW ?? 8)
+  const box = `0 0 ${Math.max(1, el.w)} ${Math.max(1, el.h)}`
+  const style = { width: '100%', height: '100%', display: 'block', overflow: 'visible' } as const
+  if (el.type === 'shape' && el.shape === 'arrow') {
+    const p0 = el.points?.[0] ?? { x: 0, y: el.h / 2 }
+    const p1 = el.points?.[1] ?? { x: el.w, y: el.h / 2 }
+    const dx = p1.x - p0.x
+    const dy = p1.y - p0.y
+    const len = Math.max(0.01, Math.hypot(dx, dy))
+    const ux = dx / len
+    const uy = dy / len
+    const head = Math.min(len * 0.5, Math.max(16, sw * 3.4))
+    const bx = p1.x - ux * head
+    const by = p1.y - uy * head
+    const wing = head * 0.44
+    const px = -uy
+    const py = ux
+    return (
+      <svg viewBox={box} style={style}>
+        <line x1={p0.x} y1={p0.y} x2={bx} y2={by} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        <polygon points={`${p1.x},${p1.y} ${bx + px * wing},${by + py * wing} ${bx - px * wing},${by - py * wing}`} fill={stroke} />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox={box} style={style}>
+      <polyline
+        points={(el.points ?? []).map((p) => `${p.x},${p.y}`).join(' ')}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={sw}
+        strokeLinecap={el.drawTool === 'highlighter' ? 'butt' : 'round'}
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function ElementContent({ el }: { el: DesignElement }) {
+  if (el.type === 'draw') return <StrokeSvg el={el} />
+  if (el.type === 'shape' && el.shape === 'arrow') return <StrokeSvg el={el} />
   if (el.type === 'text')
     return (
       <span
@@ -764,7 +819,7 @@ function PageThumb({
 /* Main component                                                     */
 /* ================================================================== */
 
-type PanelTab = 'templates' | 'text' | 'elements' | 'photos' | 'background' | 'edit'
+type PanelTab = 'templates' | 'text' | 'elements' | 'draw' | 'photos' | 'background' | 'edit'
 
 export default function CanvaStudioApp() {
   const { toast } = useToast()
@@ -800,6 +855,15 @@ export default function CanvaStudioApp() {
   const [eyedropping, setEyedropping] = useState(false)
   const [galleryPhotos, setGalleryPhotos] = useState<{ id: string; dataUrl: string; name?: string }[]>([])
   const [photosLoaded, setPhotosLoaded] = useState(false)
+
+  /* ---------- drawing (v3) ---------- */
+  const [drawMode, setDrawMode] = useState(false)
+  const [drawTool, setDrawTool] = useState<DrawTool>('pen')
+  const [drawColor, setDrawColor] = useState('#f43f5e')
+  const [drawWidth, setDrawWidth] = useState(6)
+  const [liveStroke, setLiveStroke] = useState<{ x: number; y: number }[] | null>(null)
+  const stageInnerRef = useRef<HTMLDivElement>(null)
+  const strokeRef = useRef<{ pts: { x: number; y: number }[]; snap: Snap } | null>(null)
 
   const activeIdx = Math.min(pageIdx, pages.length - 1)
   const page = pages[activeIdx]
@@ -946,10 +1010,12 @@ export default function CanvaStudioApp() {
           )
         )
       } else if (d.mode === 'resize') {
-        const keepAspect = d.orig.type === 'image' || (d.orig.type === 'shape' && d.orig.shape !== 'line')
+        const keepAspect = d.orig.type === 'image' || (d.orig.type === 'shape' && d.orig.shape !== 'line' && d.orig.shape !== 'arrow')
         const w = Math.max(40, Math.round(d.orig.w + dx))
         const h = keepAspect ? Math.max(40, Math.round(w * (d.orig.h / d.orig.w))) : Math.max(24, Math.round(d.orig.h + dy))
-        setEls((prev) => prev.map((x) => (x.id === d.id ? { ...x, w, h } : x)))
+        const isStroke = d.orig.type === 'draw' || (d.orig.type === 'shape' && d.orig.shape === 'arrow')
+        const scaled = isStroke && d.orig.points ? d.orig.points.map((p) => ({ x: Math.round((p.x * w) / d.orig.w), y: Math.round((p.y * h) / d.orig.h) })) : undefined
+        setEls((prev) => prev.map((x) => (x.id === d.id ? { ...x, w, h, ...(scaled ? { points: scaled } : {}) } : x)))
       } else {
         const cx = d.orig.x + d.orig.w / 2
         const cy = d.orig.y + d.orig.h / 2
@@ -999,11 +1065,126 @@ export default function CanvaStudioApp() {
         removeSelected()
       } else if (e.key === 'Escape') {
         setSelectedId(null)
+        setDrawMode(false)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [redo, removeSelected, selectedId, undo])
+
+  /* ---------- freehand drawing ---------- */
+  const toDesignPt = useCallback(
+    (e: React.PointerEvent): { x: number; y: number } | null => {
+      const rect = stageInnerRef.current?.getBoundingClientRect()
+      if (!rect || viewScale <= 0) return null
+      return { x: (e.clientX - rect.left) / viewScale, y: (e.clientY - rect.top) / viewScale }
+    },
+    [viewScale]
+  )
+
+  const startStroke = useCallback(
+    (e: React.PointerEvent) => {
+      if (!drawMode) return
+      const pt = toDesignPt(e)
+      if (!pt) return
+      e.preventDefault()
+      try {
+        ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+      } catch {
+        /* pointer capture is best-effort */
+      }
+      setSelectedId(null)
+      strokeRef.current = { pts: [pt], snap: snapshot() }
+      setLiveStroke([pt])
+    },
+    [drawMode, snapshot, toDesignPt]
+  )
+
+  const moveStroke = useCallback(
+    (e: React.PointerEvent) => {
+      const s = strokeRef.current
+      if (!s) return
+      const pt = toDesignPt(e)
+      if (!pt) return
+      const last = s.pts[s.pts.length - 1]
+      const minStep = drawTool === 'arrow' ? 0.5 : 1.2
+      if (Math.hypot(pt.x - last.x, pt.y - last.y) < minStep) return
+      if (drawTool === 'arrow') {
+        if (s.pts.length < 2) s.pts.push(pt)
+        else s.pts[1] = pt
+      } else {
+        s.pts.push(pt)
+      }
+      setLiveStroke([...s.pts])
+    },
+    [drawTool, toDesignPt]
+  )
+
+  const endStroke = useCallback(() => {
+    const s = strokeRef.current
+    strokeRef.current = null
+    setLiveStroke(null)
+    if (!s || s.pts.length === 0) return
+    if (els.length >= ELEMENT_CAP) {
+      toast({ title: 'Page is full', description: `Up to ${ELEMENT_CAP} elements per page.`, variant: 'destructive' })
+      return
+    }
+    if (drawTool === 'arrow') {
+      if (s.pts.length < 2) return
+      const [p0, p1] = s.pts
+      if (Math.hypot(p1.x - p0.x, p1.y - p0.y) < 10) return
+      const x = Math.round(Math.min(p0.x, p1.x))
+      const y = Math.round(Math.min(p0.y, p1.y))
+      const w = Math.max(24, Math.round(Math.abs(p1.x - p0.x)))
+      const h = Math.max(24, Math.round(Math.abs(p1.y - p0.y)))
+      const points = [
+        { x: Math.round(p0.x - x), y: Math.round(p0.y - y) },
+        { x: Math.round(p1.x - x), y: Math.round(p1.y - y) },
+      ]
+      pushHistory(s.snap)
+      setEls((prev) => [...prev, { id: uid(), type: 'shape', shape: 'arrow', x, y, w, h, rot: 0, opacity: 1, fill: drawColor, strokeW: drawWidth, points }])
+      return
+    }
+    /* freehand — a single tap becomes a small dot */
+    if (s.pts.length === 1) {
+      const p = s.pts[0]
+      s.pts.push({ x: p.x + 1, y: p.y + 1 })
+    }
+    const pad = drawWidth / 2 + 2
+    const xs = s.pts.map((p) => p.x)
+    const ys = s.pts.map((p) => p.y)
+    const x = Math.round(Math.min(...xs) - pad)
+    const y = Math.round(Math.min(...ys) - pad)
+    const w = Math.max(2, Math.round(Math.max(...xs) + pad - x))
+    const h = Math.max(2, Math.round(Math.max(...ys) + pad - y))
+    const points = s.pts.map((p) => ({ x: Math.round(p.x - x), y: Math.round(p.y - y) }))
+    const el: DesignElement = {
+      id: uid(),
+      type: 'draw',
+      drawTool,
+      x,
+      y,
+      w,
+      h,
+      rot: 0,
+      opacity: drawTool === 'highlighter' ? 0.35 : drawTool === 'marker' ? 0.85 : 1,
+      color: drawColor,
+      strokeW: drawWidth,
+      points,
+    }
+    pushHistory(s.snap)
+    if (drawTool === 'highlighter') {
+      /* real highlighters run under the ink — insert before the first text element */
+      setEls((prev) => {
+        const next = [...prev]
+        const ti = next.findIndex((e) => e.type === 'text')
+        next.splice(ti < 0 ? next.length : ti, 0, el)
+        return next
+      })
+    } else {
+      setEls((prev) => [...prev, el])
+    }
+  }, [drawColor, drawTool, drawWidth, els.length, pushHistory, setEls, toast])
 
   const addElement = useCallback(
     (el: Omit<DesignElement, 'id' | 'rot' | 'opacity'>) => {
@@ -1034,6 +1215,15 @@ export default function CanvaStudioApp() {
     },
     [addElement, size.w]
   )
+
+  const addArrowShape = useCallback(() => {
+    const w = Math.min(280, Math.max(160, size.w / 3))
+    const h = Math.round(w * 0.42)
+    addElement({ type: 'shape', shape: 'arrow', x: 0, y: 0, w, h, fill: '#0f172a', strokeW: 10, points: [
+      { x: Math.round(h * 0.35), y: Math.round(h / 2) },
+      { x: w - Math.round(h * 0.35), y: Math.round(h / 2) },
+    ] })
+  }, [addElement, size.w])
 
   const patchSelected = useCallback(
     (patch: Partial<DesignElement>) => {
@@ -1586,7 +1776,7 @@ export default function CanvaStudioApp() {
               backgroundSize: '18px 18px',
             }}
           >
-            <div style={{ width: stageW, height: stageH }} className="relative shadow-[0_18px_50px_-12px_rgb(0_0_0/0.7)]">
+            <div ref={stageInnerRef} style={{ width: stageW, height: stageH }} className="relative shadow-[0_18px_50px_-12px_rgb(0_0_0/0.7)]">
               <div
                 className="absolute left-0 top-0 origin-top-left overflow-hidden"
                 style={{ width: size.w, height: size.h, transform: `scale(${viewScale})`, background: bg.startsWith('data:image') ? '#ffffff' : bg }}
@@ -1601,6 +1791,19 @@ export default function CanvaStudioApp() {
                     <ElementBox key={el.id} el={el} onPointerDown={(e, target) => beginDrag(e, target, 'move')} />
                   ))}
                 </div>
+
+                {/* in-progress stroke preview (design coordinates, same vector renderer) */}
+                {liveStroke && liveStroke.length > 0 && (
+                  <div className="pointer-events-none absolute inset-0">
+                    <StrokeSvg
+                      el={
+                        drawTool === 'arrow'
+                          ? { id: 'live', type: 'shape', shape: 'arrow', x: 0, y: 0, w: size.w, h: size.h, rot: 0, opacity: 1, fill: drawColor, strokeW: drawWidth, points: liveStroke }
+                          : { id: 'live', type: 'draw', drawTool, x: 0, y: 0, w: size.w, h: size.h, rot: 0, opacity: drawTool === 'highlighter' ? 0.5 : drawTool === 'marker' ? 0.9 : 1, color: drawColor, strokeW: drawWidth, points: liveStroke }
+                      }
+                    />
+                  </div>
+                )}
 
                 {/* selection ring + handles (excluded from export: outside elementsRef) */}
                 {sel && (
@@ -1639,6 +1842,37 @@ export default function CanvaStudioApp() {
                 )}
               </div>
             </div>
+
+            {/* drawing capture overlay — sits above everything while armed */}
+            {drawMode && (
+              <div
+                role="application"
+                aria-label="Drawing surface"
+                className="absolute inset-0 z-[6]"
+                style={{ touchAction: 'none', cursor: 'crosshair' }}
+                onPointerDown={startStroke}
+                onPointerMove={moveStroke}
+                onPointerUp={endStroke}
+                onPointerCancel={endStroke}
+              />
+            )}
+
+            {/* drawing mode chip */}
+            {drawMode && (
+              <div className="absolute left-1/2 top-3 z-[7] flex -translate-x-1/2 items-center gap-2 rounded-full border border-fuchsia-500/40 bg-zinc-950/95 py-1.5 pl-3 pr-1.5 shadow-xl backdrop-blur-md">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold text-fuchsia-300">
+                  {drawTool === 'pen' ? <PenTool className="size-3.5" aria-hidden /> : drawTool === 'marker' ? <Brush className="size-3.5" aria-hidden /> : drawTool === 'highlighter' ? <Highlighter className="size-3.5" aria-hidden /> : <ArrowUpRight className="size-3.5" aria-hidden />}
+                  {drawTool === 'pen' ? 'Pen' : drawTool === 'marker' ? 'Marker' : drawTool === 'highlighter' ? 'Highlighter' : 'Arrow'}
+                </span>
+                <span className="size-3.5 rounded-full border border-white/20" style={{ background: drawColor }} aria-hidden />
+                <button
+                  onClick={() => setDrawMode(false)}
+                  className="flex items-center gap-1 rounded-full bg-fuchsia-600 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-fuchsia-500"
+                >
+                  <Check className="size-3" aria-hidden /> Done
+                </button>
+              </div>
+            )}
 
             {hydrating && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-950/70">
@@ -1752,6 +1986,7 @@ export default function CanvaStudioApp() {
                 { id: 'templates', label: 'Create', icon: LayoutTemplate },
                 { id: 'text', label: 'Text', icon: Type },
                 { id: 'elements', label: 'Elements', icon: Shapes },
+                { id: 'draw', label: 'Draw', icon: PenTool },
                 { id: 'photos', label: 'Photos', icon: Upload },
                 { id: 'background', label: 'Background', icon: Palette },
                 ...(sel ? ([{ id: 'edit', label: 'Edit', icon: Wand2 }] as const) : []),
@@ -1892,16 +2127,15 @@ export default function CanvaStudioApp() {
                     {SHAPE_LIST.map((s) => (
                       <button
                         key={s.kind}
-                        onClick={() =>
-                          addElement({
-                            type: 'shape',
-                            shape: s.kind,
-                            fill: '#f43f5e',
-                            x: 0,
-                            y: 0,
-                            w: s.kind === 'line' ? 260 : 220,
-                            h: s.kind === 'line' ? 12 : 220,
-                          })
+                        onClick={() => (s.kind === 'arrow' ? addArrowShape() : addElement({
+                          type: 'shape',
+                          shape: s.kind,
+                          fill: '#f43f5e',
+                          x: 0,
+                          y: 0,
+                          w: s.kind === 'line' ? 260 : 220,
+                          h: s.kind === 'line' ? 12 : 220,
+                        }))
                         }
                         aria-label={`Add ${s.label}`}
                         className="flex aspect-square items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition-colors hover:border-fuchsia-500/40 hover:bg-white/[0.07]"
@@ -1985,6 +2219,70 @@ export default function CanvaStudioApp() {
               </div>
             )}
 
+            {/* ----- draw (freehand ink) ----- */}
+            {tab === 'draw' && (
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-500">Tool</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(
+                      [
+                        { id: 'pen', label: 'Pen', icon: PenTool, width: 6 },
+                        { id: 'marker', label: 'Marker', icon: Brush, width: 18 },
+                        { id: 'highlighter', label: 'Highlight', icon: Highlighter, width: 34 },
+                        { id: 'arrow', label: 'Arrow', icon: ArrowUpRight, width: 10 },
+                      ] as const
+                    ).map((t) => {
+                      const active = drawMode && drawTool === t.id
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => {
+                            if (active) {
+                              setDrawMode(false)
+                              return
+                            }
+                            setDrawTool(t.id)
+                            setDrawWidth(t.width)
+                            setSelectedId(null)
+                            setDrawMode(true)
+                          }}
+                          aria-pressed={active}
+                          className={cn(
+                            'flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-[11px] font-semibold transition-all',
+                            active ? 'border-transparent bg-fuchsia-600 text-white shadow-md shadow-fuchsia-600/30' : 'border-white/10 bg-white/[0.04] text-zinc-200 hover:border-fuchsia-500/40 hover:bg-white/[0.07]'
+                          )}
+                        >
+                          <t.icon className="size-4" aria-hidden /> {t.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <ColorRow label="Ink color" value={drawColor} onPick={setDrawColor} />
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Stroke width</p>
+                    <Badge variant="outline" className="border-white/15 text-[10px] tabular-nums text-zinc-300">{drawWidth}px</Badge>
+                  </div>
+                  <Slider
+                    value={[drawWidth]}
+                    min={2}
+                    max={48}
+                    step={1}
+                    onValueChange={(v) => setDrawWidth(v[0] ?? 6)}
+                    aria-label="Stroke width"
+                    className="[&_[data-slot=slider-range]]:bg-fuchsia-500 [&_[data-slot=slider-thumb]]:border-fuchsia-500 [&_[data-slot=slider-track]]:bg-white/15"
+                  />
+                </div>
+                <p className="text-[11px] leading-relaxed text-zinc-500">
+                  {drawMode
+                    ? 'Drawing armed — draw right on the page. Tap Done (or Escape) when finished.'
+                    : 'Pick a tool to draw directly on the page — sign documents, circle numbers, highlight lines. Strokes stay editable: move, resize or delete them like anything else. Highlighters slip under text automatically.'}
+                </p>
+              </div>
+            )}
+
             {/* ----- edit selected ----- */}
             {tab === 'edit' && sel && (
               <div className="space-y-4">
@@ -2040,6 +2338,56 @@ export default function CanvaStudioApp() {
 
                 {(sel.type === 'shape' || sel.type === 'cover') && (
                   <ColorRow label={sel.type === 'cover' ? 'Cover color' : 'Shape color'} value={sel.fill ?? '#f43f5e'} onPick={(c) => commitPatch({ fill: c })} />
+                )}
+
+                {(sel.type === 'draw' || (sel.type === 'shape' && sel.shape === 'arrow')) && (
+                  <>
+                    <ColorRow label="Stroke color" value={(sel.color ?? sel.fill) ?? '#0f172a'} onPick={(c) => commitPatch(sel.type === 'draw' ? { color: c } : { fill: c })} />
+                    <div>
+                      <div className="mb-1 flex items-center justify-between">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Stroke width</p>
+                        <Badge variant="outline" className="border-white/15 text-[10px] tabular-nums text-zinc-300">{sel.strokeW ?? 8}px</Badge>
+                      </div>
+                      <Slider
+                        value={[sel.strokeW ?? 8]}
+                        min={2}
+                        max={48}
+                        step={1}
+                        onValueChange={(v) => {
+                          armSlider()
+                          patchSelected({ strokeW: v[0] ?? 8 })
+                        }}
+                        onValueCommit={() => commitSlider()}
+                        aria-label="Stroke width"
+                        className="[&_[data-slot=slider-range]]:bg-fuchsia-500 [&_[data-slot=slider-thumb]]:border-fuchsia-500 [&_[data-slot=slider-track]]:bg-white/15"
+                      />
+                    </div>
+                    {sel.type === 'draw' && (
+                      <div>
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-500">Brush</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(
+                            [
+                              { id: 'pen', label: 'Pen', icon: PenTool },
+                              { id: 'marker', label: 'Marker', icon: Brush },
+                              { id: 'highlighter', label: 'Highlighter', icon: Highlighter },
+                            ] as const
+                          ).map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => commitPatch({ drawTool: t.id, opacity: t.id === 'highlighter' ? 0.35 : t.id === 'marker' ? 0.85 : 1 })}
+                              className={cn(
+                                'flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all',
+                                (sel.drawTool ?? 'pen') === t.id ? 'border-transparent bg-fuchsia-600 text-white shadow' : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10'
+                              )}
+                            >
+                              <t.icon className="size-3.5" aria-hidden /> {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {sel.type === 'cover' && (
@@ -2120,6 +2468,13 @@ function MiniShape({ kind }: { kind: ShapeKind }) {
   if (kind === 'rect') return <div style={{ ...common, background: '#e4e4e7', borderRadius: 5 }} />
   if (kind === 'circle') return <div style={{ ...common, background: '#e4e4e7', borderRadius: '50%' }} />
   if (kind === 'line') return <div style={{ ...common, height: 4, background: '#e4e4e7', borderRadius: 999 }} />
+  if (kind === 'arrow')
+    return (
+      <svg viewBox="0 0 100 100" style={common}>
+        <line x1="10" y1="50" x2="72" y2="50" stroke="#e4e4e7" strokeWidth="12" strokeLinecap="round" />
+        <polygon points="94,50 62,26 62,74" fill="#e4e4e7" />
+      </svg>
+    )
   if (kind === 'triangle')
     return (
       <svg viewBox="0 0 100 100" style={common}>

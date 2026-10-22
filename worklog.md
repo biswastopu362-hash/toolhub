@@ -569,3 +569,64 @@ Stage Summary:
 - Design Studio is now a genuine on-device document editor: PDF → edit (text, color-matched whiteout, images, signatures via cover shapes) → real PDF back out; Word/TXT become editable flowed A4 documents
 - All processing stays client-side — no uploads, consistent with the hub's privacy stance
 - Catalog stays 32 apps; one app got a major version instead of a new entry (users' installed copies update in place)
+
+---
+Task ID: 17-c
+Agent: pdf-tools-builder (Z.ai Code)
+Task: PDF Tools — merge/split/rotate/extract app component
+
+Work Log:
+- Read worklog (Tasks 15, 16-b, 16-a) + canva.tsx conventions: copied the exact pdfjs v6 pattern (dynamic import → GlobalWorkerOptions.workerSrc '/pdf.worker.min.mjs' → getDocument({data}) → loadingTask.promise → loadingTask.destroy() in finally), the useToast({title, description, variant}) pattern, and the dark-glass header language (rounded-3xl border-white/10 from-rose-950/60 via-zinc-950 glow shadow)
+- Created src/components/tools/pdf-tools.tsx (986 lines, only file touched): 'use client', default export PdfTools, English UI, rose/red identity, lucide icons, shadcn Button/Badge/Input/Dialog/DropdownMenu/Tooltip, framer-motion strips
+- IMPORT: hidden input (accept="application/pdf,.pdf" multiple) + Add PDF buttons; each file probed via pdfjs for pageCount (+encrypted detection) → file chips with name/pages/size, Active badge, up/down reorder arrows (Tooltip'd, 44px targets), remove ✕; tap chip activates it
+- THUMBNAILS: active file rendered at scale 0.35 → canvas → JPEG dataURL into grid-cols-3 sm:4 md:6 with page-number badges; tap toggles selection (rose ring + check badge); All/None buttons; capped at first 60 pages with an explanatory note (pdf-lib ops still reach every page); progressive render with "done/total" status; rotation sweep re-renders keep old thumbs visible via merge-setState
+- OPERATIONS (pdf-lib, dynamically imported in handlers): Extract selected (or all) → <orig>-extract.pdf; Delete selected with every-page guard → <orig>-trimmed.pdf; Rotate 90/180/270 via dropdown → amber "Apply rotation" strip → mutates per-file rotations[] (thumb badges show °, re-render previews) and downloads bake source+delta via page.setRotation(degrees(...)); Save page range… dialog parses "1-3,5" with live validation ("N pages: 1, 2, 3, 5") → <orig>-pages.pdf; Merge all in chip order (PDFDocument.create + copyPages, per-file failure names the file) → <first>-merged.pdf
+- Sticky bottom glass action bar (role=toolbar, overflow-x-auto no-scrollbar, 44px targets): Extract N/all · Delete N · Rotate ▾ · Save range… · Merge N; busy strip in header shows "Reading PDFs…/Building PDF…/Merging…"
+- ERROR HANDLING: isPasswordError covers pdfjs PasswordException + pdf-lib encrypted message → "This PDF is password-protected"; everything else → "Couldn't read this PDF"; try/catch/finally on all async handlers, no-crash verified by code paths
+- MEMORY HYGIENE: thumbToken ref invalidates in-flight renders on file swap/remove/unmount (token-check before every setState/toast), loadingTask.destroy() always runs, downloads revoke object URLs after 4s, thumbs are dataURLs (no blob leak)
+- Gates: bunx tsc --noEmit → 0 errors project-wide; bun run lint → clean (exit 0); dev.log 200s
+
+Stage Summary:
+- New app component ready for registration (parent owns registry.tsx): id suggestion 'pdf-tools', dark-glass workspace consistent with canva/video-studio, 360px-safe (sticky toolbar scrolls horizontally, chips truncate, thumbs 3-col)
+- Design decisions: selection is 1-based page numbers (matches badges + range parser); select-all covers pages beyond the 60-thumb cap; rotation is non-destructive state baked into every export; merging respects per-file rotations too; delete-with-no-selection prompts instead of failing silently
+- Zero uploads, zero network calls — File handles re-read per operation so pdfjs/pdf-lib never share (possibly detached) buffers
+
+---
+Task ID: 17-b
+Agent: full-stack-developer (timed out post-code; entry reconstructed by parent)
+Task: Sheet Studio — Excel/CSV/ODS editor app component
+
+Work Log:
+- Built src/components/tools/sheet-studio.tsx (1688 LOC, 'use client', default export SheetStudio) — one new file only, registry untouched (parent registered it)
+- Import: .xlsx/.xls/.csv/.ods via dynamic `import('xlsx')` (SheetJS 0.18.5) inside handlers; multi-sheet workbooks → tab strip (add/rename/delete, ≥1 kept)
+- Grid: A/1 headers, tap-select → formula bar (cell ref chip + raw value), Enter↓/Tab→ commit+move, arrow-key nav, tap-again to edit; grid capped at 500×60 rendered (data intact, full export), footer shows counts
+- Formulas: =SUM/AVERAGE/MIN/MAX/COUNT over ranges + cell refs (=C2*D2 works) recomputed live; invalid → #ERR with raw preserved
+- Structure ops: add/delete row & column, clear cell, 30-step undo/redo; Export dropdown → XLSX (all sheets) / CSV (current) via Blob download
+- Draft autosave (800ms debounce) to localStorage 'toolhub-sheet-draft' + restore toast; empty state with New blank sheet / Import file / Load sample (budget demo) + privacy note
+- Verified by parent in browser: sample loaded, formulas computed (row totals 960/960/960…, Monthly total 8630), desktop 1280px layout + draft restore clean, zero console/page errors
+
+Stage Summary:
+- Catalog gains a real spreadsheet editor (Microsoft Excel-class basics) fully on-device; 34th app registered as sheet-studio v1.0.0 (media category, emerald/teal, Table2 icon)
+
+---
+Task ID: 17
+Agent: main (Z.ai Code)
+Task: "find and fix all error and develop all tool" — full audit + Sheet Studio + PDF Tools + Design Studio v3 drawing engine
+
+Work Log:
+- Audit: git mode-drift (17 files 755→644) normalized; bunx tsc --noEmit clean; bun run lint clean; agent-browser sweep (390×844): home, App Store, Sheet Studio, PDF Tools, Design Studio — zero console/page errors
+- Installed xlsx@0.18.5 + pdf-lib@1.17.1
+- 17-b Sheet Studio (subagent full-stack-developer, timed out after code complete — entry reconstructed above): registered as sheet-studio v1.0.0 (Table2, from-emerald-400 via-teal-500 to-green-600, featured, keywords excel/xlsx/csv/ods/spreadsheet/formula…)
+- 17-c PDF Tools (subagent full-stack-developer): src/components/tools/pdf-tools.tsx (986 LOC) — registered as pdf-tools v1.0.0 (FileStack, from-rose-500 via-red-500 to-orange-600, featured); multi-file import + reorderable chips, pdfjs v6 thumbnails (60-page cap, loadingTask.destroy() hygiene), tap-to-select, pdf-lib ops: extract/delete/rotate (non-destructive pending state + Apply strip)/save-range/merge; password+corrupt toasts; E2E: uploaded 2-page jsPDF fixture → thumbs rendered → page 1 selected (ring+badge+toolbar counts) → "Pages extracted — 1 page saved as a new PDF" ✓
+- 17-d Design Studio v3 drawing engine (canva.tsx, now ~2360 LOC): new ElType 'draw' + ShapeKind 'arrow' + DrawTool 'pen'|'marker'|'highlighter'|'arrow'; DesignElement gains points[] (element-local), drawTool, strokeW; StrokeSvg renders polylines (butt cap for highlighter) and arrows (line + computed triangular head, overflow visible) — same component in stage, live preview, and renderToStaticMarkup export path (WYSIWYG)
+- Drawing UX: Draw panel tab (Pen/Marker/Highlight/Arrow tool grid + ink ColorRow + width slider 2–48); tapping a tool arms capture overlay (touchAction none, crosshair, pointer capture); floating mode chip (icon + color dot + Done); Escape exits; live stroke preview via the shared StrokeSvg in design coordinates
+- endStroke: freehand → bbox-normalized 'draw' element (pad = strokeW/2+2, tap = dot); arrow → 2-point shape element; highlighter inserts BEFORE first text element (real highlighter runs under ink); pen/marker append; history snap taken at pointerdown
+- Draw/arrow elements: resize scales points proportionally, Edit tab gets stroke color/width + brush switcher (opacity presets 1/0.85/0.35); Elements tab gains Arrow (addArrowShape with proper points); MiniShape arrow icon
+- Registry: design-studio → v2.1.0, description/keywords updated (draw/pen/highlighter/marker/annotate/arrow/ink)
+- E2E (agent-browser, 390×844): Draw tab → Pen armed (chip) → freehand stroke rendered + thumb updated ✓ → Arrow drag → headed arrow ✓ → added heading → Highlighter across text → translucent 34px band with text glyphs ON TOP (under-ink insertion verified) ✓ → Done → tap stroke = ring + resize/rotate handles + pill ✓ → Export PDF → "PDF exported — 1 page — check your downloads", zero errors ✓
+- Desktop 1280×800: Sheet Studio (draft restored, full 5-col grid, keyboard hints), PDF Tools (premium empty state), Design Studio (Draw tab in bar, drawings intact) — all clean
+- Dev quirk: dev server died mid-session (connection refused after HMR) — restarted with bun run dev, all verified after
+
+Stage Summary:
+- Catalog now 34 apps: document suite = Design Studio (PDF/Word/text edit + draw/highlight/sign/arrows), Sheet Studio (Excel/CSV/ODS), PDF Tools (merge/split/rotate/extract), plus Files/Gallery/Camera/etc. — every major paid file-editor category now covered, all client-side with zero uploads
+- Drawing engine learning: stroke elements are plain point arrays in element-local coords — bbox pad strokeW/2+2 keeps strokes crisp at any scale; reuse StrokeSvg for live preview AND export so there is one rendering truth

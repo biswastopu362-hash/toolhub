@@ -17,6 +17,8 @@ import {
   CircleDollarSign,
   Clapperboard,
   Clock,
+  FileStack,
+  Table2,
   CloudSun,
   Gamepad2,
   Grid2x2,
@@ -97,6 +99,8 @@ const GoalTrackerApp = load(() => import('@/components/tools/goal-tracker'))
 const MusicPlayerApp = load(() => import('@/components/tools/music-player'))
 const PaintStudioApp = load(() => import('@/components/tools/paint-studio'))
 const CanvaApp = load(() => import('@/components/tools/canva'))
+const SheetStudioApp = load(() => import('@/components/tools/sheet-studio'))
+const PdfToolsApp = load(() => import('@/components/tools/pdf-tools'))
 const CalendarApp = load(() => import('@/components/tools/calendar'))
 const AiChatApp = load(() => import('@/components/tools/ai-chat'))
 const Game2048App = load(() => import('@/components/tools/game-2048'))
@@ -221,16 +225,44 @@ export const tools: Tool[] = [
   {
     id: 'design-studio',
     name: 'Design Studio',
-    description: 'Design posters AND edit real documents — import PDF, Word or text, fix text, white-out, sign, add images, export PDF',
+    description: 'Design posters AND edit real documents — draw, highlight, sign, fix text, white-out, add images, export PDF',
     tagline: 'Design anything, edit every file',
     category: 'media',
     icon: Shapes,
     gradient: 'from-purple-500 via-fuchsia-500 to-pink-500',
     glow: '#d946ef',
-    keywords: ['canva', 'design', 'graphic', 'poster', 'thumbnail', 'template', 'banner', 'logo', 'instagram', 'story', 'text', 'sticker', 'pdf', 'word', 'docx', 'document', 'editor', 'whiteout', 'signature', 'a4', 'letter', 'resume'],
+    keywords: ['canva', 'design', 'graphic', 'poster', 'thumbnail', 'template', 'banner', 'logo', 'instagram', 'story', 'text', 'sticker', 'pdf', 'word', 'docx', 'document', 'editor', 'whiteout', 'signature', 'a4', 'letter', 'resume', 'draw', 'pen', 'highlighter', 'marker', 'annotate', 'arrow', 'ink'],
     featured: true,
-    version: '2.0.0',
+    version: '2.1.0',
     Component: CanvaApp,
+  },
+  {
+    id: 'sheet-studio',
+    name: 'Sheet Studio',
+    description: 'Edit Excel, CSV and ODS spreadsheets on-device — tabs, formulas, undo, XLSX/CSV export',
+    tagline: 'Excel power, zero upload',
+    category: 'media',
+    icon: Table2,
+    gradient: 'from-emerald-400 via-teal-500 to-green-600',
+    glow: '#10b981',
+    keywords: ['excel', 'xlsx', 'xls', 'csv', 'ods', 'spreadsheet', 'sheet', 'cells', 'formula', 'sum', 'table', 'workbook', 'editor', 'budget'],
+    featured: true,
+    version: '1.0.0',
+    Component: SheetStudioApp,
+  },
+  {
+    id: 'pdf-tools',
+    name: 'PDF Tools',
+    description: 'Merge, split, rotate and extract PDF pages — lossless, private, right on your device',
+    tagline: 'Acrobat-class PDF pages, no uploads',
+    category: 'media',
+    icon: FileStack,
+    gradient: 'from-rose-500 via-red-500 to-orange-600',
+    glow: '#f43f5e',
+    keywords: ['pdf', 'merge', 'split', 'extract', 'rotate', 'pages', 'trim', 'combine', 'organize', 'document', 'offline'],
+    featured: true,
+    version: '1.0.0',
+    Component: PdfToolsApp,
   },
   {
     id: 'calendar',
