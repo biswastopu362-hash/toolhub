@@ -502,3 +502,24 @@ Stage Summary:
 - Video Player now has a universal path on EVERY device: Import works on any phone (native photo/file picker) and any computer; Device-folder streaming remains the desktop power path
 - Silent-failure class fixed: undecodable containers now explain themselves instead of a black screen
 - Vercel auto-redeploys from the push
+
+---
+Task ID: 15 (Design Studio — Canva-style design app)
+Agent: main (Z.ai Code)
+Task: User request "add a canva app"
+
+Work Log:
+- Built src/components/tools/canva.tsx (~1380 lines): full canvas editor — elements (text/shapes/emoji/photos) in design coordinates, fit-to-view scaling via ResizeObserver, drag/resize/rotate with pointer events (touch-first), rotation snapping to 15°
+- 6 templates (Quote/Mega Sale/Invite/Minimal/Thumbnail/Story) × 4 canvas sizes (square 1080², portrait 1080×1350, story 1080×1920, wide 1920×1080); templates instantiate fresh ids and swap bg+size+elements in one tap
+- Text: 8 system font stacks, size slider (arm-on-first-change → commit-on-release history semantics), weight/italic/align/color; shapes: rect/circle/triangle/star/heart/line inline SVG; 24 stickers; background: 10 gradients + 12 solids
+- Photos: DevicePhotoPicker (device index via ensureFreshIndex + useDeviceThumb, connect/allow states) + Gallery library (media-db listPhotos) + file upload — all normalized to data URLs so export never taints
+- Export: SVG foreignObject rasterization — CRITICAL FIX: blob: URLs TAINT the canvas in Chromium; must use data:image/svg+xml + encodeURIComponent (verified 1.2MB PNG of the Mega Sale design). Downloads AND saves into shared Gallery via putPhoto with new 'design' PhotoSource; gallery viewer label '· Design'
+- History: 25-step undo/redo (buttons + ctrl/cmd+z/shift+z/y), Delete-key removal, Escape deselect, draft autosave (700ms debounce) to localStorage with guard-ref restore toast
+- UX: floating selection pill (bold/italic/align/duplicate/layer/delete), selection ring + rotate/resize handles in an overlay layer OUTSIDE elementsRef so exports never include editor chrome
+- E2E (agent-browser): store search "design" → installed → empty canvas ✓ → Mega Sale template applied (gold gradient, Impact text, stars) ✓ → tap text = ring + handles + floating toolbar ✓ → drag moved element ✓ → 🔥 sticker added + auto-selected + Edit tab ✓ → export initially FAILED (canvas tainted) → root cause blob:-URL SVG → fixed to data: URL → "PNG exported — saved to your Gallery" ✓ → design visible in Gallery grid ✓ → reload = "Draft restored" with full design ✓ → desktop 1440px layout (Export PNG label, 5 tabs, large canvas) ✓ → zero console/page errors
+- Dev quirk encountered: stale service-worker chunk served old export code after fix — resolved by unregister SW + caches.delete (dev-only; prod unaffected)
+- Commit 957df60 pushed to main (tsc + eslint gates passed)
+
+Stage Summary:
+- Catalog now 32 apps; Design Studio gives the hub a true Canva-style creation surface that pairs with Paint Studio (freehand) and Gallery (storage)
+- Export pipeline learning recorded: foreignObject + data: URL is the only reliable rasterization path in Chromium; reuse for future apps (e.g. card/poster makers)
