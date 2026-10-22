@@ -484,3 +484,21 @@ Stage Summary:
 - The video loop is complete: Studio (edit/save) → QR share → any device scans → clip lands in their Studio library AND Video Player — no accounts, no uploads stored anywhere (30-min in-memory relay)
 - Catalog now 31 apps; home shows installed only; store installs verified for all three new apps
 - Known platform caveat (documented): on Vercel serverless the relay is per-instance — transfers within a short warm window work; for guaranteed delivery at scale, swap the in-memory store for Vercel Blob/KV later
+
+---
+Task ID: 14 (Video Player shows no videos — mobile import fix)
+Agent: main (Z.ai Code)
+Task: User report "video player are not showing any video" — diagnose and fix
+
+Work Log:
+- Root cause: Video Player had only two video sources — (a) clips saved from Video Studio on the SAME device, (b) device folder streaming via File System Access API. Phone browsers (Android Chrome + iOS Safari) do not support showDirectoryPicker, so My Device showed "unsupported" and My Library was empty on any phone → zero videos visible
+- video-db.ts: added probeVideo() (one video load → duration + JPEG poster, best-effort), reimplemented makePoster() on top of it, added importVideoFile() (probe → persist into shared clip library)
+- video-player.tsx: hidden <input type=file accept=video/* multiple> + Import flow — filters video extensions, saves each file, toast summary, AUTO-OPENS the first imported clip in the player; Import "+" button always visible in the browse header; premium "Add your first video" empty state (gradient hero, Import + Browse-device CTAs); Device-unsupported state now offers "Import videos instead" (mobile path into the app); <video> onError handler + amber overlay "This format can't play in-browser" naming the file (previously silent black screen for mkv/avi/hevc); play-overlay suppressed while the error overlay shows
+- registry: video-player description/keywords refreshed for import, version 1.1.0
+- E2E (agent-browser, ffmpeg-generated 6s h264+aac mp4): installed app from store → premium empty state ✓ → uploaded real file through the hidden input → import + poster decoded → auto-opened player, test-pattern frame VISIBLE, playback advanced (3.48s/6s, paused=false) ✓ → library grid shows poster + 0:06 badge ✓ → Device tab connect hero intact ✓ → corrupt fake.mp4 import triggers the format-error overlay with filename ✓ → 390x844 + 1440x900 layouts clean ✓ → zero console errors, zero page errors
+- Housekeeping: 7 files had drifted to mode 755 — restored 644; commit 655b4c1 pushed to main (tsc --noEmit gate passed pre-push)
+
+Stage Summary:
+- Video Player now has a universal path on EVERY device: Import works on any phone (native photo/file picker) and any computer; Device-folder streaming remains the desktop power path
+- Silent-failure class fixed: undecodable containers now explain themselves instead of a black screen
+- Vercel auto-redeploys from the push
