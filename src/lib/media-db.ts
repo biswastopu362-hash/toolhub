@@ -11,7 +11,7 @@
  * Store: photos (keyPath 'id')
  */
 
-export type PhotoSource = 'camera' | 'upload' | 'paint' | 'video'
+export type PhotoSource = 'camera' | 'upload' | 'paint' | 'video' | 'design'
 
 export interface PhotoRecord {
   id: string

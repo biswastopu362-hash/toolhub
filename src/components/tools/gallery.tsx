@@ -910,7 +910,7 @@ export default function GalleryApp() {
                 </p>
                 <p className="truncate text-xs text-white/60">
                   {(viewerIndex ?? 0) + 1} of {viewList.length} · {shortDate(viewerPhoto.createdAt)}
-                  {viewerPhoto.source === 'camera' ? ' · Camera' : viewerPhoto.source === 'video' ? ' · Video frame' : ''}
+                  {viewerPhoto.source === 'camera' ? ' · Camera' : viewerPhoto.source === 'video' ? ' · Video frame' : viewerPhoto.source === 'design' ? ' · Design' : ''}
                 </p>
               </div>
               <Button

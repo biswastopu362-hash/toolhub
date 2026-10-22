@@ -31,6 +31,7 @@ import {
   QrCode,
   Smartphone,
   Sparkles,
+  Shapes,
   StickyNote,
   Store as StoreIcon,
   Sun,
@@ -95,6 +96,7 @@ const VideoPlayerApp = load(() => import('@/components/tools/video-player'))
 const GoalTrackerApp = load(() => import('@/components/tools/goal-tracker'))
 const MusicPlayerApp = load(() => import('@/components/tools/music-player'))
 const PaintStudioApp = load(() => import('@/components/tools/paint-studio'))
+const CanvaApp = load(() => import('@/components/tools/canva'))
 const CalendarApp = load(() => import('@/components/tools/calendar'))
 const AiChatApp = load(() => import('@/components/tools/ai-chat'))
 const Game2048App = load(() => import('@/components/tools/game-2048'))
@@ -215,6 +217,20 @@ export const tools: Tool[] = [
     keywords: ['paint', 'draw', 'sketch', 'doodle', 'canvas', 'art', 'brush', 'design'],
     version: '1.0.0',
     Component: PaintStudioApp,
+  },
+  {
+    id: 'design-studio',
+    name: 'Design Studio',
+    description: 'Canva-style editor — posters, posts & thumbnails with templates, stickers and photos',
+    tagline: 'Design anything in minutes',
+    category: 'media',
+    icon: Shapes,
+    gradient: 'from-purple-500 via-fuchsia-500 to-pink-500',
+    glow: '#d946ef',
+    keywords: ['canva', 'design', 'graphic', 'poster', 'thumbnail', 'template', 'banner', 'logo', 'instagram', 'story', 'text', 'sticker'],
+    featured: true,
+    version: '1.0.0',
+    Component: CanvaApp,
   },
   {
     id: 'calendar',
