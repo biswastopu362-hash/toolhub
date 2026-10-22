@@ -179,15 +179,15 @@ export const tools: Tool[] = [
   {
     id: 'video-player',
     name: 'Video Player',
-    description: 'Watch saved clips and every video on this device — cinema-grade playback',
+    description: 'Import videos from any phone or computer and watch with cinema-grade playback',
     tagline: 'Your screen, your cinema',
     category: 'media',
     icon: CirclePlay,
     gradient: 'from-fuchsia-500 via-violet-600 to-purple-800',
     glow: '#c026d3',
-    keywords: ['video', 'player', 'watch', 'movies', 'clips', 'cinema', 'playback', 'resume', 'device'],
+    keywords: ['video', 'player', 'watch', 'movies', 'clips', 'cinema', 'playback', 'resume', 'device', 'import'],
     featured: true,
-    version: '1.0.0',
+    version: '1.1.0',
     Component: VideoPlayerApp,
   },
   {

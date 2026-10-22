@@ -18,17 +18,20 @@ import {
   ChevronLeft,
   ChevronRight,
   CirclePlay,
+  FolderInput,
   FolderOpen,
   Loader2,
   Maximize,
   Pause,
   PictureInPicture2,
   Play,
+  Plus,
   Repeat,
   RotateCcw,
   RotateCw,
   SkipBack,
   SkipForward,
+  TriangleAlert,
   Usb,
   Volume2,
   VolumeX,
@@ -40,7 +43,7 @@ import { Slider } from '@/components/ui/slider'
 import { Toggle } from '@/components/ui/toggle'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { getClipBlob, listClips, type ClipRecord } from '@/lib/video-db'
+import { getClipBlob, importVideoFile, listClips, type ClipRecord } from '@/lib/video-db'
 import { useDeviceThumb } from '@/hooks/use-device-thumb'
 import {
   accessState,
@@ -100,6 +103,7 @@ export default function VideoPlayerApp() {
   const stageRef = useRef<HTMLDivElement>(null)
   const urlRef = useRef<string | null>(null)
   const lastSaveRef = useRef(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [tab, setTab] = useState<'library' | 'device'>('library')
   const [clips, setClips] = useState<ClipRecord[]>([])
@@ -107,6 +111,8 @@ export default function VideoPlayerApp() {
 
   const [source, setSource] = useState<PlaySource | null>(null)
   const [srcUrl, setSrcUrl] = useState<string | null>(null)
+  const [mediaError, setMediaError] = useState<string | null>(null)
+  const [importing, setImporting] = useState(0)
 
   const [playing, setPlaying] = useState(false)
   const [time, setTime] = useState(0)
@@ -202,6 +208,7 @@ export default function VideoPlayerApp() {
       }
       setSource(s)
       setSrcUrl(null)
+      setMediaError(null)
       setPlaying(false)
       setTime(0)
       setDuration(0)
@@ -222,6 +229,50 @@ export default function VideoPlayerApp() {
     },
     [toast]
   )
+
+  /* ---------------- universal import (works on every device) ---------------- */
+
+  const handleFiles = useCallback(
+    async (list: FileList | null) => {
+      const files = list
+        ? Array.from(list).filter(
+            (f) =>
+              f.type.startsWith('video/') ||
+              /\.(mp4|webm|mov|mkv|avi|m4v|mpg|mpeg|3gp|wmv|flv|ts|m2ts)$/i.test(f.name)
+          )
+        : []
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (files.length === 0) return
+      setImporting(files.length)
+      const saved: ClipRecord[] = []
+      let failed = 0
+      for (const f of files) {
+        try {
+          saved.push(await importVideoFile(f))
+        } catch {
+          failed++
+        }
+      }
+      setImporting(0)
+      await loadClips()
+      if (saved.length > 0) {
+        toast({
+          title: saved.length === 1 ? 'Video added to your library' : `${saved.length} videos added`,
+          description: failed > 0 ? `${failed} file${failed === 1 ? '' : 's'} couldn't be imported.` : 'Tap a poster to start watching.',
+        })
+        void openSource({ kind: 'clip', rec: saved[0] })
+      } else {
+        toast({
+          title: 'Could not import',
+          description: 'Storage may be full — try a smaller video.',
+          variant: 'destructive',
+        })
+      }
+    },
+    [loadClips, openSource, toast]
+  )
+
+  const pickFiles = useCallback(() => fileInputRef.current?.click(), [])
 
   /* ---------------- navigation within the active list ---------------- */
 
@@ -361,6 +412,17 @@ export default function VideoPlayerApp() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      {/* universal import picker — works on every phone and computer */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*,.mp4,.webm,.mov,.mkv,.avi,.m4v,.mpg,.mpeg,.3gp,.wmv,.flv,.ts"
+        multiple
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+        onChange={(e) => void handleFiles(e.target.files)}
+      />
       <AnimatePresence mode="wait" initial={false}>
         {source ? (
           /* ---------------- Player view ---------------- */
@@ -386,6 +448,12 @@ export default function VideoPlayerApp() {
                   onClick={togglePlay}
                   onLoadedMetadata={handleLoadedMetadata}
                   onTimeUpdate={handleTimeUpdate}
+                  onError={() => {
+                    // browsers can't decode every container/codec (mkv, avi, hevc…)
+                    if (!srcUrl) return
+                    setMediaError(nameOf(source))
+                    setPlaying(false)
+                  }}
                   onPlay={() => setPlaying(true)}
                   onPause={() => setPlaying(false)}
                   onEnded={() => {
@@ -400,7 +468,27 @@ export default function VideoPlayerApp() {
                   <p className="text-sm text-zinc-400">Opening video…</p>
                 </div>
               )}
-              {srcUrl && !playing && (
+              {srcUrl && mediaError && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center backdrop-blur-sm">
+                  <span className="flex size-12 items-center justify-center rounded-full bg-amber-400/15 ring-1 ring-amber-300/30">
+                    <TriangleAlert className="size-6 text-amber-300" aria-hidden />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-zinc-100">This format can’t play in-browser</p>
+                    <p className="mx-auto mt-1 max-w-[270px] text-xs leading-relaxed text-zinc-400">
+                      {mediaError} uses a codec this browser can’t decode — MP4 (H.264) and WebM play best.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={closeSource}
+                    className="rounded-full bg-white/10 text-zinc-100 hover:bg-white/20"
+                  >
+                    <ChevronLeft className="size-4" aria-hidden /> Back to videos
+                  </Button>
+                </div>
+              )}
+              {srcUrl && !playing && !mediaError && (
                 <button
                   onClick={togglePlay}
                   aria-label="Play"
@@ -595,28 +683,43 @@ export default function VideoPlayerApp() {
                 </div>
               </div>
 
-              <div className="mt-4 flex gap-1.5" role="tablist" aria-label="Video sources">
-                {(
-                  [
-                    { id: 'library', label: 'My Library' },
-                    { id: 'device', label: 'My Device' },
-                  ] as const
-                ).map((t) => (
-                  <button
-                    key={t.id}
-                    role="tab"
-                    aria-selected={tab === t.id}
-                    onClick={() => setTab(t.id)}
-                    className={cn(
-                      'h-10 rounded-full px-4 text-sm font-semibold transition-all',
-                      tab === t.id
-                        ? 'bg-fuchsia-600 text-white shadow-md shadow-fuchsia-600/30'
-                        : 'bg-white/5 text-zinc-300 hover:bg-white/10'
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex flex-1 gap-1.5" role="tablist" aria-label="Video sources">
+                  {(
+                    [
+                      { id: 'library', label: 'My Library' },
+                      { id: 'device', label: 'My Device' },
+                    ] as const
+                  ).map((t) => (
+                    <button
+                      key={t.id}
+                      role="tab"
+                      aria-selected={tab === t.id}
+                      onClick={() => setTab(t.id)}
+                      className={cn(
+                        'h-10 rounded-full px-4 text-sm font-semibold transition-all',
+                        tab === t.id
+                          ? 'bg-fuchsia-600 text-white shadow-md shadow-fuchsia-600/30'
+                          : 'bg-white/5 text-zinc-300 hover:bg-white/10'
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={pickFiles}
+                  disabled={importing > 0}
+                  aria-label="Import videos from this device"
+                  title="Import videos"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-600 text-white shadow-md shadow-fuchsia-600/25 transition-transform hover:scale-105 active:scale-95 disabled:opacity-60"
+                >
+                  {importing > 0 ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Plus className="size-5" aria-hidden />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -628,12 +731,44 @@ export default function VideoPlayerApp() {
                       <Loader2 className="size-4 animate-spin" aria-hidden /> Loading library…
                     </div>
                   ) : clips.length === 0 ? (
-                    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-6 py-12 text-center">
-                      <CirclePlay className="size-10 text-zinc-600" aria-hidden />
-                      <p className="text-sm font-semibold text-zinc-300">No saved clips yet</p>
-                      <p className="max-w-xs text-xs leading-relaxed text-zinc-500">
-                        Import a video in Video Studio and tap Save — or receive one with a QR code. Everything
-                        lands here, ready to watch.
+                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-fuchsia-500/[0.09] via-white/[0.02] to-transparent px-6 py-10 text-center">
+                      <span className="pointer-events-none absolute -top-20 left-1/2 size-48 -translate-x-1/2 rounded-full bg-fuchsia-500/25 blur-3xl" aria-hidden />
+                      <span className="relative mx-auto flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500 to-violet-700 shadow-[0_16px_40px_-12px_rgb(192_38_211/0.6)] ring-1 ring-white/25">
+                        <FolderInput className="size-7 text-white" strokeWidth={1.8} aria-hidden />
+                      </span>
+                      <p className="relative mt-4 text-base font-bold text-zinc-100">Add your first video</p>
+                      <p className="relative mx-auto mt-1.5 max-w-xs text-xs leading-relaxed text-zinc-400">
+                        Import from this phone or computer — or stream straight from a folder on desktop.
+                        Nothing ever leaves your device.
+                      </p>
+                      <div className="relative mt-5 flex flex-col items-center justify-center gap-2 sm:flex-row">
+                        <Button
+                          onClick={pickFiles}
+                          disabled={importing > 0}
+                          className="h-11 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 font-semibold text-white shadow-lg hover:from-fuchsia-400 hover:to-violet-500"
+                        >
+                          {importing > 0 ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" aria-hidden /> Importing {importing}…
+                            </>
+                          ) : (
+                            <>
+                              <FolderInput className="size-4" aria-hidden /> Import videos
+                            </>
+                          )}
+                        </Button>
+                        {fsSupported() && (
+                          <Button
+                            variant="ghost"
+                            onClick={() => setTab('device')}
+                            className="h-11 rounded-xl bg-white/5 font-semibold text-zinc-200 hover:bg-white/10"
+                          >
+                            <FolderOpen className="size-4" aria-hidden /> Browse device folder
+                          </Button>
+                        )}
+                      </div>
+                      <p className="relative mt-4 text-[11px] leading-relaxed text-zinc-500">
+                        Clips saved in Video Studio or received via QR land here automatically.
                       </p>
                     </div>
                   ) : (
@@ -695,9 +830,24 @@ export default function VideoPlayerApp() {
                       <X className="size-10 text-zinc-600" aria-hidden />
                       <p className="text-sm font-semibold text-zinc-300">This browser can’t open device folders</p>
                       <p className="max-w-xs text-xs leading-relaxed text-zinc-500">
-                        Chrome, Edge and other Chromium browsers support it. On iPhone/iPad, import clips into
-                        Video Studio instead.
+                        Phone browsers don’t allow folder access — but importing works everywhere and saves
+                        videos right into your library.
                       </p>
+                      <Button
+                        onClick={pickFiles}
+                        disabled={importing > 0}
+                        className="mt-1 h-11 rounded-xl bg-gradient-to-r from-fuchsia-500 to-violet-600 font-semibold text-white shadow-lg hover:from-fuchsia-400 hover:to-violet-500"
+                      >
+                        {importing > 0 ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" aria-hidden /> Importing {importing}…
+                          </>
+                        ) : (
+                          <>
+                            <FolderInput className="size-4" aria-hidden /> Import videos instead
+                          </>
+                        )}
+                      </Button>
                     </div>
                   ) : devState === 'connect' ? (
                     <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-6 py-12 text-center">

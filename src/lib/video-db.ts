@@ -110,29 +110,33 @@ function stripBlob(rec: ClipRecord): ClipRecord {
 }
 
 /**
- * Grab a poster frame from a video Blob (first ~0.4s) as a small JPEG
- * data URL. Falls back gracefully — posters are decorative.
+ * Probe a video Blob in one load: duration (seconds) + a small JPEG poster
+ * frame from the first ~0.4s. Everything is best-effort — browsers cannot
+ * decode every container/codec, so all failures resolve gracefully.
  */
-export function makePoster(blob: Blob): Promise<string | undefined> {
+export function probeVideo(blob: Blob): Promise<{ duration?: number; poster?: string }> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(blob)
     const v = document.createElement('video')
     v.muted = true
     v.preload = 'metadata'
+    let duration: number | undefined
     const finish = (poster?: string) => {
       v.removeAttribute('src')
       v.load()
       URL.revokeObjectURL(url)
-      resolve(poster)
+      resolve({ duration, poster })
     }
     const fail = () => finish(undefined)
     const timer = setTimeout(() => fail(), 6000)
     v.onerror = fail
     v.onloadeddata = () => {
+      duration = isFinite(v.duration) && v.duration > 0 ? v.duration : undefined
       try {
         v.currentTime = Math.min(0.4, (v.duration || 1) / 4)
       } catch {
-        fail()
+        clearTimeout(timer)
+        finish(undefined)
       }
     }
     v.onseeked = () => {
@@ -153,6 +157,35 @@ export function makePoster(blob: Blob): Promise<string | undefined> {
     }
     v.src = url
   })
+}
+
+/**
+ * Grab a poster frame from a video Blob (first ~0.4s) as a small JPEG
+ * data URL. Falls back gracefully — posters are decorative.
+ */
+export async function makePoster(blob: Blob): Promise<string | undefined> {
+  return (await probeVideo(blob)).poster
+}
+
+/**
+ * Import a picked video File into the shared clip library — the universal
+ * path that works on EVERY device (phones included, where folder access
+ * does not exist). Probes metadata/poster first, then persists the bytes.
+ */
+export async function importVideoFile(file: File): Promise<ClipRecord> {
+  const { duration, poster } = await probeVideo(file)
+  const rec: ClipRecord = {
+    id: newClipId(),
+    name: file.name,
+    mime: file.type || 'video/mp4',
+    size: file.size,
+    duration,
+    poster,
+    createdAt: Date.now(),
+    origin: 'import',
+  }
+  await putClip(rec, file)
+  return rec
 }
 
 /** Grab a poster from a <video> element that is already showing the frame. */
