@@ -191,14 +191,9 @@ export default function Home() {
               style={{ opacity: wallpaperId === w.id ? 1 : 0 }}
             />
           ))}
-          {/* film grain + soft vignette for physical depth */}
+          {/* film grain + soft top light + gentle edge vignette */}
           <div className="wp-noise absolute inset-0" />
-          <div
-            className={cn(
-              'absolute inset-0 transition-colors duration-700',
-              wpDark ? 'bg-black/10' : 'bg-black/[0.04]'
-            )}
-          />
+          <div className={cn('wp-veil absolute inset-0', wpDark ? 'wp-veil-dark' : 'wp-veil-light')} />
         </div>
 
         <motion.div
@@ -402,14 +397,14 @@ function HomeScreen({
             onClick={(e) => {
               if (editing && e.target === e.currentTarget) setEditing(false)
             }}
-            className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
+            className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-4 sm:px-10"
           >
             <div
               ref={(el) => {
                 if (el) gridEls.current.set(page, el)
                 else gridEls.current.delete(page)
               }}
-              className="mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-1.5 gap-y-4 pt-2 sm:gap-x-2"
+              className="mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-2 gap-y-4 pt-2 sm:gap-y-5"
               style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
             >
               {items.map((item, slot) => (
@@ -437,7 +432,7 @@ function HomeScreen({
         {/* App Library page — always the last page */}
         <section
           aria-label="App Library"
-          className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-5 sm:px-10"
+          className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-4 sm:px-10"
         >
           <AppLibrary
             installedTools={installedTools}
@@ -457,7 +452,7 @@ function HomeScreen({
             aria-label={`Go to page ${i + 1}`}
             aria-current={activePage === i}
             className={cn(
-              'rounded-full p-1 focus-visible:outline-none focus-visible:ring-2',
+              'rounded-full p-1.5 focus-visible:outline-none focus-visible:ring-2',
               onLight ? 'focus-visible:ring-zinc-900/50' : 'focus-visible:ring-white/70'
             )}
           >
@@ -466,11 +461,11 @@ function HomeScreen({
                 'block h-1.5 w-1.5 rounded-full transition-all duration-300',
                 activePage === i
                   ? onLight
-                    ? 'w-4 bg-zinc-900'
-                    : 'w-4 bg-white'
+                    ? 'w-4 bg-zinc-900/90'
+                    : 'w-4 bg-white/95'
                   : onLight
-                    ? 'bg-zinc-900/30 hover:bg-zinc-900/50'
-                    : 'bg-white/40 hover:bg-white/60'
+                    ? 'bg-zinc-900/25 hover:bg-zinc-900/45'
+                    : 'bg-white/35 hover:bg-white/55'
               )}
             />
           </button>
@@ -481,13 +476,13 @@ function HomeScreen({
       <div className="absolute inset-x-0 bottom-0 z-20 select-none pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div
           className={cn(
-            'mx-auto w-fit max-w-[calc(100%-2rem)] rounded-[1.9rem] px-5 py-3.5 backdrop-blur-2xl',
+            'mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-[1.9rem] px-3.5 py-3 backdrop-blur-2xl sm:px-5 sm:py-3.5',
             onLight
-              ? 'bg-white/55 ring-1 ring-black/10 shadow-[0_18px_40px_-12px_rgb(0_0_0/0.35),inset_0_1px_1px_rgb(255_255_255/0.6)]'
-              : 'bg-white/12 ring-1 ring-white/20 shadow-[0_18px_40px_-12px_rgb(0_0_0/0.55),inset_0_1px_1px_rgb(255_255_255/0.18)]'
+              ? 'bg-white/60 ring-1 ring-black/[0.08] shadow-[0_16px_36px_-14px_rgb(0_0_0/0.28),inset_0_1px_1px_rgb(255_255_255/0.7)]'
+              : 'bg-white/10 ring-1 ring-white/15 shadow-[0_16px_36px_-14px_rgb(0_0_0/0.45),inset_0_1px_1px_rgb(255_255_255/0.15)]'
           )}
         >
-          <div className="flex items-end gap-5 sm:gap-6">
+          <div className="flex items-end gap-3 sm:gap-5 md:gap-6">
             {dockApps.map((t) => (
               <motion.button
                 key={`dock-${t.id}`}
@@ -495,7 +490,7 @@ function HomeScreen({
                 transition={{ type: 'spring', stiffness: 500, damping: 24 }}
                 onClick={(e) => onOpenApp(t.id, e.currentTarget)}
                 aria-label={`Open ${t.name}`}
-                className="w-[56px] shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:w-[62px]"
+                className="w-12 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:w-[56px] md:w-[62px]"
               >
                 <IconTile tool={t} />
               </motion.button>
@@ -624,7 +619,7 @@ function HomeItemView({
                   setConfirmRemove(true)
                 }}
                 aria-label={`Remove ${tool.name}`}
-                className="absolute -left-1.5 -top-1.5 z-10 grid size-6 place-items-center rounded-full bg-white text-black shadow-lg ring-2 ring-black/10 transition hover:bg-red-500 hover:text-white active:scale-90"
+                className="absolute -left-2 -top-2 z-10 grid size-7 place-items-center rounded-full bg-white text-black shadow-lg ring-2 ring-black/10 transition hover:bg-red-500 hover:text-white active:scale-90"
               >
                 <X className="h-3.5 w-3.5" strokeWidth={2.5} />
               </button>
@@ -635,7 +630,7 @@ function HomeItemView({
         ) : null}
         <span
           className={cn(
-            'w-full max-w-[5rem] truncate text-center text-[11px] font-medium leading-tight sm:text-xs',
+            'w-full max-w-[5.5rem] truncate text-center text-[11.5px] font-medium leading-snug sm:text-xs',
             onLight
               ? 'text-zinc-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.7)]'
               : 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]'
@@ -686,17 +681,17 @@ function IconTile({ tool, hinted = false }: { tool: Tool; hinted?: boolean }) {
       data-tile-id={tool.id}
       style={{ '--glow': tool.glow } as CSSProperties}
       className={cn(
-        'relative block aspect-square w-full overflow-hidden bg-gradient-to-br text-white ring-1 ring-white/25',
+        'relative block aspect-square w-full overflow-hidden bg-gradient-to-br text-white ring-1 ring-white/20',
         '[border-radius:26%]',
         tool.gradient,
-        'shadow-[0_12px_26px_-10px_var(--glow),0_5px_14px_-6px_rgb(0_0_0/0.4),inset_0_1px_1px_rgb(255_255_255/0.4),inset_0_-10px_18px_rgb(0_0_0/0.12)]',
+        'shadow-[0_10px_24px_-12px_var(--glow),0_4px_12px_-6px_rgb(0_0_0/0.32),inset_0_1px_1px_rgb(255_255_255/0.38),inset_0_-10px_18px_rgb(0_0_0/0.10)]',
         hinted && 'scale-[1.08] ring-2 ring-white/90'
       )}
     >
       {/* top gloss */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/30 via-white/10 to-transparent [border-radius:inherit]"
+        className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 via-white/[0.07] to-transparent [border-radius:inherit]"
       />
       <tool.icon className="absolute inset-0 m-auto h-[50%] w-[50%]" strokeWidth={1.85} aria-hidden />
     </span>
@@ -717,21 +712,21 @@ function FolderTile({ item, hinted = false }: { item: HomeFolderItem; hinted?: b
     <span
       data-tile-id={item.id}
       className={cn(
-        'relative grid aspect-square w-full grid-cols-2 place-items-center gap-[7%] overflow-hidden bg-white/20 p-[9%] ring-1 ring-white/35 backdrop-blur-xl',
+        'relative grid aspect-square w-full grid-cols-2 place-items-center gap-[7%] overflow-hidden bg-white/[0.16] p-[9%] ring-1 ring-white/25 backdrop-blur-xl',
         '[border-radius:26%]',
-        'shadow-[0_12px_26px_-10px_rgb(0_0_0/0.45),inset_0_1px_1px_rgb(255_255_255/0.4)]',
+        'shadow-[0_10px_24px_-12px_rgb(0_0_0/0.32),inset_0_1px_1px_rgb(255_255_255/0.35)]',
         hinted && 'scale-[1.08] ring-2 ring-white/90'
       )}
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 via-white/5 to-transparent [border-radius:inherit]"
+        className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 via-white/[0.04] to-transparent [border-radius:inherit]"
       />
       {minis.map((t) => (
         <span
           key={t.id}
           className={cn(
-            'flex h-full w-full items-center justify-center rounded-[28%] bg-gradient-to-br text-white shadow-[0_3px_8px_-3px_rgb(0_0_0/0.5),inset_0_1px_1px_rgb(255_255_255/0.35)] ring-1 ring-white/20',
+            'flex h-full w-full items-center justify-center rounded-[28%] bg-gradient-to-br text-white shadow-[0_3px_8px_-3px_rgb(0_0_0/0.4),inset_0_1px_1px_rgb(255_255_255/0.3)] ring-1 ring-white/15',
             t.gradient
           )}
         >
@@ -858,7 +853,7 @@ function StatusBar({
         {time ?? '--:--'}
       </time>
 
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-4">
         {!online && (
           <span className="flex items-center gap-1" title="Offline">
             <WifiOff className="h-4 w-4" aria-label="Offline" />
@@ -875,7 +870,7 @@ function StatusBar({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             onClick={onDone}
-            className="rounded-full bg-primary px-4 py-1 text-[13px] font-bold text-primary-foreground shadow-lg shadow-black/20 transition-transform active:scale-90"
+            className="rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground shadow-lg shadow-black/20 transition-transform active:scale-90"
           >
             Done
           </motion.button>
@@ -886,21 +881,21 @@ function StatusBar({
               aria-label="Customize theme"
               title="Themes & wallpapers"
               className={cn(
-                'rounded-full p-1 transition-colors active:scale-90',
+                '-m-2 rounded-full p-3 transition-colors active:scale-90',
                 onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
               )}
             >
-              <Palette className="h-[18px] w-[18px]" />
+              <Palette className="h-5 w-5" />
             </button>
             <button
               onClick={onOpenSearch}
               aria-label="Search apps"
               className={cn(
-                'rounded-full p-1 transition-colors active:scale-90',
+                '-m-2 rounded-full p-3 transition-colors active:scale-90',
                 onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
               )}
             >
-              <Search className="h-[18px] w-[18px]" />
+              <Search className="h-5 w-5" />
             </button>
           </>
         )}
@@ -991,7 +986,7 @@ function Spotlight({
             <button
               onClick={onClose}
               aria-label="Close search"
-              className="shrink-0 rounded-full bg-white/20 px-3 py-1 text-sm font-medium text-white transition hover:bg-white/30"
+              className="shrink-0 rounded-full bg-white/20 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-white/30"
             >
               Cancel
             </button>
@@ -1149,7 +1144,7 @@ function AppLibrary({
             aria-label={`Open ${cat.name} folder, ${items.length} apps`}
             className="group flex w-full max-w-[150px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
-            <span className="grid w-full grid-cols-2 gap-1.5 rounded-[1.4rem] bg-white/15 p-2.5 shadow-lg ring-1 ring-white/25 backdrop-blur-xl">
+            <span className="grid w-full grid-cols-2 gap-1.5 rounded-[1.4rem] bg-white/[0.14] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20 backdrop-blur-xl">
               {items.slice(0, 4).map((t) => (
                 <span
                   key={t.id}
@@ -1179,7 +1174,7 @@ function AppLibrary({
           aria-label="Open the App Store to get more apps"
           className="group flex w-full max-w-[150px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
         >
-          <span className="grid w-full place-items-center rounded-[1.4rem] bg-white/15 p-2.5 shadow-lg ring-1 ring-white/25 backdrop-blur-xl">
+          <span className="grid w-full place-items-center rounded-[1.4rem] bg-white/[0.14] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20 backdrop-blur-xl">
             <span className="grid aspect-square w-full place-items-center rounded-[0.7rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-sm ring-1 ring-white/20">
               <Plus className="h-[45%] w-[45%]" strokeWidth={2.2} aria-hidden />
             </span>
@@ -1284,7 +1279,7 @@ function FolderOverlay({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.92, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-        className="w-full max-w-md rounded-3xl bg-white/12 p-5 ring-1 ring-white/25 backdrop-blur-2xl"
+        className="w-full max-w-md rounded-3xl bg-white/[0.14] p-4 ring-1 ring-white/20 backdrop-blur-2xl sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -1344,7 +1339,7 @@ function FolderOverlay({
                 <button
                   onClick={() => removeApp(t.id)}
                   aria-label={`Remove ${t.name} from folder`}
-                  className="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-white text-black shadow-lg ring-2 ring-black/10 transition hover:bg-red-500 hover:text-white active:scale-90"
+                  className="absolute -right-1.5 -top-1.5 grid size-7 place-items-center rounded-full bg-white text-black shadow-lg ring-2 ring-black/10 transition hover:bg-red-500 hover:text-white active:scale-90"
                 >
                   <X className="h-3.5 w-3.5" strokeWidth={2.5} />
                 </button>
@@ -1443,7 +1438,7 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
           size="icon"
           onClick={onHome}
           aria-label="Go home"
-          className="h-10 w-10 shrink-0 rounded-xl"
+          className="h-11 w-11 shrink-0 rounded-xl"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -1469,7 +1464,7 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
           onClick={() => toggleFavorite(app.id)}
           aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
           aria-pressed={isFav}
-          className="h-10 w-10 shrink-0 rounded-xl"
+          className="h-11 w-11 shrink-0 rounded-xl"
         >
           <Star className={cn('h-5 w-5', isFav && 'fill-amber-400 text-amber-500')} />
         </Button>
@@ -1486,7 +1481,7 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
       <button
         onClick={onHome}
         aria-label="Go home"
-        className="group absolute bottom-[max(0.4rem,env(safe-area-inset-bottom))] left-1/2 z-10 -translate-x-1/2 p-2 focus-visible:outline-none"
+        className="group absolute bottom-[max(0.4rem,env(safe-area-inset-bottom))] left-1/2 z-10 -translate-x-1/2 p-3 focus-visible:outline-none"
       >
         <span className="block h-[5px] w-32 rounded-full bg-foreground/25 transition-colors group-hover:bg-foreground/50" />
       </button>

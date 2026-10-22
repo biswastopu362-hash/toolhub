@@ -523,3 +523,49 @@ Work Log:
 Stage Summary:
 - Catalog now 32 apps; Design Studio gives the hub a true Canva-style creation surface that pairs with Paint Studio (freehand) and Gallery (storage)
 - Export pipeline learning recorded: foreignObject + data: URL is the only reliable rasterization path in Chromium; reuse for future apps (e.g. card/poster makers)
+
+---
+Task ID: 16-b
+Agent: frontend-styling-expert
+Task: Home launcher mobile polish (360–430px) + eye-comfort wallpaper rework
+
+Work Log:
+- Read worklog + audited src/app/page.tsx and src/app/globals.css; found a real mobile bug: dock pill (5 dock apps × 56px + gap-5 + px-5 = ~400px) overflowed its `max-w-[calc(100%-2rem)]` pill on every phone width (360/390/430) — icons spilled past the glass
+- Dock fix: fluid sizing `w-12 sm:w-[56px] md:w-[62px]`, `gap-3 sm:gap-5 md:gap-6`, pill `px-3.5 py-3 sm:px-5 sm:py-3.5`, max-w `1.5rem` — pill now measures 316px at 360vw, centered with even margins; 48px touch targets (≥44)
+- Status bar: palette/search buttons enlarged to true 44px hit areas via `p-3 -m-2` + 20px icons (visual footprint unchanged, pages top padding still clears the bar); right cluster gap-2.5→gap-4 so expanded hit areas never overlap; Done button py-1→py-2
+- Grid/labels: page padding px-5→px-4 (tiles now 76px @360 / 84px @390 / 94px @430), gap-x-1.5→gap-x-2, labels 11px→11.5px leading-snug, label cap 5rem→5.5rem
+- Touch targets: edit-mode uninstall badge & folder remove badge size-6→size-7 with wider offsets; AppWindow header buttons h-10→h-11 (44px); home-indicator hit p-2→p-3; Spotlight Cancel px-3.5 py-2
+- Wallpaper eye-comfort rework (globals.css, same class names so Control Center/Settings previews stay in sync): all 12 `.wp-*` rebuilt — dark set is now deep-charcoal bases (#10151a–#1b1613 range) with faint brand-tinted glows at 0.07–0.13 alpha (no more saturated purple/orange/pink meshes); light set is airy near-white (#fff→#ecf6f0) with pale pastel breaths; ambient blob system softened (inset -30%, layer opacity 0.85→0.55, alpha via new --ba/--bb vars ≤0.14 dark / ≤0.36 light, drift travel cut ~60%, duration 36/44s→58/74s)
+- New shared `.wp-veil-dark` / `.wp-veil-light` utilities (soft light from top + gentle edge vignette) replace the flat bg-black/10 overlay in page.tsx; film grain softened (slope 0.055→0.04, 180px tile)
+- Chrome refinement to match calmer canvas: IconTile/FolderTile gloss, rings and glow shadows dialed down; dock/folder/AppLibrary glass softened (bg-white/10–16, ring-white/15–25, gentler shadows); page dots/labels recolored; prefers-reduced-motion coverage retained for blobs + jiggle (framer MotionConfig reducedMotion="user" untouched)
+- No logic touched: layout/drag/install/state hooks, data-tile-id/data-item attrs, .drag-ghost, sticky-footer pattern all intact
+- Verified with agent-browser + VLM screenshot critique: 390×844 (light-mode sunset home, Control Center sheet, dark-mode aurora home, dark-mode porcelain home, calculator app-open overlay), 360×740 (aurora + porcelain homes, Spotlight, folder overlay, Clock app), 430×932 (porcelain), 1280×800 (page 1 + App Library) — zero horizontal overflow everywhere (scrollWidth == innerWidth at all 4 sizes), dock centered with margins, tiles 76/84/94px, all overlays render cleanly; zero console errors / zero page errors (only HMR info logs); localStorage reset to defaults after testing
+
+Stage Summary:
+- The launcher now fits its dock and grid on real phone widths (the ≥430px dock overflow is gone) and every wallpaper reads as a calm system-grade ambient background: charcoal-tinted darks, near-whites for light, whisper-alpha glows, top light + vignette + grain for depth — emerald/teal identity preserved but muted
+- Wallpaper class names/API unchanged (theme.ts, Control Center and Settings previews keep working); only page.tsx markup/classes + globals.css changed
+- Known intentional behaviors left as-is: long app names truncate with ellipsis (native-launcher convention), App Library page scrolls at 360×740, empty space below sparse grids (launcher-native)
+
+---
+Task ID: 16-a (Design Studio v2 — document editing engine)
+Agent: main (Z.ai Code)
+Task: User 4-point directive — mobile responsiveness, eye-comfort background graphics (→16-b), edit PDF/Word/DOC files on the canvas (remove letters, add images), bring professional-grade file editing into the hub
+
+Work Log:
+- Deps: pdfjs-dist@6.4.299 + jspdf@4.2.1 + mammoth@1.13.0 (all dynamically imported inside handlers); pdf.worker.min.mjs copied to public/ (workerSrc '/pdf.worker.min.mjs'); public/** added to eslint ignores (minified vendor worker was failing the global gate)
+- New src/lib/doc-db.ts: dedicated IndexedDB kv store (toolhub-docs v1) for drafts — imported pages carry multi-MB JPEG data URLs that blow past localStorage; zero touch to the shared toolhub-media contract
+- canva.tsx rewritten (~1900 lines) around a multi-page model: Page { id, els, bg, w, h } — each page keeps its own size/background/elements; header gains a live "N pages" badge; page strip with real-content mini thumbs (bg + element map), page number badges, duplicate/delete on the active thumb, "+ Page" affordance; add/dup/delete with history + PAGE_CAP 40
+- PDF import: pdf.js renders every page at DOC_W 1240px (scale ≤2.4) → white-flattened JPEG data URL background per page with true page proportions; encrypted/corrupt files fail gracefully with a toast; >40-page PDFs import the first 40 with a notice
+- Word import: mammoth convertToHtml → DOMParser walk (h1–h4/p/li) → flowDoc() lays editable text elements onto 150-dpi A4 pages (1240×1754, margin 130) with heading scale, bullet indents, page-break estimation, filename as title; .txt import shares the same flow; legacy .doc gets a "save as .docx/PDF" explainer
+- NEW cover-up element type (whiteout): plain fill rectangle + "Match page color" eyedropper — samples 5 points around the box (left/right/top/bottom edges, center fallback) from the page bitmap at native resolution, quantized most-frequent color wins; available in the floating selection pill and the Edit tab; the "remove letters" workflow the user asked for
+- Export rebuilt on renderToStaticMarkup + SVG foreignObject (single rendering source = WYSIWYG with the stage): rasterizePage(page, scale) draws data-URL backgrounds directly on canvas and composites the elements layer on top; Export dropdown menu — PNG (current page, ≤3200px long edge, also saved to Gallery) and PDF (ALL pages via jsPDF, px units, JPEG 0.92 @2x per page, mixed page sizes supported)
+- Drafts: IndexedDB v2 { pages, idx } debounced 800ms; localStorage v1 drafts migrate on boot; restore toast reports page count; resetAll clears both stores
+- Mobile fixes found in E2E: (1) data-URL backgrounds are invalid CSS — the stage now renders imported pages as a dedicated <img> layer (thumbnails were fine, the stage was blank white); (2) imported-page empty state now says "This page is ready to edit" instead of the template pitch; (3) page-strip badge clipping fixed with px-0.5/pt-1
+- Registry: design-studio → v2.0.0, description/tagline refreshed for PDF/Word/document editing, keywords +pdf/word/docx/document/editor/whiteout/signature/a4/letter/resume
+- Gates: tsc --noEmit clean (fixed pdfjs v6 API — destroy() lives on the loadingTask, not PDFDocumentProxy), eslint clean; mode drift (11 files 755→644) normalized pre-commit
+- E2E (agent-browser, fixtures generated with bun+jspdf / python-zip): 2-page "Rental Agreement" PDF → imported with both pages + correct A4-proportioned sizes ✓ → draft restored from IndexedDB after reload ✓ → cover-up added, turned red, eyedropper matched it back to page white rgb(255,255,255) ✓ → dragged over a rent clause line (text hidden underneath) ✓ → heading text "Amended: rent is now 27,000 BDT" added + edited ✓ → PDF export downloaded and verified as valid %PDF-1.3, 2 pages, 2 embedded JPEGs, 1653×2337pt MediaBox, 463KB ✓ → TXT import flowed onto A4 with title+bullets ✓ → hand-built minimal .docx imported with H1/H2 hierarchy ✓ → page add/dup/delete ✓ → PNG export verified 2262×3200 valid PNG (334KB) ✓ → 390×844 + 1280×800 layouts clean, zero console/page errors (service-worker stale-chunk quirk hit again; cleared caches + SW, then verified)
+
+Stage Summary:
+- Design Studio is now a genuine on-device document editor: PDF → edit (text, color-matched whiteout, images, signatures via cover shapes) → real PDF back out; Word/TXT become editable flowed A4 documents
+- All processing stays client-side — no uploads, consistent with the hub's privacy stance
+- Catalog stays 32 apps; one app got a major version instead of a new entry (users' installed copies update in place)

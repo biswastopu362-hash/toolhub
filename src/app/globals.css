@@ -333,18 +333,27 @@ html.amoled {
 }
 
 /* ------------------------------------------------------------------ */
-/* Home screen wallpapers — cinematic multi-layer gradient meshes      */
+/* Home screen wallpapers — calm, ambient gradient veils               */
 /* (dark set: white chrome; light set: dark chrome)                    */
 /*                                                                     */
-/* Each wallpaper = base mesh + two slow-drifting light blobs that     */
-/* only animate when the layer is live (.wp-layer[data-off='false']).  */
+/* Design rules (eye comfort):                                         */
+/*  · deep charcoal / airy near-white bases — never pure black, never  */
+/*    saturated mid-tones                                              */
+/*  · one soft ambient light from the top + faint brand-tinted glows   */
+/*    at whisper alpha (≤ ~0.13 dark / ≤ ~0.5 pale-pastel light)       */
+/*  · depth comes from the shared .wp-veil (top light + edge vignette) */
+/*    and the film-grain overlay, not from loud color                  */
+/*                                                                     */
+/* Each wallpaper = quiet base mesh + two slow-drifting ambient blobs  */
+/* (--b1/--b2 at --ba/--bb alpha) that only animate while the layer is */
+/* live (.wp-layer[data-off='false']).                                 */
 /* ------------------------------------------------------------------ */
 @layer utilities {
   .wallpaper {
     background-size: cover;
   }
 
-  /* --- animated blobs (shared by every live wallpaper layer) ------- */
+  /* --- animated ambient blobs (shared by every live layer) --------- */
   .wp-layer {
     position: absolute;
     inset: 0;
@@ -355,18 +364,18 @@ html.amoled {
   .wp-layer::after {
     content: '';
     position: absolute;
-    inset: -18%;
+    inset: -30%;
     pointer-events: none;
     will-change: transform;
-    opacity: 0.85;
+    opacity: 0.55;
   }
   .wp-layer::before {
-    background: radial-gradient(closest-side, rgb(var(--b1) / 0.5), transparent 72%);
-    animation: wp-drift-a 36s ease-in-out infinite alternate;
+    background: radial-gradient(closest-side, rgb(var(--b1) / var(--ba, 0.14)), transparent 72%);
+    animation: wp-drift-a 58s ease-in-out infinite alternate;
   }
   .wp-layer::after {
-    background: radial-gradient(closest-side, rgb(var(--b2) / 0.42), transparent 70%);
-    animation: wp-drift-b 44s ease-in-out infinite alternate;
+    background: radial-gradient(closest-side, rgb(var(--b2) / var(--bb, 0.1)), transparent 74%);
+    animation: wp-drift-b 74s ease-in-out infinite alternate;
   }
   .wp-layer[data-off='true']::before,
   .wp-layer[data-off='true']::after {
@@ -380,133 +389,161 @@ html.amoled {
   }
   @keyframes wp-drift-a {
     0% {
-      transform: translate3d(-5%, -4%, 0) scale(1);
+      transform: translate3d(-2%, -1.5%, 0) scale(1);
     }
     50% {
-      transform: translate3d(6%, 7%, 0) scale(1.18);
+      transform: translate3d(2.5%, 2.5%, 0) scale(1.05);
     }
     100% {
-      transform: translate3d(-3%, 5%, 0) scale(0.94);
+      transform: translate3d(-1.5%, 1.5%, 0) scale(0.97);
     }
   }
   @keyframes wp-drift-b {
     0% {
-      transform: translate3d(4%, 6%, 0) scale(1.08);
+      transform: translate3d(2%, 2%, 0) scale(1.04);
     }
     50% {
-      transform: translate3d(-7%, -5%, 0) scale(0.92);
+      transform: translate3d(-2.5%, -2%, 0) scale(0.96);
     }
     100% {
-      transform: translate3d(5%, -7%, 0) scale(1.14);
+      transform: translate3d(1.5%, -2.5%, 0) scale(1.06);
     }
   }
 
   /* --- film-grain overlay (shared) --------------------------------- */
   .wp-noise {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.055'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-size: 160px 160px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.04'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
   }
 
-  /* --- dark set ----------------------------------------------------- */
-  .wp-sunset {
-    --b1: 251 146 60;
-    --b2: 236 72 153;
+  /* --- depth veil: soft light from the top + gentle edge vignette --- */
+  .wp-veil {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .wp-veil-light {
     background:
-      radial-gradient(120% 90% at 90% 0%, rgb(251 191 36 / 0.38) 0%, transparent 55%),
-      radial-gradient(100% 80% at 0% 100%, rgb(236 72 153 / 0.42) 0%, transparent 60%),
-      linear-gradient(165deg, #1e0a45 0%, #6d28d9 40%, #a21caf 70%, #be185d 100%);
+      radial-gradient(120% 65% at 50% -12%, rgb(255 255 255 / 0.4) 0%, transparent 58%),
+      radial-gradient(160% 130% at 50% 42%, transparent 58%, rgb(52 65 85 / 0.08) 100%);
+  }
+  .wp-veil-dark {
+    background:
+      radial-gradient(120% 65% at 50% -12%, rgb(255 255 255 / 0.06) 0%, transparent 58%),
+      radial-gradient(160% 130% at 50% 42%, transparent 55%, rgb(0 0 0 / 0.22) 100%);
+  }
+
+  /* --- dark set: deep charcoal + a faint brand tint ----------------- */
+  .wp-sunset {
+    --b1: 251 191 36;
+    --b2: 244 114 142;
+    background:
+      radial-gradient(90% 55% at 82% -10%, rgb(251 191 36 / 0.13) 0%, transparent 62%),
+      radial-gradient(85% 55% at 8% 110%, rgb(244 114 142 / 0.1) 0%, transparent 62%),
+      linear-gradient(178deg, #1a1512 0%, #1b1613 48%, #18120f 100%);
   }
   .wp-ocean {
-    --b1: 34 211 238;
-    --b2: 13 148 136;
+    --b1: 125 211 208;
+    --b2: 45 170 180;
     background:
-      radial-gradient(110% 80% at 85% 5%, rgb(34 211 238 / 0.38) 0%, transparent 55%),
-      radial-gradient(110% 90% at 10% 95%, rgb(13 148 136 / 0.48) 0%, transparent 60%),
-      linear-gradient(160deg, #032a29 0%, #0f766e 42%, #0e7490 76%, #164e63 100%);
+      radial-gradient(90% 55% at 78% -10%, rgb(125 211 208 / 0.12) 0%, transparent 62%),
+      radial-gradient(85% 55% at 10% 110%, rgb(45 170 180 / 0.1) 0%, transparent 62%),
+      linear-gradient(178deg, #10181a 0%, #101a1b 50%, #0e1718 100%);
   }
   .wp-forest {
-    --b1: 163 230 53;
-    --b2: 16 185 129;
+    --b1: 150 210 160;
+    --b2: 60 165 120;
     background:
-      radial-gradient(110% 85% at 85% 10%, rgb(163 230 53 / 0.24) 0%, transparent 55%),
-      radial-gradient(100% 90% at 5% 95%, rgb(16 185 129 / 0.38) 0%, transparent 60%),
-      linear-gradient(160deg, #04240f 0%, #14532d 42%, #166534 72%, #3f6212 100%);
+      radial-gradient(90% 55% at 80% -10%, rgb(150 210 160 / 0.11) 0%, transparent 62%),
+      radial-gradient(85% 55% at 8% 110%, rgb(60 165 120 / 0.1) 0%, transparent 62%),
+      linear-gradient(178deg, #101713 0%, #111814 50%, #0f1613 100%);
   }
   .wp-midnight {
-    --b1: 139 92 246;
-    --b2: 59 130 246;
+    --b1: 150 145 235;
+    --b2: 90 140 215;
     background:
-      radial-gradient(120% 85% at 80% 0%, rgb(139 92 246 / 0.32) 0%, transparent 55%),
-      radial-gradient(100% 85% at 15% 100%, rgb(59 130 246 / 0.2) 0%, transparent 55%),
-      linear-gradient(165deg, #01050e 0%, #1e1b4b 52%, #312e81 82%, #4c1d95 100%);
+      radial-gradient(90% 55% at 80% -10%, rgb(150 145 235 / 0.11) 0%, transparent 62%),
+      radial-gradient(85% 55% at 10% 110%, rgb(90 140 215 / 0.09) 0%, transparent 62%),
+      linear-gradient(178deg, #131420 0%, #141523 50%, #12131e 100%);
   }
   .wp-aurora {
-    --b1: 52 211 153;
-    --b2: 56 189 248;
+    --b1: 90 205 170;
+    --b2: 105 170 230;
     background:
-      radial-gradient(115% 85% at 15% 0%, rgb(16 185 129 / 0.35) 0%, transparent 58%),
-      radial-gradient(110% 90% at 90% 30%, rgb(59 130 246 / 0.3) 0%, transparent 55%),
-      radial-gradient(120% 85% at 50% 100%, rgb(139 92 246 / 0.28) 0%, transparent 60%),
-      linear-gradient(170deg, #020617 0%, #062e2b 45%, #0b3550 75%, #10203e 100%);
+      radial-gradient(85% 50% at 20% -8%, rgb(90 205 170 / 0.11) 0%, transparent 60%),
+      radial-gradient(80% 50% at 85% 6%, rgb(105 170 230 / 0.09) 0%, transparent 58%),
+      radial-gradient(85% 55% at 50% 112%, rgb(130 120 220 / 0.07) 0%, transparent 62%),
+      linear-gradient(178deg, #101518 0%, #11171a 50%, #0f1417 100%);
   }
   .wp-nebula {
-    --b1: 244 114 182;
-    --b2: 129 140 248;
+    --b1: 215 155 205;
+    --b2: 140 145 225;
     background:
-      radial-gradient(110% 80% at 80% 10%, rgb(244 114 182 / 0.3) 0%, transparent 55%),
-      radial-gradient(110% 85% at 15% 85%, rgb(99 102 241 / 0.32) 0%, transparent 58%),
-      radial-gradient(120% 80% at 50% 0%, rgb(168 85 247 / 0.2) 0%, transparent 60%),
-      linear-gradient(160deg, #0b0217 0%, #2e1065 45%, #4a044e 78%, #1e1b4b 100%);
+      radial-gradient(90% 55% at 78% -8%, rgb(215 155 205 / 0.1) 0%, transparent 62%),
+      radial-gradient(85% 55% at 12% 108%, rgb(140 145 225 / 0.1) 0%, transparent 62%),
+      linear-gradient(178deg, #16131c 0%, #17141d 50%, #141119 100%);
   }
 
-  /* --- light set ----------------------------------------------------- */
+  /* --- light set: airy near-white with a pastel breath --------------- */
   .wp-pearl {
-    --b1: 253 224 71;
-    --b2: 251 146 60;
+    --b1: 255 236 190;
+    --b2: 252 214 205;
+    --ba: 0.3;
+    --bb: 0.22;
     background:
-      radial-gradient(110% 80% at 85% 8%, rgb(253 224 71 / 0.4) 0%, transparent 55%),
-      radial-gradient(100% 85% at 10% 95%, rgb(251 146 60 / 0.18) 0%, transparent 60%),
-      linear-gradient(170deg, #fffbeb 0%, #fef3c7 38%, #fed7aa 72%, #fecdd3 100%);
+      radial-gradient(95% 60% at 82% -12%, rgb(255 236 190 / 0.5) 0%, transparent 60%),
+      radial-gradient(90% 60% at 8% 112%, rgb(252 214 205 / 0.34) 0%, transparent 62%),
+      linear-gradient(178deg, #fffefb 0%, #fdf8ef 55%, #fbf3ec 100%);
   }
   .wp-mint {
-    --b1: 190 242 100;
-    --b2: 45 212 191;
+    --b1: 205 240 205;
+    --b2: 170 228 212;
+    --ba: 0.3;
+    --bb: 0.22;
     background:
-      radial-gradient(110% 80% at 85% 8%, rgb(190 242 100 / 0.45) 0%, transparent 55%),
-      radial-gradient(100% 85% at 10% 95%, rgb(45 212 191 / 0.28) 0%, transparent 60%),
-      linear-gradient(170deg, #f7fee7 0%, #d9f99d 42%, #a7f3d0 72%, #99f6e4 100%);
+      radial-gradient(95% 60% at 82% -12%, rgb(205 240 205 / 0.5) 0%, transparent 60%),
+      radial-gradient(90% 60% at 8% 112%, rgb(170 228 212 / 0.36) 0%, transparent 62%),
+      linear-gradient(178deg, #fbfdfa 0%, #f2f9f2 55%, #ecf6f0 100%);
   }
   .wp-blossom {
-    --b1: 249 168 212;
-    --b2: 196 181 253;
+    --b1: 248 212 230;
+    --b2: 220 210 248;
+    --ba: 0.3;
+    --bb: 0.22;
     background:
-      radial-gradient(110% 80% at 85% 8%, rgb(249 168 212 / 0.5) 0%, transparent 55%),
-      radial-gradient(100% 85% at 10% 95%, rgb(196 181 253 / 0.4) 0%, transparent 60%),
-      linear-gradient(170deg, #fdf2f8 0%, #fce7f3 38%, #f3e8ff 72%, #e0e7ff 100%);
+      radial-gradient(95% 60% at 82% -12%, rgb(248 212 230 / 0.5) 0%, transparent 60%),
+      radial-gradient(90% 60% at 8% 112%, rgb(220 210 248 / 0.36) 0%, transparent 62%),
+      linear-gradient(178deg, #fefcfd 0%, #faf3f8 55%, #f5f0f9 100%);
   }
   .wp-haze {
-    --b1: 186 230 253;
-    --b2: 165 180 252;
+    --b1: 205 230 248;
+    --b2: 210 210 248;
+    --ba: 0.34;
+    --bb: 0.24;
     background:
-      radial-gradient(110% 80% at 85% 8%, rgb(186 230 253 / 0.55) 0%, transparent 55%),
-      radial-gradient(100% 85% at 10% 95%, rgb(165 180 252 / 0.32) 0%, transparent 60%),
-      linear-gradient(170deg, #f8fafc 0%, #e0f2fe 42%, #dbeafe 72%, #e0e7ff 100%);
+      radial-gradient(95% 60% at 82% -12%, rgb(205 230 248 / 0.55) 0%, transparent 60%),
+      radial-gradient(90% 60% at 8% 112%, rgb(210 210 248 / 0.38) 0%, transparent 62%),
+      linear-gradient(178deg, #fdfefe 0%, #f4f8fb 55%, #eff3f8 100%);
   }
   .wp-sand {
-    --b1: 254 215 170;
-    --b2: 253 186 116;
+    --b1: 250 228 190;
+    --b2: 246 208 170;
+    --ba: 0.3;
+    --bb: 0.22;
     background:
-      radial-gradient(110% 80% at 85% 8%, rgb(254 215 170 / 0.55) 0%, transparent 55%),
-      radial-gradient(100% 85% at 10% 95%, rgb(253 186 116 / 0.35) 0%, transparent 60%),
-      linear-gradient(170deg, #fffdf7 0%, #fef3e2 40%, #fde8d0 72%, #fde4cf 100%);
+      radial-gradient(95% 60% at 82% -12%, rgb(250 228 190 / 0.5) 0%, transparent 60%),
+      radial-gradient(90% 60% at 8% 112%, rgb(246 208 170 / 0.34) 0%, transparent 62%),
+      linear-gradient(178deg, #fffefa 0%, #faf4e8 55%, #f6efe2 100%);
   }
   .wp-porcelain {
-    --b1: 224 242 254;
-    --b2: 216 220 254;
+    --b1: 222 236 250;
+    --b2: 222 224 250;
+    --ba: 0.36;
+    --bb: 0.26;
     background:
-      radial-gradient(115% 80% at 80% 0%, rgb(224 242 254 / 0.7) 0%, transparent 58%),
-      radial-gradient(110% 85% at 12% 100%, rgb(216 220 254 / 0.5) 0%, transparent 60%),
-      linear-gradient(170deg, #ffffff 0%, #f4f8fb 40%, #eef2fb 72%, #eef0fa 100%);
+      radial-gradient(95% 60% at 80% -12%, rgb(222 236 250 / 0.6) 0%, transparent 60%),
+      radial-gradient(90% 60% at 10% 112%, rgb(222 224 250 / 0.4) 0%, transparent 62%),
+      linear-gradient(178deg, #ffffff 0%, #f7fafc 55%, #f2f4f9 100%);
   }
 }
 
