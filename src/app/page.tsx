@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { ControlCenter } from '@/components/control-center'
+import { InstallBanner } from '@/components/pwa/install-banner'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useAppStore } from '@/lib/store/app-store'
@@ -299,6 +300,7 @@ function HomeScreen({
   const grid = useGridMetrics(pagesRef)
   const [activePage, setActivePage] = useState(0)
   const [openFolder, setOpenFolder] = useState<OpenFolder>(null)
+  const [installHint, setInstallHint] = useState(false)
 
   const layout = useAppStore((s) => s.layout)
   const installed = useAppStore((s) => s.installed)
@@ -407,6 +409,9 @@ function HomeScreen({
         onOpenCustomize={onOpenCustomize}
       />
 
+      {/* One-tap PWA install (hidden while rearranging icons) */}
+      <InstallBanner suppressed={editing} onVisibleChange={setInstallHint} />
+
       {/* Pages (horizontal scroll-snap) */}
       <div
         ref={pagesRef}
@@ -429,7 +434,9 @@ function HomeScreen({
                 if (el) gridEls.current.set(page, el)
                 else gridEls.current.delete(page)
               }}
-              className="mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-2 gap-y-4 pt-2 sm:gap-y-5"
+              className={`mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-2 gap-y-4 transition-[padding] duration-300 ease-out sm:gap-y-5 ${
+                installHint ? 'pt-14' : 'pt-2'
+              }`}
               style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
             >
               {items.map((item, slot) => (

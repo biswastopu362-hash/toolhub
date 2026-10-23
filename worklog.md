@@ -706,3 +706,20 @@ Work Log:
 
 Stage Summary:
 - Turso production database is live, schema applied, and the exact Vercel code path (libsql adapter + auth token) is browser/API-verified; remaining step is user-side: set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN on the Vercel project (may already exist via the Turso Vercel integration) and redeploy
+
+---
+Task ID: 21 (One-Tap PWA Install Banner)
+Agent: main (Z.ai Code)
+Task: User (Bengali) — platform saves work now; wants ToolHub to "automatically install on my mobile or laptop" when they tap OK. The install option was effectively undiscoverable: the only Install button sat inside Settings, and browsers never surface a banner on their own
+
+Work Log:
+- Audited existing PWA plumbing: manifest complete (name/icons/start_url/standalone), sw.js valid with fetch handler (SW confirmed ACTIVE via navigator.serviceWorker.controller), install-app-button.tsx existed but only mounted in settings.tsx
+- Built src/components/pwa/install-banner.tsx — a premium frosted-glass pill floating under the status bar with three states: native (beforeinstallprompt captured -> one tap -> Chromium's real install dialog, Android/desktop), ios (iPhone/iPad detected -> two-step "Share -> Add to Home Screen" mini-guide with How toggle), manual (Firefox etc. -> "Browser menu -> Install App" hint)
+- Hidden when already installed (display-mode: standalone / navigator.standalone), dismissed (localStorage), or while home-screen edit mode is active (suppressed prop)
+- Wired onVisibleChange -> HomeScreen pushes the icon grid down (conditional pt-14, padding transition, capacity unaffected since useGridMetrics reads clientHeight) — banner never covers app icons; verified 1280px and 360px screenshots, no overlap, safe-area respected
+- Debugged a dev-only trap: the service worker served a stale unhashed banner chunk during Turbopack rebuilds (network-first race) — resolved by closing the browser context (drops SW+cache); production is immune because Vercel chunks are content-hashed
+- Verified: tsc clean, lint clean, SW active, all three banner states render correctly, dev.log clean
+
+Stage Summary:
+- ToolHub is now a first-class installable PWA with a discoverable one-tap install flow on the home screen; honest limits remain (no browser allows silent zero-touch install; iOS requires the share-sheet flow, guided in-app)
+- Home icon grid coordinates with the banner so nothing is ever obscured; next session resumes ROADMAP Day 1 (Expense Tracker)
