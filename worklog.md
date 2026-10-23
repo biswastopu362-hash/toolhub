@@ -655,3 +655,20 @@ Stage Summary:
 - Security: only the HMAC-cookie admin session can mutate the catalog; reserved slugs protect builtin ids; URLs normalized to https
 - The admin passcode: set ADMIN_PASSCODE env (defaults to 'toolhub-admin' if unset) — should be changed before real deployment
 - Catalog: 35 apps (34 builtin + dynamic linked platforms rendered from the DB)
+
+---
+Task ID: 19 (90-Day Development Roadmap)
+Agent: main (Z.ai Code)
+Task: User directive — develop the platform daily for the next 90 days; review the full structure, organize the plan better, divide by categories, daily development items, long-term mental preparation
+
+Work Log:
+- Audited the whole codebase: 34 builtin apps + Linked Platforms (Task 18), categories media/productivity/daily/utilities/text/developer/ai/games, OS platform layer (launcher, store, folders, drag&drop, Spotlight, Control Center, wallpapers, admin console, Prisma-backed external PWAs)
+- Normalized recurring mode drift (59 files 644→755) with chmod 644 before planning commit
+- Authored ROADMAP.md — the living master plan:
+  - Day-0 baseline inventory + category coverage map (current 32+ apps → ~80+ by day 90)
+  - 6 phases × 15 days, each with a named theme: P1 Raise-the-floor (expense tracker, notes v2, TTS/STT, photo editor, app-lock, backup/restore...), P2 Productivity Suite (presentation/resume/invoice/markdown/dev tools), P3 Media Powerhouse (screen recorder, GIF, video converter, subtitles, collage, meme...), P4 Daily Life & AI (weather v2, prayer times, health, AI chat v2, AI writer...), P5 Games & OS Delight (sudoku/minesweeper/snake/bangla-wordle + share target, widgets, notification center), P6 Platform & Launch (accounts, cloud sync, i18n Bengali toggle, performance, a11y, RC → v2.0 launch on D90)
+  - Daily session ritual, weekly rhythm table, Definition of Done, backlog pool (~40 extra ideas), risk register
+  - Every day ends with the quality gates: tsc → lint → agent-browser E2E → mode-drift check → worklog → push
+
+Stage Summary:
+- ToolHub now has a durable 90-day execution plan organized by category and phase; every future session starts from ROADMAP.md + worklog.md, picks the next unticked day, ships it, and ticks the checkbox — sustainable daily cadence with zero forgotten context
