@@ -672,3 +672,23 @@ Work Log:
 
 Stage Summary:
 - ToolHub now has a durable 90-day execution plan organized by category and phase; every future session starts from ROADMAP.md + worklog.md, picks the next unticked day, ships it, and ticks the checkbox — sustainable daily cadence with zero forgotten context
+
+---
+Task ID: 20 (Turso Database + "Could not save" Fix)
+Agent: main (Z.ai Code)
+Task: User asked "could i use turso?" — answered yes and adopted it, which also fixes the pending "Could not save. Check the fields and try again." error (admin Linked Platforms POST returned 500 because the schema had been switched to PostgreSQL with no reachable database anywhere)
+
+Work Log:
+- Root-caused the save failure: prisma/schema.prisma was provider=postgresql, no local Postgres existed, .env pointed at a non-existent SQLite file, and src/lib/db.ts only accepted postgres:// URLs — every DB route threw and the API surfaced the generic message
+- Installed @prisma/adapter-libsql@6.19.2 + @libsql/client@0.18.0 (driver adapters are GA in Prisma 6.19, no preview flags needed)
+- Rewrote prisma/schema.prisma back to provider=sqlite; rewrote src/lib/db.ts as a single lazy libSQL-backed client: TURSO_DATABASE_URL (remote, auth token) > DATABASE_URL file: > file:./db/custom.db fallback, with mkdir-parents best-effort for local files
+- Ported src/lib/ensure-schema.ts to the SQLite dialect, split the multi-statement DDL into per-statement $executeRawUnsafe calls (libSQL runs one statement per execute), and updated describeDbError hints from Vercel-Postgres wording to Turso wording (token rejected, readonly FS, unreachable)
+- Created scripts/turso-push.ts (bun run db:turso): generates DDL offline via prisma migrate diff --from-empty and applies it over HTTPS with @libsql/client executeMultiple — no Turso CLI required; guard path and happy path both tested (happy path against a local file created ExternalApp successfully)
+- Added .env.example documenting both modes (local file / Turso remote), negated !.env.example in .gitignore, added db/.gitkeep (/db/*.db already ignored), wired db:turso into package.json, ran bun run db:push to create db/custom.db
+- Normalized mode drift (chmod 644) before starting; verified with bunx tsc --noEmit (clean), bun run lint (clean)
+- agent-browser E2E on dev :3000: home launcher renders, Admin Console unlock with passcode, Added "Turso Test Platform" -> toast "Turso Test Platform is live", public GET /api/external-apps returned the row, deleted it via the confirm dialog -> {"apps":[]}; zero console/page errors in dev.log
+
+Stage Summary:
+- One database code path for every environment: local dev = SQLite file, Vercel prod = Turso (free tier) via the same libSQL adapter — the "Could not save" error cannot recur once TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are set in Vercel
+- Vercel go-live checklist: create db at turso.tech -> bun run db:turso (one-time schema push) -> set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN env vars -> redeploy
+- DB-backed features (Linked Platforms) verified end to end in the browser; next session resumes ROADMAP.md Day 1 (Expense Tracker)

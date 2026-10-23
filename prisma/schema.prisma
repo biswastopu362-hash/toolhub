@@ -1,15 +1,20 @@
 // ToolHub database schema.
 //
-// Provider is PostgreSQL because the app deploys to Vercel serverless,
-// where a file-based SQLite database cannot persist. Locally, `bunx prisma
-// dev` provides a compatible Postgres server for development.
+// Provider is SQLite, spoken through the libSQL driver adapter so the exact
+// same code runs everywhere:
+//   - Local / sandbox dev : DATABASE_URL=file:...  (plain SQLite file)
+//   - Vercel production   : TURSO_DATABASE_URL=libsql://... (Turso, persists)
+//
+// A file-based database cannot persist on Vercel serverless, which is why
+// production points at Turso (free tier, SQLite-compatible). The DATABASE_URL
+// below is still used by the Prisma CLI (db push / migrate) locally.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
