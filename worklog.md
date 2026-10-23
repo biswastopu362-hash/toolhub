@@ -692,3 +692,17 @@ Stage Summary:
 - One database code path for every environment: local dev = SQLite file, Vercel prod = Turso (free tier) via the same libSQL adapter — the "Could not save" error cannot recur once TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are set in Vercel
 - Vercel go-live checklist: create db at turso.tech -> bun run db:turso (one-time schema push) -> set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN env vars -> redeploy
 - DB-backed features (Linked Platforms) verified end to end in the browser; next session resumes ROADMAP.md Day 1 (Expense Tracker)
+
+---
+Task ID: 20-b (Turso Provisioning & Remote Verification)
+Agent: main (Z.ai Code)
+Task: User supplied the production Turso credentials (libsql://database-byzantium-canvas-vercel-...turso.io + rw token) — push the schema and prove the production path end to end
+
+Work Log:
+- Pushed the schema with bun run db:turso: DDL applied over HTTPS, remote now has the ExternalApp table
+- Ran the app itself against Turso (TURSO_* in .env, dev server restarted): public GET returned [], admin passcode session ok, POST /api/admin/external-apps created "Turso Live Test" in the remote DB, read-back confirmed, DELETE cleaned it up -> {"apps":[]}
+- Restored sandbox .env to local-file mode with the TURSO_* pair commented out for instant re-enable; dev server restarted and healthy (home 200, API 200)
+- No source changes this round; worklog-only commit
+
+Stage Summary:
+- Turso production database is live, schema applied, and the exact Vercel code path (libsql adapter + auth token) is browser/API-verified; remaining step is user-side: set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN on the Vercel project (may already exist via the Turso Vercel integration) and redeploy
