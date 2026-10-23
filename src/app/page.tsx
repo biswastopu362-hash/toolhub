@@ -55,6 +55,7 @@ import {
   type Tool,
   type ToolCategoryId,
 } from '@/lib/tools/registry'
+import { useExternalApps } from '@/lib/tools/external'
 import { cn } from '@/lib/utils'
 import { DOCK_IDS } from '@/lib/constants'
 import { setPendingTransfer } from '@/lib/transfer'
@@ -110,6 +111,29 @@ export default function Home() {
     if (next) s.setLayout(next)
     s.setLayoutMigrated()
   }, [hydrated])
+
+  /* fetch the admin-curated linked platforms once per session */
+  useEffect(() => {
+    if (!hydrated) return
+    void useExternalApps.getState().reload()
+  }, [hydrated])
+
+  /*
+   * If the owner removes a linked platform server-side, home-screen
+   * shortcuts would become ghosts — prune them quietly after each load.
+   */
+  const externalVersion = useExternalApps((s) => s.version)
+  const externalsLoaded = useExternalApps((s) => s.loaded)
+  useEffect(() => {
+    if (!hydrated || !externalsLoaded) return
+    const s = useAppStore.getState()
+    const ghosts = s.installed.filter(
+      (id) => !tools.some((t) => t.id === id) && !useExternalApps.getState().apps.some((a) => a.id === id)
+    )
+    if (ghosts.length === 0) return
+    // Only touch ids that were linked platforms (never user data of built-ins).
+    for (const id of ghosts) s.uninstallApp(id)
+  }, [hydrated, externalsLoaded, externalVersion])
 
   /* icon rect the current window zoomed out of (for the open animation) */
   const [winOrigin, setWinOrigin] = useState<IconRect | null>(null)
@@ -279,10 +303,11 @@ function HomeScreen({
   const layout = useAppStore((s) => s.layout)
   const installed = useAppStore((s) => s.installed)
   const onLight = !getWallpaper(useAppStore((s) => s.wallpaper)).dark
+  const externalApps = useExternalApps((s) => s.apps)
 
   const installedTools = useMemo(
     () => installed.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t)),
-    [installed]
+    [installed, externalApps]
   )
 
   const capacity = grid.cols * grid.rows
@@ -928,8 +953,9 @@ function Spotlight({
   const hydrated = useHydrated()
   const recents = useAppStore((s) => s.recents)
   const installed = useAppStore((s) => s.installed)
+  const externalVersion = useExternalApps((s) => s.version)
 
-  const results = useMemo(() => searchTools(query, 'all'), [query])
+  const results = useMemo(() => searchTools(query, 'all'), [query, externalVersion])
   const installedResults = useMemo(() => results.filter((t) => installed.includes(t.id)), [results, installed])
   const availableResults = useMemo(() => results.filter((t) => !installed.includes(t.id)), [results, installed])
   const installedTools = useMemo(
@@ -1472,9 +1498,16 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
 
       {/* App body */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto w-full max-w-4xl px-4 pb-28 pt-5 sm:px-6">
-          <app.Component />
-        </div>
+        {app.external ? (
+          /* linked platforms run edge-to-edge, like a native app screen */
+          <div className="h-full">
+            <app.Component />
+          </div>
+        ) : (
+          <div className="mx-auto w-full max-w-4xl px-4 pb-28 pt-5 sm:px-6">
+            <app.Component />
+          </div>
+        )}
       </div>
 
       {/* Home indicator */}

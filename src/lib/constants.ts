@@ -19,6 +19,7 @@ export const DEFAULT_INSTALLED = [
   'qr-generator',
   'gallery',
   'camera',
+  'admin-console',
 ] as const
 
 /** Everything in DEFAULT_INSTALLED, as a plain string[] for runtime use. */

@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   ChevronRight,
   Download,
+  Globe,
   LayoutGrid,
   Search,
   SearchX,
@@ -35,13 +36,13 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/lib/store/app-store'
 import {
-  searchTools,
   storeStats,
   toolCategories,
   tools,
   type Tool,
   type ToolCategoryId,
 } from '@/lib/tools/registry'
+import { useExternalApps } from '@/lib/tools/external'
 
 /* ================================================================== */
 /* View model + helpers                                                */
@@ -67,6 +68,14 @@ function viewKey(v: View): string {
 function sizeInMb(size: string): number {
   const n = parseFloat(size)
   return Number.isFinite(n) ? n : 0
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
 }
 
 /* ================================================================== */
@@ -373,6 +382,7 @@ function AppDetail({
   onUninstall,
   onShow,
   installedIds,
+  catalog,
 }: {
   tool: Tool
   installed: boolean
@@ -382,10 +392,13 @@ function AppDetail({
   onUninstall: () => void
   onShow: (id: string) => void
   installedIds: string[]
+  catalog: Tool[]
 }) {
   const [expanded, setExpanded] = useState(false)
   const s = storeStats(tool)
-  const related = tools.filter((t) => t.category === tool.category && t.id !== tool.id).slice(0, 8)
+  const related = catalog
+    .filter((t) => t.category === tool.category && t.id !== tool.id)
+    .slice(0, 8)
   const catName = toolCategories.find((c) => c.id === tool.category)?.name ?? 'App'
 
   return (
@@ -406,6 +419,11 @@ function AppDetail({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-xl font-bold tracking-tight">{tool.name}</h1>
+            {tool.external && (
+              <Badge variant="secondary" className="shrink-0 gap-1">
+                <Globe className="size-3" aria-hidden /> Linked platform
+              </Badge>
+            )}
             {tool.system && (
               <Badge variant="secondary" className="shrink-0 gap-1">
                 <ShieldCheck className="size-3" aria-hidden /> System
@@ -467,11 +485,23 @@ function AppDetail({
       <div>
         <SectionHead title="About this app" />
         <p className={cn('text-sm leading-relaxed text-muted-foreground', !expanded && 'line-clamp-3')}>
-          {tool.description}. {s.tagline} — designed for phones, tablets and laptops with a
-          responsive layout that feels at home on every screen. Everything runs on your device,
-          works offline and never sends your data anywhere. Long-press your home screen to drag the
-          icon anywhere you like, drop it onto another app to create a folder, and personalize your
-          device with themes and wallpapers from Settings.
+          {tool.external ? (
+            <>
+              {tool.description}. This platform is curated by the hub owner and lives at{' '}
+              {hostOf(tool.url ?? '')} — installing it simply places a shortcut on your home
+              screen and opens it inside ToolHub in a secure embedded window. Nothing is bundled
+              or stored on your device. If the platform ever blocks embedding, the window offers
+              a one-tap escape hatch to open it in a new tab.
+            </>
+          ) : (
+            <>
+              {tool.description}. {s.tagline} — designed for phones, tablets and laptops with a
+              responsive layout that feels at home on every screen. Everything runs on your
+              device, works offline and never sends your data anywhere. Long-press your home
+              screen to drag the icon anywhere you like, drop it onto another app to create a
+              folder, and personalize your device with themes and wallpapers from Settings.
+            </>
+          )}
         </p>
         <button
           type="button"
@@ -504,6 +534,7 @@ function AppDetail({
             ['Size', s.size],
             ['Developer', s.developer],
             ['Version', s.version],
+            tool.external ? ['Platform', hostOf(tool.url ?? '')] : ['Runs', 'On this device — no upload'],
             ['Compatibility', 'Works on all your devices'],
           ].map(([k, v]) => (
             <div key={k} className="flex items-center justify-between px-4 py-2.5">
@@ -540,6 +571,7 @@ function MyApps({
   onOpen,
   onUninstall,
   onShow,
+  catalog,
 }: {
   installedIds: string[]
   progress: Record<string, number>
@@ -547,12 +579,13 @@ function MyApps({
   onOpen: (id: string) => void
   onUninstall: (id: string) => void
   onShow: (id: string) => void
+  catalog: Tool[]
 }) {
   const installedTools = useMemo(
-    () => installedIds.map((id) => tools.find((t) => t.id === id)).filter((t): t is Tool => Boolean(t)),
-    [installedIds]
+    () => installedIds.map((id) => catalog.find((t) => t.id === id)).filter((t): t is Tool => Boolean(t)),
+    [installedIds, catalog]
   )
-  const available = useMemo(() => tools.filter((t) => !installedIds.includes(t.id)), [installedIds])
+  const available = useMemo(() => catalog.filter((t) => !installedIds.includes(t.id)), [catalog, installedIds])
   const totalMb = installedTools.reduce((acc, t) => acc + sizeInMb(storeStats(t).size), 0)
 
   return (
@@ -617,11 +650,17 @@ export default function AppStoreApp() {
   const installed = useAppStore((s) => s.installed)
   const installApp = useAppStore((s) => s.installApp)
   const uninstallApp = useAppStore((s) => s.uninstallApp)
+  const externalApps = useExternalApps((s) => s.apps)
 
   const [view, setView] = useState<View>({ type: 'home' })
   const [progress, setProgress] = useState<Record<string, number>>({})
   const [query, setQuery] = useState('')
   const [pendingUninstall, setPendingUninstall] = useState<string | null>(null)
+
+  /* linked platforms live server-side — make sure the catalog is fresh */
+  useEffect(() => {
+    void useExternalApps.getState().reload()
+  }, [])
 
   /* deep link from Spotlight / App Library → open that app's detail page */
   useEffect(() => {
@@ -652,9 +691,14 @@ export default function AppStoreApp() {
     return () => map.forEach((t) => clearInterval(t))
   }, [])
 
+  const installedIds = useMemo(() => installed, [installed])
+
+  /* full catalog = built-ins + admin-linked platforms */
+  const allTools = useMemo(() => [...externalApps, ...tools], [externalApps])
+
   const startInstall = useCallback(
     (id: string) => {
-      const app = tools.find((t) => t.id === id)
+      const app = allTools.find((t) => t.id === id)
       if (!app) return
       if (progressRef.current[id] !== undefined) return
 
@@ -681,7 +725,9 @@ export default function AppStoreApp() {
           installApp(id)
           toast({
             title: `${app.name} installed ✓`,
-            description: 'Find it on your home screen — long-press icons to rearrange.',
+            description: app.external
+              ? 'A shortcut is waiting on your home screen.'
+              : 'Find it on your home screen — long-press icons to rearrange.',
           })
         } else {
           progressRef.current = { ...progressRef.current, [id]: next }
@@ -690,12 +736,12 @@ export default function AppStoreApp() {
       }, 90)
       timers.current.set(id, timer)
     },
-    [installApp, toast]
+    [allTools, installApp, toast]
   )
 
   const confirmUninstall = useCallback(() => {
     if (!pendingUninstall) return
-    const app = tools.find((t) => t.id === pendingUninstall)
+    const app = allTools.find((t) => t.id === pendingUninstall)
     uninstallApp(pendingUninstall)
     setPendingUninstall(null)
     if (app) {
@@ -704,14 +750,12 @@ export default function AppStoreApp() {
         description: 'Reinstall it anytime from the App Store.',
       })
     }
-  }, [pendingUninstall, uninstallApp, toast])
+  }, [pendingUninstall, allTools, uninstallApp, toast])
 
-  const pendingTool = pendingUninstall ? tools.find((t) => t.id === pendingUninstall) : undefined
+  const pendingTool = pendingUninstall ? allTools.find((t) => t.id === pendingUninstall) : undefined
 
   const openTool = useCallback((id: string) => requestOpenApp(id), [])
   const showTool = useCallback((id: string) => setView({ type: 'app', id }), [])
-
-  const installedIds = useMemo(() => installed, [installed])
 
   /* ---------------- derived lists ---------------- */
   const featured = useMemo(() => tools.filter((t) => t.featured), [])
@@ -720,10 +764,17 @@ export default function AppStoreApp() {
     []
   )
   const fresh = useMemo(() => tools.filter((t) => !installedIds.includes(t.id)).slice(0, 8), [installedIds])
-  const searchResults = useMemo(() => (query.trim() ? searchTools(query, 'all') : []), [query])
+  const searchResults = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return allTools.filter((t) => {
+      const catName = toolCategories.find((c) => c.id === t.category)?.name.toLowerCase() ?? ''
+      return [t.name, t.description, t.keywords.join(' '), catName].join(' ').toLowerCase().includes(q)
+    })
+  }, [query, allTools])
   const installedResults = searchResults.filter((t) => installedIds.includes(t.id))
   const availableResults = searchResults.filter((t) => !installedIds.includes(t.id))
-  const currentApp = view.type === 'app' ? tools.find((t) => t.id === view.id) : undefined
+  const currentApp = view.type === 'app' ? allTools.find((t) => t.id === view.id) : undefined
   const currentCategory = view.type === 'category' ? toolCategories.find((c) => c.id === view.id) : undefined
 
   const goBack = useCallback(
@@ -822,6 +873,23 @@ export default function AppStoreApp() {
           {/* ---------------- HOME ---------------- */}
           {view.type === 'home' && (
             <div className="space-y-7 pb-6">
+              {/* owner-curated linked platforms */}
+              {externalApps.length > 0 && (
+                <div>
+                  <SectionHead title="My Platforms" icon={Globe} />
+                  <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+                    {externalApps.map((t) => (
+                      <AppCard
+                        key={t.id}
+                        tool={t}
+                        installed={installedIds.includes(t.id)}
+                        onShow={() => showTool(t.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* featured carousel */}
               <div>
                 <SectionHead title="Featured" icon={Sparkles} />
@@ -885,7 +953,7 @@ export default function AppStoreApp() {
                 />
                 <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
                   {toolCategories.map((c) => {
-                    const count = tools.filter((t) => t.category === c.id).length
+                    const count = allTools.filter((t) => t.category === c.id).length
                     return (
                       <button
                         key={c.id}
@@ -943,7 +1011,7 @@ export default function AppStoreApp() {
           {view.type === 'category' && currentCategory && (
             <div className="pb-6">
               <div className="divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/70 bg-card px-4 shadow-sm">
-                {tools
+                {allTools
                   .filter((t) => t.category === currentCategory.id)
                   .map((t) => (
                     <AppRow
@@ -971,6 +1039,7 @@ export default function AppStoreApp() {
               onUninstall={() => setPendingUninstall(currentApp.id)}
               onShow={showTool}
               installedIds={installedIds}
+              catalog={allTools}
             />
           )}
 
@@ -983,6 +1052,7 @@ export default function AppStoreApp() {
               onOpen={openTool}
               onUninstall={(id) => setPendingUninstall(id)}
               onShow={showTool}
+              catalog={allTools}
             />
           )}
 
@@ -992,7 +1062,7 @@ export default function AppStoreApp() {
               {!query.trim() ? (
                 <div className="flex flex-col items-center gap-2 py-14 text-center text-muted-foreground">
                   <Search className="size-8 opacity-50" aria-hidden />
-                  <p className="text-sm">Search {tools.length} apps — try “photo”, “convert” or “game”</p>
+                  <p className="text-sm">Search {allTools.length} apps — try “photo”, “convert” or “game”</p>
                 </div>
               ) : searchResults.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-14 text-center text-muted-foreground">

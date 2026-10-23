@@ -30,3 +30,29 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+/**
+ * Linked platforms — PWAs / websites the hub owner (admin) curates into the
+ * App Store. Installing one adds a home-screen shortcut that opens the
+ * platform in an embedded window; nothing is bundled locally.
+ */
+model ExternalApp {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  url         String
+  description String
+  tagline     String   @default("")
+  category    String   @default("utilities")
+  icon        String   @default("Globe")
+  gradient    String   @default("from-emerald-400 via-teal-500 to-cyan-600")
+  glow        String   @default("#10b981")
+  developer   String   @default("Linked platform")
+  keywords    String   @default("")
+  featured    Boolean  @default(false)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, createdAt])
+}

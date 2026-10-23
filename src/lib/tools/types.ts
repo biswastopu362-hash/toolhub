@@ -51,4 +51,11 @@ export interface Tool {
   system?: boolean
   /** app store version string */
   version?: string
+  /**
+   * Linked platform (admin-curated external PWA/site). The component embeds
+   * `url` in a window instead of shipping local functionality.
+   */
+  external?: boolean
+  /** absolute URL of a linked platform (only when external) */
+  url?: string
 }

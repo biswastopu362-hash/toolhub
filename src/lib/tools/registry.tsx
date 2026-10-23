@@ -31,6 +31,7 @@ import {
   Music,
   Palette,
   QrCode,
+  ShieldCheck,
   Smartphone,
   Sparkles,
   Shapes,
@@ -42,6 +43,7 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
+import { getExternalToolById, getExternalTools } from './external'
 import type { Tool, ToolCategoryMeta, ToolCategoryId } from './types'
 
 /* ------------------------------------------------------------------ */
@@ -104,6 +106,7 @@ const PdfToolsApp = load(() => import('@/components/tools/pdf-tools'))
 const CalendarApp = load(() => import('@/components/tools/calendar'))
 const AiChatApp = load(() => import('@/components/tools/ai-chat'))
 const Game2048App = load(() => import('@/components/tools/game-2048'))
+const AdminConsoleApp = load(() => import('@/components/tools/admin-console'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -529,13 +532,28 @@ export const tools: Tool[] = [
     version: '3.0.0',
     Component: SettingsTool,
   },
+  {
+    id: 'admin-console',
+    name: 'Admin Console',
+    description: 'Owner-only console to add, edit, hide and remove the linked platforms that appear in this hub',
+    tagline: 'Curate the store — link your own PWAs',
+    category: 'utilities',
+    icon: ShieldCheck,
+    gradient: 'from-slate-500 via-zinc-600 to-zinc-800',
+    glow: '#64748b',
+    keywords: ['admin', 'console', 'owner', 'manage', 'platforms', 'linked', 'pwa', 'add', 'remove', 'hub'],
+    featured: true,
+    version: '1.0.0',
+    Component: AdminConsoleApp,
+  },
 ]
 
 /* ------------------------------------------------------------------ */
 
+/** Built-in first, then admin-linked platforms. */
 export function getToolById(id: string | null): Tool | undefined {
   if (!id) return undefined
-  return tools.find((t) => t.id === id)
+  return tools.find((t) => t.id === id) ?? getExternalToolById(id)
 }
 
 /* ------------------------------------------------------------------ */
@@ -572,7 +590,7 @@ export function storeStats(t: Tool): StoreStats {
 
 export function searchTools(query: string, category: ToolCategoryId | 'all'): Tool[] {
   const q = query.trim().toLowerCase()
-  return tools.filter((t) => {
+  return [...tools, ...getExternalTools()].filter((t) => {
     if (category !== 'all' && t.category !== category) return false
     if (!q) return true
     const catName = toolCategories.find((c) => c.id === t.category)?.name.toLowerCase() ?? ''
