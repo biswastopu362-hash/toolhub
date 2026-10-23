@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { isAdminRequest } from '@/lib/admin-auth'
+import { describeDbError, ensureSchema } from '@/lib/ensure-schema'
 import { serializeApp, validateAppInput } from '@/lib/external-apps-server'
 
 export const runtime = 'nodejs'
@@ -40,6 +41,7 @@ export async function PATCH(request: Request, ctx: Ctx): Promise<NextResponse> {
   }
 
   try {
+    await ensureSchema()
     const row = await db.externalApp.update({
       where: { slug: id },
       data: values,
@@ -47,6 +49,10 @@ export async function PATCH(request: Request, ctx: Ctx): Promise<NextResponse> {
     return NextResponse.json({ app: serializeApp(row) })
   } catch (err) {
     console.error('[admin/external-apps/:id] PATCH failed:', err)
+    const hint = describeDbError(err)
+    if (hint) {
+      return NextResponse.json({ error: hint }, { status: 503 })
+    }
     return NextResponse.json({ error: 'Platform not found or update failed' }, { status: 404 })
   }
 }
@@ -57,10 +63,15 @@ export async function DELETE(request: Request, ctx: Ctx): Promise<NextResponse> 
 
   const { id } = await ctx.params
   try {
+    await ensureSchema()
     await db.externalApp.delete({ where: { slug: id } })
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[admin/external-apps/:id] DELETE failed:', err)
+    const hint = describeDbError(err)
+    if (hint) {
+      return NextResponse.json({ error: hint }, { status: 503 })
+    }
     return NextResponse.json({ error: 'Platform not found' }, { status: 404 })
   }
 }

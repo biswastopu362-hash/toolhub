@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { isAdminRequest } from '@/lib/admin-auth'
+import { describeDbError, ensureSchema } from '@/lib/ensure-schema'
 import {
   isReservedSlug,
   randomSuffix,
@@ -25,11 +26,16 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Admin access required' }, { status: 401 })
   }
   try {
+    await ensureSchema()
     const rows = await db.externalApp.findMany({ orderBy: { createdAt: 'asc' } })
     return NextResponse.json({ apps: rows.map(serializeApp) })
   } catch (err) {
     console.error('[admin/external-apps] GET failed:', err)
-    return NextResponse.json({ error: 'Could not load platforms' }, { status: 500 })
+    const hint = describeDbError(err)
+    return NextResponse.json(
+      { error: hint ?? 'Could not load platforms' },
+      { status: hint ? 503 : 500 }
+    )
   }
 }
 
@@ -54,16 +60,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     )
   }
 
-  // Unique slug, and never collide with built-in app ids.
-  let slug = slugifyName(values.name)
-  if (isReservedSlug(slug)) slug = `${slug}-app`
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const clash = await db.externalApp.findUnique({ where: { slug } })
-    if (!clash) break
-    slug = `${slugifyName(values.name)}-${randomSuffix()}`
-  }
-
   try {
+    await ensureSchema()
+
+    // Unique slug, and never collide with built-in app ids.
+    let slug = slugifyName(values.name)
+    if (isReservedSlug(slug)) slug = `${slug}-app`
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const clash = await db.externalApp.findUnique({ where: { slug } })
+      if (!clash) break
+      slug = `${slugifyName(values.name)}-${randomSuffix()}`
+    }
+
     const row = await db.externalApp.create({
       data: {
         slug,
@@ -84,6 +92,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ app: serializeApp(row) }, { status: 201 })
   } catch (err) {
     console.error('[admin/external-apps] POST failed:', err)
-    return NextResponse.json({ error: 'Could not save the platform' }, { status: 500 })
+    const hint = describeDbError(err)
+    return NextResponse.json(
+      {
+        error:
+          hint ??
+          'Could not save the platform — check the fields and try again.',
+      },
+      { status: hint ? 503 : 500 }
+    )
   }
 }

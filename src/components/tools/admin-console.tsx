@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Check,
   Copy,
+  DatabaseZap,
   ExternalLink,
   Eye,
   EyeOff,
@@ -112,6 +113,7 @@ export default function AdminConsole() {
   const [phase, setPhase] = useState<'checking' | 'locked' | 'unlocked'>('checking')
   const [apps, setApps] = useState<ExternalAppPayload[]>([])
   const [loadingList, setLoadingList] = useState(false)
+  const [listError, setListError] = useState<string | null>(null)
 
   /* dialog + delete state */
   const [editing, setEditing] = useState<ExternalAppPayload | null>(null)
@@ -142,18 +144,23 @@ export default function AdminConsole() {
         setPhase('locked')
         return
       }
-      const data = (await res.json()) as { apps?: ExternalAppPayload[] }
+      const data = (await res.json().catch(() => ({}))) as {
+        apps?: ExternalAppPayload[]
+        error?: string
+      }
       setApps(Array.isArray(data?.apps) ? data.apps : [])
+      setListError(
+        Array.isArray(data?.apps)
+          ? null
+          : data.error ||
+              'The platform database is not connected on this deployment. In Vercel open your project → Storage → Create Database → Postgres, connect it to this project, then redeploy.'
+      )
     } catch {
-      toast({
-        title: 'Could not load platforms',
-        description: 'Check your connection and try again.',
-        variant: 'destructive',
-      })
+      setListError('Network error — the platform list could not be loaded.')
     } finally {
       setLoadingList(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => {
     if (phase === 'unlocked') void loadList()
@@ -251,6 +258,26 @@ export default function AdminConsole() {
 
       {/* list */}
       <div>
+        {listError && (
+          <div
+            role="alert"
+            className="mb-3 flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-200"
+          >
+            <DatabaseZap className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <div>
+              <p className="font-bold">Database not connected</p>
+              <p className="mt-0.5 text-amber-200/80">{listError}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 h-8 rounded-full border-amber-400/40 text-amber-100 hover:bg-amber-400/10"
+                onClick={() => void loadList()}
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-bold tracking-tight">Your platforms</h2>
           <Button
@@ -614,7 +641,10 @@ function PlatformFormDialog({
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
-        setFieldError(data.error || 'Could not save. Check the fields and try again.')
+        setFieldError(
+          data.error ||
+            'The server could not save this platform. If this is your Vercel deployment, connect a Postgres database (Storage tab) and redeploy, then try again.'
+        )
         return
       }
       toast({
