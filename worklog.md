@@ -723,3 +723,25 @@ Work Log:
 Stage Summary:
 - ToolHub is now a first-class installable PWA with a discoverable one-tap install flow on the home screen; honest limits remain (no browser allows silent zero-touch install; iOS requires the share-sheet flow, guided in-app)
 - Home icon grid coordinates with the banner so nothing is ever obscured; next session resumes ROADMAP Day 1 (Expense Tracker)
+
+---
+Task ID: D1 (ROADMAP Day 1 — Expense Tracker)
+Agent: main (Z.ai Code)
+Task: Build the Expense Tracker app — income/expense entries, categories, monthly budget, charts (recharts), IndexedDB persistence, dark-glass finance look
+
+Work Log:
+- Built src/components/tools/expense-tracker.tsx (~840 lines): private IndexedDB store 'toolhub-expenses' (transactions + settings stores, v1) with write-through mutations and in-memory fallback for private-mode/quota failures
+- Model: Tx { type income|expense, amount 2dp, categoryId, note, local date key, createdAt }; 8 expense categories (Food/Transport/Shopping/Bills/Health/Fun/Education/Other) + 4 income categories (Salary/Business/Gift/Other), each emoji + brand hex
+- UI: dark-glass zinc-950 card, gradient emerald header with Wallet tile, month navigator (prev/next, long label), Net/Income/Spent summary tiles, monthly budget bar (emerald → amber at 75% → rose when over, "Over by X"/"X left"), transactions grouped by day (Today/Yesterday/date) with two-tap delete, premium empty state, long list max-h-[26rem] overflow-y-auto
+- Add-entry modal: Expense/Income toggle, big amount input (inputMode=decimal, currency prefix), 4-col category chip grid, optional note, native date picker [color-scheme:dark]; saves with haptic + toast and jumps to the entry's month
+- Charts (first recharts usage in the codebase): category donut with custom center total + per-category % legend, and daily income-vs-expense bar chart with dark tooltip, legend chips, pill toggle
+- Settings modal: monthly budget (empty = none) + currency symbol picker (৳ $ € £ ₹ ¥, default ৳)
+- Registered in registry.tsx: id 'expense-tracker', daily category, Wallet icon, from-green-300 via-emerald-500 to-teal-600, featured, v1.0.0
+- Gates: bunx tsc --noEmit clean, bun run lint clean, git mode-drift fixed (chmod 644)
+- agent-browser E2E (390×844, 360×740, 1280×800): empty state, +250 Food expense → toast/net/donut update, +1,500 income → grouped TODAY rows, Daily bars render, budget ৳200 → red "Over by ৳50" full bar, month nav to September shows zeroed summary, RELOAD proves IndexedDB persistence (Net ৳1,250 restored), store search finds the app and detail page (rating/downloads/size/GET) reads well; zero console/page errors, dev.log clean
+- Hit the known dev-only SW stale-chunk race once (old subtitle served after edit) — resolved by resetting the browser context, matching the Task 21 finding; production is immune
+
+Stage Summary:
+- Day 1 deliverable shipped: a premium private finance app — budgets with traffic-light progress, category analytics, daily cashflow, fully offline IndexedDB persistence; recharts is now part of the app stack
+- Store catalog now 35 built-in apps; Expense Tracker is featured in daily + store search
+- Next: ROADMAP D2 — Notes v2 (folders, pinned notes, search, markdown-lite, colors, export)

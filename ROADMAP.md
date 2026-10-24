@@ -77,7 +77,7 @@ Target: **~80+ apps & features** by Day 90.
 
 ## Phase 1 — Days 1–15 · "Raise the floor" (core depth + most-wanted gaps)
 
-- [ ] **D1** Expense Tracker (daily) — income/expense entries, categories, monthly budget, charts
+- [x] **D1** Expense Tracker (daily) — income/expense entries, categories, monthly budget, charts
       (recharts), IndexedDB persistence, dark-glass finance look
 - [ ] **D2** Notes v2 — folders, pinned notes, search, markdown-lite rendering, note colors, export
 - [ ] **D3** Clock v2 — stopwatch with laps, countdown timer with alarm ring, world clock strip

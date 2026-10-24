@@ -40,6 +40,7 @@ import {
   Sun,
   Target,
   Type,
+  Wallet,
   Settings as SettingsIcon,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
@@ -98,6 +99,7 @@ const CameraApp = load(() => import('@/components/tools/camera'))
 const VideoStudioApp = load(() => import('@/components/tools/video-studio'))
 const VideoPlayerApp = load(() => import('@/components/tools/video-player'))
 const GoalTrackerApp = load(() => import('@/components/tools/goal-tracker'))
+const ExpenseTrackerApp = load(() => import('@/components/tools/expense-tracker'))
 const MusicPlayerApp = load(() => import('@/components/tools/music-player'))
 const PaintStudioApp = load(() => import('@/components/tools/paint-studio'))
 const CanvaApp = load(() => import('@/components/tools/canva'))
@@ -293,6 +295,20 @@ export const tools: Tool[] = [
     featured: true,
     version: '1.0.0',
     Component: GoalTrackerApp,
+  },
+  {
+    id: 'expense-tracker',
+    name: 'Expense Tracker',
+    description: 'Track income and spending by category with monthly budgets, budget alerts and live charts',
+    tagline: 'Know where your money goes',
+    category: 'daily',
+    icon: Wallet,
+    gradient: 'from-green-300 via-emerald-500 to-teal-600',
+    glow: '#10b981',
+    keywords: ['expense', 'income', 'money', 'budget', 'finance', 'spending', 'track', 'wallet', 'cost', 'savings', 'taka', 'salary'],
+    featured: true,
+    version: '1.0.0',
+    Component: ExpenseTrackerApp,
   },
   {
     id: 'ai-chat',
