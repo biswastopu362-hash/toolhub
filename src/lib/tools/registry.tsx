@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic'
 import type { ComponentType } from 'react'
 import {
   ArrowLeftRight,
+  AudioLines,
+  AudioWaveform,
   Banknote,
   Binary,
   Bot,
@@ -17,6 +19,7 @@ import {
   CircleDollarSign,
   Clapperboard,
   Clock,
+  DatabaseBackup,
   FileStack,
   Table2,
   CloudSun,
@@ -26,6 +29,7 @@ import {
   Image as ImageIcon,
   Images,
   KeyRound,
+  Languages,
   ListChecks,
   Mic,
   Music,
@@ -40,6 +44,7 @@ import {
   Sun,
   Target,
   Type,
+  Volume2,
   Wallet,
   Settings as SettingsIcon,
 } from 'lucide-react'
@@ -109,6 +114,11 @@ const CalendarApp = load(() => import('@/components/tools/calendar'))
 const AiChatApp = load(() => import('@/components/tools/ai-chat'))
 const Game2048App = load(() => import('@/components/tools/game-2048'))
 const AdminConsoleApp = load(() => import('@/components/tools/admin-console'))
+const TranslatorApp = load(() => import('@/components/tools/translator'))
+const TtsStudioApp = load(() => import('@/components/tools/tts-studio'))
+const SpeechToTextApp = load(() => import('@/components/tools/speech-to-text'))
+const AudioStudioApp = load(() => import('@/components/tools/audio-studio'))
+const BackupRestoreApp = load(() => import('@/components/tools/backup-restore'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -311,6 +321,72 @@ export const tools: Tool[] = [
     Component: ExpenseTrackerApp,
   },
   {
+    id: 'translator',
+    name: 'Translator',
+    description: 'AI translation between 25+ languages with swap, copy, share and history',
+    tagline: 'Every language, one tap away',
+    category: 'text',
+    icon: Languages,
+    gradient: 'from-violet-400 via-purple-500 to-fuchsia-600',
+    glow: '#a855f7',
+    keywords: ['translate', 'translator', 'language', 'bengali', 'english', 'arabic', 'hindi', 'interpret', 'meaning'],
+    featured: true,
+    version: '1.0.0',
+    Component: TranslatorApp,
+  },
+  {
+    id: 'tts-studio',
+    name: 'TTS Studio',
+    description: 'Turn text into natural speech — voices, speed control, play and download as WAV',
+    tagline: 'Type it, hear it',
+    category: 'text',
+    icon: Volume2,
+    gradient: 'from-yellow-300 via-orange-400 to-red-500',
+    glow: '#f97316',
+    keywords: ['tts', 'text to speech', 'speech', 'voice', 'audio', 'read aloud', 'narrate', 'speak'],
+    version: '1.0.0',
+    Component: TtsStudioApp,
+  },
+  {
+    id: 'speech-to-text',
+    name: 'Speech to Text',
+    description: 'Live mic transcription with history — hands-free voice notes you can save into Notes',
+    tagline: 'Speak, see it written',
+    category: 'text',
+    icon: AudioLines,
+    gradient: 'from-teal-300 via-teal-500 to-emerald-600',
+    glow: '#14b8a6',
+    keywords: ['speech to text', 'voice notes', 'dictation', 'transcribe', 'microphone', 'asr', 'stt'],
+    version: '1.0.0',
+    Component: SpeechToTextApp,
+  },
+  {
+    id: 'audio-studio',
+    name: 'Audio Studio',
+    description: 'Trim, merge and convert audio with a live waveform — export WAV or WebM',
+    tagline: 'Your pocket audio lab',
+    category: 'media',
+    icon: AudioWaveform,
+    gradient: 'from-pink-400 via-rose-500 to-red-600',
+    glow: '#f43f5e',
+    keywords: ['audio', 'trim', 'merge', 'convert', 'waveform', 'cut', 'mp3', 'wav', 'editor'],
+    version: '1.0.0',
+    Component: AudioStudioApp,
+  },
+  {
+    id: 'backup-restore',
+    name: 'Backup & Restore',
+    description: 'Export every app\u2019s data to one JSON file and restore it on any device — files never leave your device',
+    tagline: 'Your OS, portable',
+    category: 'utilities',
+    icon: DatabaseBackup,
+    gradient: 'from-zinc-400 via-slate-500 to-slate-700',
+    glow: '#64748b',
+    keywords: ['backup', 'restore', 'export', 'import', 'migrate', 'json', 'transfer device', 'copy data'],
+    version: '1.0.0',
+    Component: BackupRestoreApp,
+  },
+  {
     id: 'ai-chat',
     name: 'AI Assistant',
     description: 'Ask anything — write, translate, summarize and brainstorm',
@@ -450,12 +526,13 @@ export const tools: Tool[] = [
   {
     id: 'clock',
     name: 'Clock',
-    description: 'World clock, stopwatch and countdown timer',
+    description: 'Stopwatch with laps, countdown timer with alarm and a world clock strip',
     category: 'daily',
     icon: Clock,
     gradient: 'from-slate-500 via-slate-600 to-slate-800',
     glow: '#475569',
-    keywords: ['time', 'world clock', 'stopwatch', 'timer', 'alarm', 'timezone', 'countdown'],
+    keywords: ['time', 'world clock', 'stopwatch', 'timer', 'alarm', 'timezone', 'countdown', 'laps'],
+    version: '2.0.0',
     Component: ClockTool,
   },
   {
@@ -506,13 +583,15 @@ export const tools: Tool[] = [
   },
   {
     id: 'image-tools',
-    name: 'Image Tools',
-    description: 'Compress, resize and convert images right on your device',
+    name: 'Photo Editor',
+    description: 'Crop, rotate, tune brightness/contrast/saturation, filter presets and before/after compare — saves to Gallery',
+    tagline: 'A pocket darkroom',
     category: 'media',
     icon: ImageIcon,
     gradient: 'from-fuchsia-400 via-fuchsia-500 to-pink-600',
     glow: '#d946ef',
-    keywords: ['image', 'photo', 'compress', 'resize', 'convert', 'webp', 'jpeg', 'png'],
+    keywords: ['image', 'photo', 'editor', 'crop', 'rotate', 'filter', 'brightness', 'contrast', 'saturation', 'compress', 'resize', 'convert', 'webp', 'jpeg', 'png'],
+    version: '2.0.0',
     Component: ImageToolsTool,
   },
   {

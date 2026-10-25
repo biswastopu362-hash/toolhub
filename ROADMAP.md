@@ -80,15 +80,15 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D1** Expense Tracker (daily) — income/expense entries, categories, monthly budget, charts
       (recharts), IndexedDB persistence, dark-glass finance look
 - [x] **D2** Notes v2 — folders, pinned notes, search, markdown-lite rendering, note colors, export
-- [ ] **D3** Clock v2 — stopwatch with laps, countdown timer with alarm ring, world clock strip
-- [ ] **D4** Translator (text) — AI-backed translation card, copy/share, language picker, history
-- [ ] **D5** TTS Studio (text) — text→speech with voice/speed picker, play + download where supported
-- [ ] **D6** Speech-to-Text (text) — mic → live transcript, save into Notes; hands-free voice notes
-- [ ] **D7** Image Tools v2 "Photo Editor" — crop, rotate, brightness/contrast/saturation, filter
+- [x] **D3** Clock v2 — stopwatch with laps, countdown timer with alarm ring, world clock strip
+- [x] **D4** Translator (text) — AI-backed translation card, copy/share, language picker, history
+- [x] **D5** TTS Studio (text) — text→speech with voice/speed picker, play + download where supported
+- [x] **D6** Speech-to-Text (text) — mic → live transcript, save into Notes; hands-free voice notes
+- [x] **D7** Image Tools v2 "Photo Editor" — crop, rotate, brightness/contrast/saturation, filter
       presets, before/after slider, save to Gallery
-- [ ] **D8** Audio Studio (media) — trim/merge/convert audio, waveform UI, export webm/mp3-able
-- [ ] **D9** App Lock (platform) — optional PIN gate for chosen apps, lock settings integration
-- [ ] **D10** Backup & Restore (platform) — export all localStorage/IndexedDB app data to a JSON
+- [x] **D8** Audio Studio (media) — trim/merge/convert audio, waveform UI, export webm/mp3-able
+- [x] **D9** App Lock (platform) — optional PIN gate for chosen apps, lock settings integration
+- [x] **D10** Backup & Restore (platform) — export all localStorage/IndexedDB app data to a JSON
       file; restore on a new device; privacy note (file never leaves device)
 - [ ] **D11** Flashcards (daily) — deck builder, flip animation, self-grading, progress stats
 - [ ] **D12** Habit Tracker (daily) — habits grid, streaks, 30-day heatmap, daily check reminders

@@ -67,3 +67,4 @@ agent-ctx/
 .env
 .env*.local
 .zscripts/
+shots/

@@ -768,3 +768,167 @@ Stage Summary:
 - Day 2 shipped: Notes is now a Keep-class notebook — folders, pins, colors, markdown-lite preview and .md export — with automatic in-place v1 migration so no user data is lost on upgrade
 - Architecture decision: folder deletion is owned by the list component (single state owner); modals only emit intents
 - Next: ROADMAP D3 — Clock v2 (stopwatch laps, countdown alarm, world clock strip)
+---
+Task ID: T4 (ROADMAP D4 — Translator)
+Agent: general-purpose subagent
+Task: Build the Translator app — AI-backed translation card via POST /api/ai, 26-language picker with Auto detect, swap, copy/share/speak, on-device history
+
+Work Log:
+- Read /api/ai/route.ts to confirm the real contract: accepts { messages: [{role:'user'|'assistant', content}] } and returns { reply: string } (not { content }) — client typed against that shape
+- Built src/components/tools/translator.tsx (~700 lines): strict translation-engine prompt sent as an assistant message ("Output ONLY the translation — no quotes, no explanations, no transliteration notes; preserve formatting and emojis; silently detect on Auto") + user message with the text; empty/failed replies surface as errors
+- UI: violet-gradient header tile (glow #a855f7), two dark-glass Selects (source with "Auto detect" first, target items disabled when equal to source) with native + English two-line labels, rotating Languages swap button (swaps languages AND text/output only when both concrete; disabled with hint when source is Auto)
+- Source card: auto-growing textarea (height fits content, capped 264px), char counter x/5000 (amber near limit, rose at cap), quick-clear button; gradient Translate button with Loader2 spinner state, disabled when empty
+- Output card: skeleton pulse while loading, copy (clipboard API + execCommand fallback + toast with Check confirm), share (navigator.share with clipboard fallback + toast), speak (SpeechSynthesis with per-language BCP-47 locales, toggle stop, graceful toast no-op when unsupported); "auto → target" hint line
+- History: successful translations prepend {from,to,source,translated,at} to localStorage 'toolhub-translator-history' (max 20, consecutive-duplicate dedupe); tap-to-restore (restores text + languages + output), per-item copy with stopPropagation, two-tap Clear all (3s reset); premium empty states for both output and history
+- Pairs persisted in 'toolhub-translator-prefs' {from,to}; localStorage reads validated + try/catch'd; haptics navigator.vibrate?.(12) on translate/copy/restore; framer-motion spring entrance, list layout animations; zinc-950 dark-glass idiom, no blue/indigo, English UI
+- Error path: rose error card with the API's message + Retry button, "Your text is safe" reassurance — source text is never cleared on failure
+- Gates: bunx tsc --noEmit passes for this file (only the 4 expected parallel-agent missing-module errors remain: tts-studio, speech-to-text, audio-studio, backup-restore); registry untouched; chmod 644
+
+Stage Summary:
+- Day 4 deliverable shipped: a Google-Translate-class card inside ToolHub — 26 languages with Auto detect, swap, copy/share/speak output actions, and a private 20-item on-device history, all riding the existing shared /api/ai route
+- Next: ROADMAP D5 per roadmap (registry entry already reserved for tts-studio / speech-to-text / audio-studio / backup-restore by parallel agents)
+
+---
+Task ID: T5 (ROADMAP D5 — TTS Studio)
+Agent: general-purpose subagent
+Task: Create src/components/tools/tts-studio.tsx — text→speech app with voice/speed picker, custom player + WAV download on the existing /api/tts route
+
+Work Log:
+- Read worklog conventions (dark-glass OS idiom, registry contract) + /api/tts route (POST {text ≤1000, voice ∈ 7 ids, speed 0.5–2} → binary audio/wav; JSON {error} on non-200) and confirmed the existing registry entry (id 'tts-studio', text category, yellow→orange→red gradient, #f97316 glow)
+- Built src/components/tools/tts-studio.tsx (~570 lines, 'use client', default export; no other files touched): zinc-950 rounded-3xl dark-glass card with orange-gloss Volume2 header tile matching the registry identity, offline chip via online/offline listeners
+- Textarea card: 1,000-char hard cap (maxLength + slice), live counter pill, amber warning tint >900 chars with "keep it short" hint, 44px Clear button
+- Voice picker: 7 selectable cards (emoji + name + description — Tongtong warm, Chuichui playful, Xiaochen calm, Jam British, Kazi standard, Douji flowing, Luodo expressive) with orange selected state, whileTap spring, haptics; voice + speed persisted to localStorage 'toolhub-tts-prefs'
+- Speed: shadcn Slider 0.5–2.0 step 0.05 with arbitrary-variant orange range/thumb styling, 0.5×/1×/1.5×/2× tick row, animated live value badge
+- Generate: full-width orange-gradient button (spinner + disabled when empty); fetch with AbortController; non-200 → JSON error parsed into friendly amber card (Retry + dismiss); fetch failure → actionable offline/connection card; success → blob object URL (old URLs revoked, unmount cleanup), history metadata push
+- Custom player: 48px orange play/pause, drag/click/keyboard seek bar (pointer capture, role=slider), elapsed/duration, stop button; Download as <a download="toolhub-tts-<timestamp>.wav"> with toast; no copy feature per spec
+- History: metadata ONLY (snippet ≤200, voice, speed, at) in localStorage 'toolhub-tts-history' max 10, tap to refill textarea ("Audio isn't saved — tap to reuse the text" note under each item), premium empty state, two-tap Clear all with 3s auto-reset
+- Gates: bunx tsc --noEmit clean for this file (only the expected parallel-agent missing-module errors for speech-to-text/audio-studio/backup-restore remain); no lint/git/dev-server runs per instructions
+
+Stage Summary:
+- Day 5 deliverable shipped: a premium TTS studio — 7 voices, 0.5–2× speed dial, custom seekable player, one-tap WAV download, metadata-only 10-item history — wired to the existing /api/tts route with graceful HTTP/offline error handling and leaked-URL-free blob lifecycle
+
+---
+Task ID: T8 (ROADMAP D8 — Audio Studio)
+Agent: general-purpose subagent
+Task: Build the Audio Studio app — multi-file load, waveform editor (drag selection + handles), trim/merge, WAV + WebM export, all offline
+
+Work Log:
+- Created src/components/tools/audio-studio.tsx ('use client', default export, registry entry untouched) — session-only tool: decoded AudioBuffers live in memory, UI states "Clips live for this session" in the header + load toast
+- Load: hidden <input accept="audio/*" multiple> → arrayBuffer → shared AudioContext.decodeAudioData; per-file failure reported by name in a toast; clip rows show name, duration, kHz, mono/stereo, tap to activate, merge checkbox (aria-pressed), two-tap "Sure?" delete
+- Waveform: canvas (DPR-aware, ResizeObserver width) draws per-pixel min/max peaks with a rose/pink linear gradient + faint grid; drag-to-select via pointer events with pointer capture, ±22px (44px) hit zones on the selection edge handles, dark veil outside the selection, rose overlay + grip handles inside; selection chip shows start → end · duration; Select all / Clear buttons; playhead line + rose dot tracked by rAF
+- Playback: AudioBufferSourceNode play/pause/stop with pause-resume, loop-selection via src.loop + loopStart/loopEnd (toggling loop restarts at the playhead), position readout, playback auto-stops on clip/selection change, rAF + context closed on unmount
+- Trim: "Trim to new clip" copies the subregion into a new AudioBuffer via copyToChannel (original kept) and "Replace with trim" swaps the active buffer in place
+- Merge: ordered merge checkboxes → concatenation at the first clip's rate, mismatched sample rates resampled through OfflineAudioContext renders, channels summed to max channel count (missing channels duplicated), result becomes "Merged 1+2" and auto-activates; busy spinner + error toast on failure
+- Export WAV: hand-rolled 16-bit PCM RIFF encoder (44-byte header, interleaved, clamped), optional selection slice, resampled to 44.1 kHz via OfflineAudioContext, downloaded via a[download]
+- Export WebM: MediaStreamAudioDestinationNode + MediaRecorder (opus/webm, isTypeSupported guard with graceful toast), real-time capture with rAF progress modal (percent bar + cancel that discards), small tail before stop so the last frame lands
+- Design: zinc-950 dark-glass rounded-3xl card, rose gradient header tile matching the registry (from-pink-400 via-rose-500 to-red-600), framer-motion springs on mount/rows/modal, 44px+ targets, 360px-first wrapping controls, max-h scrollable clip list, no blue/indigo, English UI, haptics navigator.vibrate?.(12), toasts via @/hooks/use-toast
+- Gates: bunx tsc --noEmit → only the expected missing parallel-agent module errors remain (backup-restore; my file contributes zero errors); no lint/git/dev-server/browser runs per instructions
+
+Stage Summary:
+- Day 8 deliverable shipped: a pocket audio lab that trims (to new or replace), merges multi-rate clips with automatic resampling, and converts to WAV (instant offline) or WebM (real-time capture with progress), all on-device with zero network
+- Waveform editor pattern (cached per-pixel peaks + pointer-capture selection with 44px handle hit zones) is reusable for future media tools
+- Session-only by design: clips are intentionally not persisted; the UI says so twice
+
+---
+Task ID: T6 (ROADMAP D6 — Speech to Text)
+Agent: general-purpose subagent
+Task: Create src/components/tools/speech-to-text.tsx — mic → live transcript with two engines (Web Speech API live mode + MediaRecorder→/api/asr fallback), editable transcript, save into Notes, session history
+
+Work Log:
+- Read worklog conventions, notes.tsx (Notes model: 'toolhub-notes' = Note { id, title, body, createdAt, updatedAt, folderId, pinned, colorId 'default'|'amber'|'emerald'|'sky'|'rose'|'violet' }), /api/asr route ({ audio: base64 } → { text }), expense-tracker/voice-recorder for the dark-glass idiom and MediaRecorder patterns
+- Built speech-to-text.tsx (1158 lines, 'use client', default export; no other files touched):
+  - Engine auto-selection after mount: Web Speech API (SpeechRecognition/webkitSpeechRecognition via hand-rolled *Like interfaces + unknown casting, no @types dependency) → 'live'; else MediaRecorder+getUserMedia → 'fallback'; else 'none' with an informative no-crash card (transcript panel still usable for paste/copy/save)
+  - LIVE engine: continuous=true, interimResults=true, lang from picker; interim text rendered in lighter zinc-500 italic tone under the textarea with pulsing caret; finals appended with smart spacing (CJK-punct aware); framer-motion pulsing mic rings while listening; onend auto-restart guard (Chrome silence cutoff) with intent ref + quiet-restart cap (15) and friendly "Paused — nothing heard" hint; no-speech/aborted silent, not-allowed/service-not-allowed → permission-denied card + retry button, audio-capture → no-mic toast, network → reconnect hint; mid-session language switch restarts recognition with the new lang
+  - FALLBACK engine: MediaRecorder (mimeType negotiated) → recording timer + 7 animated level bars (framer-motion mirror loop) → stop → blob → FileReader base64 → POST /api/asr → "Transcribing…" spinner → result appended + session committed; getUserMedia NotAllowedError → permission card; NotFoundError → no-mic toast; API errors surfaced via toast
+  - Language picker: 10 languages (en-US, bn-BD, hi-IN, ar-SA, es-ES, fr-FR, zh-CN, ja-JP, ur-PK, ta-IN) in a dark native select ([color-scheme:dark]), persisted in localStorage 'toolhub-stt-lang'
+  - Transcript panel: editable Textarea, word/char counts, Copy (clipboard + toast + ✓ swap), Download .txt (Blob, voice-note-YYYY-MM-DD.txt), Clear with two-tap confirm (2.6 s timeout), Save into Notes (read-modify-write 'toolhub-notes', tolerant of parse errors, unshift { id: crypto.randomUUID() fallback `${Date.now().toString(36)}-stt`, title 'Voice note — <local date>', body or disabled when empty, folderId null, pinned false, colorId 'emerald' }) + toast "Saved to Notes ✓ / Open the Notes app to see it."
+  - History: sessions {text, lang, at} in localStorage 'toolhub-stt-history' (max 20, consecutive-dup filtered), premium empty state, tap to restore, per-item copy (stopPropagation), two-tap Clear all; hydration guarded with skeleton until mounted
+  - Design: zinc-950 rounded-3xl dark-glass card, teal→emerald gradient header tile matching registry identity (AudioLines), engine pill (Live/Recorder/N-A), 44px targets, haptics navigator.vibrate?.(12), 360px-first responsive (max-w-2xl), unmount teardown (abort recognition, stop timer/tracks/recorder, clear all timers)
+- Quality gate: bunx tsc --noEmit → only the EXPECTED parallel-agent error remains (registry.tsx: Cannot find module '@/components/tools/backup-restore'); zero errors in speech-to-text.tsx; chmod 644 applied
+
+Stage Summary:
+- D6 shipped: hands-free dictation with automatic engine selection — live Web Speech transcription (interim rendering, silence auto-restart, permission UX) and a recorder→ASR fallback, one-tap Save into Notes ('toolhub-notes', emerald tint), 10-language picker, and a restorable 20-session history, all in the OS dark-glass idiom
+- Registry entry 'speech-to-text' (text category, teal gradient) now resolves; note: line count grew to ~1.16k (notes.tsx-scale) because both engines + full permission/history UX are included
+---
+Task ID: T10 (ROADMAP D10 — Backup & Restore)
+Agent: general-purpose subagent
+Task: Build the Backup & Restore app — scan every localStorage key + IndexedDB db/store, export one JSON backup file, restore it on any device, privacy-first
+
+Work Log:
+- Built src/components/tools/backup-restore.tsx (~1.2k lines, 'use client', default export) in the dark-glass OS idiom: zinc-950 rounded-3xl card, slate gradient header tile (from-zinc-400 via-slate-500 to-slate-700), emerald success states, spring entrance, 44px targets, max-h-96 scroll lists
+- Scan engine: enumerates every localStorage key (labels 24 known keys — app-store 'toolhub-store', notes, reminders, calc history, goals, ai-chat, music state, calendar, 2048, translator/tts/stt keys from the same-day tools, theme keys, caches; unknown keys labeled "Other data"; sessionStorage skipped) + every IndexedDB database via indexedDB.databases() (try/catch, union with the known list, toolhub-prefixed filter) with per-store getAll() size/count measurement and setTimeout-yield "Scanning photos…" progress states; raw IDB only
+- Known DB shapes mirrored from source (media→photos, video→clips+blobs, docs→kv, device→handles+entries+meta, expenses→transactions+settings, audio→tracks); toolhub-device 'handles' marked non-portable ("re-link on the new device") since FileSystemDirectoryHandle can't serialize to JSON
+- Export UI: grouped checkbox list (localStorage / IndexedDB, check-all headers), item counts, size badges (amber for blob-heavy sources), total estimate, "Export backup (.json)" → { app:'toolhub', schema:1, createdAt, localStorage:{}, indexedDB:{db:{store:[records]}} } downloaded as toolhub-backup-YYYY-MM-DD.json; blobs (video/photo bytes) encoded to tagged base64 and re-read fresh at pack time so scanning stays memory-light
+- Restore UI: file picker + drag-drop → parse + schema validation → per-source preview counts with "will replace current data" amber warning → AlertDialog confirm → apply: localStorage setItem per key; per-store IDB transactions (clear + put), version-1 open with onupgradeneeded creating known stores, VersionError fallback opens as-is, unknown db/store layouts skipped gracefully; quota errors surface a friendly "storage is full" message; success panel + "Reload to finish" (window.location.reload) with the some-data-appears-after-reload note
+- Prominent privacy banner ("Your backup file never touches any server — it is generated and restored entirely on this device") + amber "photos & videos make files large" chip; haptics navigator.vibrate?.(12), toasts via '@/hooks/use-toast'
+- Gates: bunx tsc --noEmit CLEAN (zero errors, incl. the previously-expected missing sibling modules which now exist); file chmod 644; registry untouched
+Stage Summary:
+- Day 10 shipped: ToolHub's entire on-device footprint (settings, notes, photos, videos, expenses, docs, music, device index, all tool histories) is portable via one private JSON file with schema validation, blob re-hydration, graceful unknown-store handling and a guided restore flow
+- The backup format ({app:'toolhub',schema:1}) is now a contract — future apps only need to add their key/db to the LS_KEYS/IDB_DBS maps to join backups
+---
+Task ID: T3 (ROADMAP D3 — Clock v2)
+Agent: general-purpose subagent
+Task: Upgrade Clock in place to v2.0.0 — pill-tab shell with world clock strip (localStorage), lap stopwatch, countdown timer with looping WebAudio alarm
+
+Work Log:
+- Read worklog (D1/D2 conventions), old clock.tsx (641 lines), expense-tracker.tsx dark-glass idiom, registry entry (slate gradient, glow #475569) — rewrote clock.tsx (~780 lines, single file, 'use client', default export)
+- Shell: rounded-3xl zinc-950 card, slate-gradient header + icon tile, 44px pill tablist (Clock/Stopwatch/Timer) with framer-motion layoutId spring pill; panels stay mounted (CSS hidden + opacity/y spring) so stopwatch/timer state survives tab switches; 360px-first, no blue/indigo, emerald accents for positive states
+- Clock tab: hydration-safe live local time (tabular-nums HH:MM:SS) + date line; world clock strip from 12 curated cities (Dhaka…Toronto) via Intl.DateTimeFormat (IANA zones, en-GB 24h time, shortOffset GMT label in picker); each row shows city, time, date and Today/Tomorrow/Yesterday offset badge (emerald for Today); add/remove via glass modal with check toggles; persisted to localStorage 'toolhub-clock-world' (JSON id array, validated on load); premium dashed empty state with CTA
+- Stopwatch: performance.now()-based accum/start refs, mm:ss.cc monospace display, Reset/Start-Pause/Lap (h-12 targets, emerald Lap hint while running), laps list max-h-72 overflow-y-auto with thin glass scrollbar, newest-first motion.li layout animation, best/worst rows + Badges highlighted emerald/rose (split + total shown); tickers gated by tab visibility
+- Timer: preset chips (1/3/5/10/15/30m, active state, disabled while running) + H/M/S numeric inputs ([color-scheme:dark], spinners hidden, locked while running/finished); SVG countdown ring (pathLength motion, emerald→teal gradient, rose pulse on finish) with status label (Ready/Running/Paused/Time's up); start/pause/resume/restart/reset
+- Alarm at zero: AudioContext created/resumed inside Start gesture, looped oscillator beeps alternating 880/660 Hz every 700 ms for max 20 s, navigator.vibrate([260,110,260]) per tick, toast "Time's up", rose "Time's up" state with Dismiss (stop alarm + reset) and Restart; ticker keeps running in hidden app tabs so the alarm always fires; full unmount cleanup (interval + ctx.close)
+- Haptics haptic() (vibrate 12 / patterns) on tab switches, presets, laps, start/pause/reset, city toggles; useToast used for timer finish
+- Gates: bunx tsc --noEmit clean (zero errors, incl. no unexpected ones); no other files touched (registry already at 2.0.0)
+
+Stage Summary:
+- Clock is now a v2.0.0 three-in-one time suite matching the dark-glass OS idiom: persistent world clock strip with day offsets, lap analytics stopwatch, and an offline countdown alarm (WebAudio + vibration) — state preserved across tab switches, everything client-side
+- Reusable pattern landed: mounted-but-hidden tab panels keep heavy widget state alive while framer-motion springs handle transitions
+- Next on ROADMAP: D4 per roadmap ordering
+
+---
+Task ID: T7 (ROADMAP D7 — Photo Editor)
+Agent: general-purpose subagent
+Task: Rewrite src/components/tools/image-tools.tsx in place as Photo Editor v2.0.0 — canvas editor tab (adjustments, filter presets, rotate/flip, draggable aspect crop, before/after compare, save to Gallery) alongside the kept v1 compress/resize/convert Tools tab
+
+Work Log:
+- Read worklog.md conventions, media-db.ts contract (toolhub-media/photos, putPhoto/newPhotoId/listPhotos), the old 653-line image-tools.tsx, and expense-tracker.tsx for the dark-glass OS idiom; confirmed the registry already declares id 'image-tools' → 'Photo Editor' v2.0.0 (fuchsia gradient) and touched nothing outside my file
+- Rewrote the file (~1.7k lines, 'use client', default export, single file): pill Editor/Tools switcher, header with fuchsia icon tile, framer-motion springs, 44px targets, English UI, toast via '@/hooks/use-toast', navigator.vibrate?.(12) haptics
+- Import: file picker + drag-drop + "Pick from Gallery" bottom-sheet (listPhotos, newest-first, 30 thumbs; dataUrl → fetch → File reuses the file pipeline); 20 MB guard; offscreen source downscaled once to ≤2560 px long edge (toast + "capped at 2560 px" meta note)
+- Editor pipeline: two stacked canvases on a checkerboard stage (fit within 70vh, previews capped at 1280 px for perf) rendering via one drawT(ctx, el, w, h, rot, flipH, tw, th) transform helper; combined ctx.filter = preset string + brightness()/contrast()/saturate() sliders (0–200, Reset button); original layer only re-renders on geometry changes
+- Filter presets: None/Vivid/Mono/Sepia/Cool/Warm/Fade/Dramatic chips composing with manual sliders; Rotate 90° CW + Flip H toggle rotate the source state (flows into crop math, export and the Tools tab too)
+- Crop: overlay with 4 corner handles (44 px hit areas, -5.5 offsets), drag-to-move body, rule-of-thirds guides, 9999px box-shadow dimming, Free/1:1/4:3/3:4/16:9/9:16 aspect chips with ratio-preserving resize math; Apply bakes rot/flip+crop into a new source (PNG if source PNG else JPEG 0.92) and resets rotation
+- Compare: toggle enables a draggable vertical divider (pointer capture) — ORIGINAL left / EDITED right via clip-path inset on the edited canvas, with Original/Edited labels and a knob; disabled during crop mode
+- Save: full-res export (rotated/cropped dims, white-flattened JPEG 0.9) → putPhoto({source:'upload', name:'<base>-edited.jpg'}) + "Saved to Gallery ✓" toast, plus a[download] Download button; Save/Download disabled mid-crop
+- Tools tab kept feature-complete (compress w/ quality+format, resize w/ aspect lock + 25/50/75% quick scale + validation, convert w/ quality) restyled to dark glass with native dark selects/inputs, shared Result card with size-delta badge and download
+- Quality gate: bunx tsc --noEmit → exit 0, zero errors (the 5 parallel-agent missing-module errors did not even appear)
+
+Stage Summary:
+- Photo Editor v2 shipped: a real canvas darkroom (tune → filter → crop → compare → Gallery/download) with the v1 compress/resize/convert toolkit intact behind an Editor/Tools switcher; memory capped at 2560 px working res, fully offline, zero uploads
+- RETURN: tsc clean (exit 0, no errors at all); only file changed: src/components/tools/image-tools.tsx; worklog appended per convention
+
+---
+Task ID: D3-D10 + PERF (ROADMAP Days 3-10 batch + mobile performance/icons)
+Agent: main (Z.ai Code) + 7 parallel subagents (T3,T4,T5,T6,T7,T8,T10)
+Task: Ship ROADMAP D3-D10 (Clock v2, Translator, TTS Studio, Speech-to-Text, Photo Editor, Audio Studio, App Lock, Backup & Restore) + fix mobile lag + oversized icons
+
+Work Log:
+- PERF/page.tsx: replaced the 12-layer wallpaper stack with live+outgoing-only rendering (was ~10x GPU memory on phones), gated HomeItemView FLIP `layout` to edit-mode only, removed per-tile backdrop-blur from FolderTile + AppLibrary cards, shrank App Library cards 150->138px
+- PERF/useGridMetrics: tile divisor 92->68, row divisor 112->96 — icons now ~62-76px launcher density (5 cols at 390px, was ~90px/4 cols); verified 360/390/1280 screenshots
+- Shared infra: /api/tts route (z-ai SDK, WAV, voice/speed validation), /api/asr route (base64 audio -> text), registry rows for 5 new apps + clock/image-tools v2 bumps, app-store v5 (+appLock {enabled,pinHash,lockedApps}), src/lib/pin-hash.ts (SHA-256 + djb2 fallback)
+- D9 App Lock (main agent): src/components/os/lock-gate.tsx (full-screen PIN pad, shake+haptics on wrong, Forgot-PIN wipe), openApp choke-point gate in page.tsx, AppLockCard in Settings (enable/change PIN, per-app switch list) + Backup & Restore shortcut button in Your data card
+- D3 Clock v2 (T3): tabs Clock/Stopwatch/Timer, live local time, world-clock strip (12 IANA cities, localStorage), laps with best/worst highlighting, SVG countdown ring + WebAudio alarm loop + vibrate
+- D4 Translator (T4): POST /api/ai with strict translation-engine prompt, 26 languages + Auto detect, swap/copy/share/speak (SpeechSynthesis), history max 20 (toolhub-translator-history)
+- D5 TTS Studio (T5): 7 named voices, speed slider 0.5-2.0, custom WAV player + download, metadata history (toolhub-tts-prefs / -history)
+- D6 Speech-to-Text (T6): Web Speech API live engine (10 languages, interim results, auto-restart) with MediaRecorder->POST /api/asr fallback, editable transcript, Save into Notes (writes toolhub-notes Note shape), history (toolhub-stt-lang / -history); graceful mic-permission card
+- D7 Photo Editor (T7): canvas pipeline (<=2560px), rotate/flip, crop with aspect presets + corner handles, brightness/contrast/saturation + 8 filter presets, before/after compare divider, Save to Gallery (media-db putPhoto) + download; v1 compress/resize/convert kept as Tools tab
+- D8 Audio Studio (T8): decodeAudioData clips, DPR waveform with drag selection + 44px handles, trim-to-new-clip / replace, multi-clip merge (OfflineAudioContext resample), 16-bit PCM WAV encoder export + realtime WebM via MediaRecorder
+- D10 Backup & Restore (T10): scans ALL localStorage keys + indexedDB.databases() per-store getAll, checkbox summary with size badges, schema-1 JSON export, validated restore (clear+put per store) with confirm + reload prompt, privacy banner
+- Fix: T8 waveform never painted — RO effect ran at mount when the waveform card was unmounted (clips.length 0); effect now re-attaches on [clips.length]
+- Gates: bunx tsc --noEmit clean, bun run lint clean (fixed clock setState-in-effect, lock-gate push-before-declare), mode-drift chmod 644
+- E2E agent-browser (390/360/1280): live clock ticking, stopwatch run+lap, timer ring 04:58 running; EN->BN translation via /api/ai (200, history entry); TTS WAV generated (164KB, 0:03) + download; STT LIVE badge + permission-denied card + transcript saved into Notes ("Voice note — Oct 25, 2026" verified in Notes app); Photo Editor loaded test image, rotated, saved to Gallery (verified in Gallery); Audio Studio waveform painted + playhead, trim toast, test-tone-trim.wav (352KB) downloaded; Backup exported toolhub-backup-2026-10-25.json (9 LS keys + 1 photo, notes verified inside); App Lock: PIN set twice-verify, Notes locked, gate shown instead of app, wrong PIN rejected, 1234 unlocked; zero console/page errors, dev.log clean (ai 962ms, tts 2.2s)
+
+Stage Summary:
+- Days 3-10 shipped in one batch: catalog now 41 built-in apps (+Clock v2 rewrite, +Translator, TTS Studio, Speech-to-Text, Photo Editor v2 rename, Audio Studio, Backup & Restore) with two AI routes and a hashed App Lock platform feature
+- Mobile performance: wallpaper VRAM -90%, FLIP off outside edit mode, blur overdraw removed from tiles — swipes and app open/close much lighter on mid-range phones
+- Icon density now matches real launchers (~62-76px tiles, cols grow with width)
+- Next: ROADMAP D11 — Flashcards (daily)

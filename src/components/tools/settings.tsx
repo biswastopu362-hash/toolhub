@@ -38,6 +38,7 @@ import { ACCENTS, MODES, WALLPAPERS, type ModeId } from '@/lib/theme'
 import { defaultLayout } from '@/lib/home-layout'
 import { DOCK_IDS } from '@/lib/constants'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
+import { AppLockCard } from '@/components/os/app-lock-card'
 import { tools } from '@/lib/tools/registry'
 
 /* ================================================================== */
@@ -266,6 +267,9 @@ export default function SettingsTool() {
         </Button>
       </Card>
 
+      {/* ---------------- App Lock (D9) ---------------- */}
+      <AppLockCard />
+
       {/* ---------------- Home screen layout ---------------- */}
       <Card className="gap-4 p-4">
         <div>
@@ -373,22 +377,31 @@ export default function SettingsTool() {
           <Button
             variant="outline"
             className="h-11 gap-2"
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent<string>('toolhub:open-app', { detail: 'backup-restore' }))
+            }
+          >
+            Backup &amp; restore
+          </Button>
+          <Button
+            variant="outline"
+            className="h-11 gap-2"
             onClick={onClearRecents}
             disabled={recents.length === 0}
             aria-label="Clear recents"
           >
             <Trash2 className="size-4" /> Clear recents
           </Button>
-          <Button
-            variant="outline"
-            className="h-11 gap-2"
-            onClick={clearFavorites}
-            disabled={favorites.length === 0}
-            aria-label="Clear favorites"
-          >
-            <Trash2 className="size-4" /> Clear favorites
-          </Button>
         </div>
+        <Button
+          variant="outline"
+          className="h-11 gap-2"
+          onClick={clearFavorites}
+          disabled={favorites.length === 0}
+          aria-label="Clear favorites"
+        >
+          <Trash2 className="size-4" /> Clear favorites
+        </Button>
       </Card>
 
       {/* ---------------- About ---------------- */}

@@ -1,15 +1,38 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Flag, Globe2, Pause, Play, RotateCcw } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+/**
+ * Clock — world time, stopwatch and countdown alarm.
+ *
+ * Three tabs in one dark-glass shell:
+ *  • Clock     — live local time + a world-clock strip: curated cities via
+ *                Intl.DateTimeFormat (IANA zones), day offsets, persisted to
+ *                localStorage key 'toolhub-clock-world'.
+ *  • Stopwatch — start/pause/reset with lap splits, best/worst highlighted.
+ *  • Timer     — preset chips + manual H/M/S inputs, animated countdown ring,
+ *                looping WebAudio alarm (880/660 Hz) + vibration at zero.
+ *
+ * Client-side only — works fully offline.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  BellRing,
+  Check,
+  Clock,
+  Flag,
+  Globe2,
+  Hourglass,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  Watch,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
 /* ================================================================== */
@@ -24,64 +47,54 @@ function clampInt(raw: string, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
 
-/** Three short rising beeps via WebAudio. Created lazily inside the
- *  user-gesture-driven start chain; silently no-ops when unavailable. */
-function playBeep(): void {
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n))
+}
+
+/** Subtle tick haptic — silently no-ops on unsupported devices. */
+function haptic(pattern: number | number[] = 12): void {
   try {
-    const AudioWindow = window as unknown as {
-      AudioContext?: typeof AudioContext
-      webkitAudioContext?: typeof AudioContext
-    }
-    const Ctx = AudioWindow.AudioContext ?? AudioWindow.webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
-    const t0 = ctx.currentTime
-    const gain = ctx.createGain()
-    gain.gain.setValueAtTime(0, t0)
-    gain.connect(ctx.destination)
-    const osc = ctx.createOscillator()
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(880, t0)
-    osc.connect(gain)
-    for (let i = 0; i < 3; i++) {
-      const s = t0 + i * 0.28
-      gain.gain.setValueAtTime(0, s)
-      gain.gain.linearRampToValueAtTime(0.22, s + 0.02)
-      gain.gain.setValueAtTime(0.22, s + 0.18)
-      gain.gain.linearRampToValueAtTime(0, s + 0.2)
-    }
-    osc.start(t0)
-    osc.stop(t0 + 0.9)
-    window.setTimeout(() => {
-      void ctx.close()
-    }, 1200)
+    navigator.vibrate?.(pattern)
   } catch {
-    /* audio unavailable — stay silent */
+    /* ignore */
   }
 }
 
+const SPRING = { type: 'spring', stiffness: 320, damping: 26 } as const
+
+/** Thin glass scrollbar for long lists. */
+const SCROLL_CLASS =
+  '[scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10'
+
 /* ================================================================== */
-/* World Clock                                                         */
+/* World clock                                                         */
 /* ================================================================== */
 
 interface CityZone {
+  id: string
   city: string
   tz: string
 }
 
 const CITIES: CityZone[] = [
-  { city: 'New York', tz: 'America/New_York' },
-  { city: 'London', tz: 'Europe/London' },
-  { city: 'Dubai', tz: 'Asia/Dubai' },
-  { city: 'Kolkata', tz: 'Asia/Kolkata' },
-  { city: 'Singapore', tz: 'Asia/Singapore' },
-  { city: 'Tokyo', tz: 'Asia/Tokyo' },
-  { city: 'Sydney', tz: 'Australia/Sydney' },
-  { city: 'Los Angeles', tz: 'America/Los_Angeles' },
+  { id: 'dhaka', city: 'Dhaka', tz: 'Asia/Dhaka' },
+  { id: 'kolkata', city: 'Kolkata', tz: 'Asia/Kolkata' },
+  { id: 'new-york', city: 'New York', tz: 'America/New_York' },
+  { id: 'london', city: 'London', tz: 'Europe/London' },
+  { id: 'dubai', city: 'Dubai', tz: 'Asia/Dubai' },
+  { id: 'singapore', city: 'Singapore', tz: 'Asia/Singapore' },
+  { id: 'tokyo', city: 'Tokyo', tz: 'Asia/Tokyo' },
+  { id: 'sydney', city: 'Sydney', tz: 'Australia/Sydney' },
+  { id: 'los-angeles', city: 'Los Angeles', tz: 'America/Los_Angeles' },
+  { id: 'paris', city: 'Paris', tz: 'Europe/Paris' },
+  { id: 'riyadh', city: 'Riyadh', tz: 'Asia/Riyadh' },
+  { id: 'toronto', city: 'Toronto', tz: 'America/Toronto' },
 ]
 
+const WORLD_LS_KEY = 'toolhub-clock-world'
+
 function cityTime(now: Date, tz: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('en-GB', {
     timeZone: tz,
     hour: '2-digit',
     minute: '2-digit',
@@ -98,104 +111,313 @@ function cityDate(now: Date, tz: string): string {
   }).format(now)
 }
 
+function cityGmt(now: Date, tz: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      timeZoneName: 'shortOffset',
+    }).formatToParts(now)
+    return parts.find((p) => p.type === 'timeZoneName')?.value ?? ''
+  } catch {
+    return ''
+  }
+}
+
 /** Days between the calendar date in `tz` and the local calendar date. */
 function dayOffset(now: Date, tz: string): number {
   const key = (zone?: string): string =>
     new Intl.DateTimeFormat('en-CA', zone ? { timeZone: zone } : undefined).format(now)
   const toUTC = (k: string): number => {
     const [y, m, d] = k.split('-').map(Number)
-    return Date.UTC(y, m - 1, d)
+    return Date.UTC(y, (m ?? 1) - 1, d ?? 1)
   }
   return Math.round((toUTC(key(tz)) - toUTC(key())) / 86_400_000)
 }
 
-function offsetLabel(offset: number): string | null {
-  if (offset === -1) return 'Yesterday'
-  if (offset === 1) return 'Tomorrow'
-  return null
+function offsetLabel(offset: number): string {
+  if (offset < 0) return 'Yesterday'
+  if (offset > 0) return 'Tomorrow'
+  return 'Today'
 }
 
-function WorldClockTab() {
-  const [now, setNow] = useState<Date>(() => new Date())
+function loadWorldCities(): string[] {
+  try {
+    const raw = window.localStorage.getItem(WORLD_LS_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (x): x is string => typeof x === 'string' && CITIES.some((c) => c.id === x)
+    )
+  } catch {
+    return []
+  }
+}
 
+function WorldClockTab({ active }: { active: boolean }) {
+  /* Registry components render client-only (ssr:false), so lazy initializers
+     can safely read the clock and localStorage — no hydration effect needed. */
+  const [now, setNow] = useState<Date | null>(() => (typeof window === 'undefined' ? null : new Date()))
+  const [selected, setSelected] = useState<string[]>(() =>
+    typeof window === 'undefined' ? [] : loadWorldCities()
+  )
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  /* tick while the tab is visible */
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(id)
+    if (!active) return
+    const id = window.setInterval(() => setNow(new Date()), 250)
+    return () => window.clearInterval(id)
+  }, [active])
+
+  /* persist selection */
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(WORLD_LS_KEY, JSON.stringify(selected))
+    } catch {
+      /* private mode — run without persistence */
+    }
+  }, [selected])
+
+  const toggleCity = useCallback((id: string): void => {
+    haptic()
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
   }, [])
 
-  const localTime = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
-  const localDate = now.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  const chosen = useMemo(
+    () =>
+      selected
+        .map((id) => CITIES.find((c) => c.id === id))
+        .filter((c): c is CityZone => Boolean(c)),
+    [selected]
+  )
+
+  const localTime = now
+    ? new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).format(now)
+    : '--:--:--'
+  const localDate = now
+    ? now.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '—'
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardContent className="p-6 text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Local time
-          </p>
-          <p
-            className="mt-2 text-5xl font-semibold tracking-tight tabular-nums sm:text-6xl"
-            aria-label={`Local time ${localTime}`}
-          >
-            {localTime}
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">{localDate}</p>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      {/* -------- Local time -------- */}
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-500/[0.12] via-transparent to-slate-500/[0.05] p-5 text-center sm:p-6">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+          Local time
+        </p>
+        <p
+          className="mt-1 text-5xl font-black tracking-tight tabular-nums text-zinc-50 sm:text-6xl"
+          aria-label={`Local time ${localTime}`}
+        >
+          {localTime}
+        </p>
+        <p className="mt-2 text-sm text-zinc-400">{localDate}</p>
+      </div>
 
-      <Card>
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex items-center gap-2">
-            <Globe2 className="h-4 w-4 text-muted-foreground" aria-hidden />
-            <h3 className="text-sm font-medium text-muted-foreground">World clock</h3>
+      {/* -------- World clock strip -------- */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <Globe2 className="size-3.5" aria-hidden />
+            World clock
+            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
+              {chosen.length}
+            </span>
+          </p>
+          <button
+            onClick={() => {
+              haptic()
+              setPickerOpen(true)
+            }}
+            aria-label="Add or remove cities"
+            className="flex h-11 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 text-xs font-bold text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <Plus className="size-4" aria-hidden /> Add city
+          </button>
+        </div>
+
+        {chosen.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-6 py-10 text-center">
+            <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-500 via-slate-600 to-slate-800 text-white ring-1 ring-white/20">
+              <Globe2 className="size-7" strokeWidth={1.9} aria-hidden />
+            </span>
+            <p className="mt-4 text-sm font-bold text-zinc-200">
+              Track the world&apos;s time
+            </p>
+            <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-zinc-500">
+              Add cities to see their live time next to yours — your pick is
+              stored on this device only.
+            </p>
+            <Button
+              onClick={() => {
+                haptic()
+                setPickerOpen(true)
+              }}
+              className="mt-4 h-11 rounded-xl bg-gradient-to-r from-slate-300 to-slate-500 font-semibold text-zinc-950 hover:from-slate-200 hover:to-slate-400"
+            >
+              <Plus className="size-4" aria-hidden /> Add your first city
+            </Button>
           </div>
-          <ul className="mt-3 max-h-96 divide-y overflow-y-auto">
-            {CITIES.map((c) => {
-              const offset = dayOffset(now, c.tz)
-              const label = offsetLabel(offset)
-              return (
-                <li
-                  key={c.tz}
-                  className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{c.city}</p>
-                    <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                      {cityDate(now, c.tz)}
-                      {label !== null && (
-                        <Badge
-                          variant="outline"
+        ) : (
+          <div className={cn('max-h-80 space-y-2 pr-1', SCROLL_CLASS)}>
+            <AnimatePresence initial={false}>
+              {chosen.map((c) => {
+                const offset = now ? dayOffset(now, c.tz) : 0
+                return (
+                  <motion.div
+                    key={c.id}
+                    layout
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                    transition={SPRING}
+                    className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-2.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-bold text-zinc-100">
+                          {c.city}
+                        </p>
+                        <span
                           className={cn(
-                            'h-4 px-1.5 text-[10px] font-medium',
+                            'shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide',
                             offset === 0
-                              ? 'border-primary/40 text-primary'
-                              : 'text-muted-foreground'
+                              ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                              : 'border-white/10 bg-white/5 text-zinc-400'
                           )}
                         >
-                          {label}
-                        </Badge>
-                      )}
+                          {offsetLabel(offset)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-[11px] text-zinc-500">
+                        {now ? cityDate(now, c.tz) : '—'}
+                      </p>
+                    </div>
+                    <p className="shrink-0 font-mono text-lg font-bold tabular-nums text-zinc-100">
+                      {now ? cityTime(now, c.tz) : '--:--'}
                     </p>
-                  </div>
-                  <p className="text-xl font-semibold tabular-nums">
-                    {cityTime(now, c.tz)}
+                    <button
+                      onClick={() => toggleCity(c.id)}
+                      aria-label={`Remove ${c.city}`}
+                      className="flex size-11 shrink-0 items-center justify-center rounded-full text-zinc-600 transition-colors hover:bg-rose-500/15 hover:text-rose-300"
+                    >
+                      <X className="size-4" aria-hidden />
+                    </button>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+
+      {/* -------- City picker -------- */}
+      <AnimatePresence>
+        {pickerOpen && (
+          <motion.div
+            key="city-picker"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setPickerOpen(false)
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Manage world clock cities"
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.94, opacity: 0 }}
+              transition={SPRING}
+              className="max-h-[85vh] w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 text-zinc-100 shadow-2xl"
+            >
+              <div className="flex items-center gap-2.5 border-b border-white/5 px-5 py-4">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 text-white ring-1 ring-white/15">
+                  <Globe2 className="size-4.5" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold">World clock cities</h3>
+                  <p className="text-[11px] text-zinc-500">
+                    Tap to add or remove · {selected.length} selected
                   </p>
-                </li>
-              )
-            })}
-          </ul>
-        </CardContent>
-      </Card>
+                </div>
+                <button
+                  onClick={() => setPickerOpen(false)}
+                  aria-label="Close"
+                  className="flex size-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  <X className="size-4" aria-hidden />
+                </button>
+              </div>
+              <div className={cn('max-h-[52vh] space-y-1.5 overflow-y-auto p-4', SCROLL_CLASS)}>
+                {CITIES.map((c) => {
+                  const on = selected.includes(c.id)
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => toggleCity(c.id)}
+                      aria-pressed={on}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
+                        on
+                          ? 'border-emerald-400/30 bg-emerald-500/10'
+                          : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-zinc-100">{c.city}</p>
+                        <p className="text-[11px] text-zinc-500">
+                          {now ? cityGmt(now, c.tz) : '—'} · {c.tz}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-mono text-sm tabular-nums text-zinc-400">
+                        {now ? cityTime(now, c.tz) : '--:--'}
+                      </span>
+                      <span
+                        className={cn(
+                          'flex size-6 shrink-0 items-center justify-center rounded-full border',
+                          on
+                            ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-300'
+                            : 'border-white/15 text-transparent'
+                        )}
+                      >
+                        <Check className="size-3.5" aria-hidden />
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="border-t border-white/5 p-4">
+                <Button
+                  onClick={() => {
+                    haptic()
+                    setPickerOpen(false)
+                  }}
+                  className="h-11 w-full rounded-xl bg-gradient-to-r from-slate-300 to-slate-500 font-bold text-zinc-950 hover:from-slate-200 hover:to-slate-400"
+                >
+                  Done
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -217,22 +439,24 @@ function formatStopwatch(ms: number): string {
   return `${pad2(mm)}:${pad2(ss)}.${pad2(cs)}`
 }
 
-function StopwatchTab() {
+function StopwatchTab({ active }: { active: boolean }) {
   const [running, setRunning] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [laps, setLaps] = useState<Lap[]>([])
   const startAtRef = useRef(0)
   const accumRef = useRef(0)
 
+  /* rAF-style ticker driven by performance.now() — only while visible */
   useEffect(() => {
-    if (!running) return
-    const id = setInterval(() => {
+    if (!running || !active) return
+    const id = window.setInterval(() => {
       setElapsed(accumRef.current + (performance.now() - startAtRef.current))
     }, 31)
-    return () => clearInterval(id)
-  }, [running])
+    return () => window.clearInterval(id)
+  }, [running, active])
 
   const toggleRun = (): void => {
+    haptic()
     if (running) {
       accumRef.current += performance.now() - startAtRef.current
       setElapsed(accumRef.current)
@@ -244,6 +468,7 @@ function StopwatchTab() {
   }
 
   const reset = (): void => {
+    haptic()
     accumRef.current = 0
     startAtRef.current = 0
     setRunning(false)
@@ -252,6 +477,7 @@ function StopwatchTab() {
   }
 
   const addLap = (): void => {
+    haptic()
     const total = accumRef.current + (performance.now() - startAtRef.current)
     setLaps((prev) => {
       const prevTotal = prev.length > 0 ? prev[prev.length - 1].total : 0
@@ -271,103 +497,147 @@ function StopwatchTab() {
   }, [laps])
 
   const reversedLaps = useMemo(() => [...laps].reverse(), [laps])
+  const status = running ? 'Running' : elapsed > 0 ? 'Paused' : 'Ready'
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardContent className="p-6 text-center">
-          <p
-            className="text-5xl font-semibold tracking-tight tabular-nums sm:text-6xl"
-            aria-label={`Stopwatch ${formatStopwatch(elapsed)}`}
-          >
-            {formatStopwatch(elapsed)}
-          </p>
-          <div className="mt-5 flex items-center justify-center gap-3">
-            <Button
-              variant="outline"
-              className="h-11 w-11 p-0"
-              onClick={reset}
-              disabled={elapsed === 0 && laps.length === 0}
-              aria-label="Reset stopwatch"
-            >
-              <RotateCcw className="h-4 w-4" aria-hidden />
-            </Button>
-            <Button
-              variant={running ? 'secondary' : 'default'}
-              className="h-11 min-w-32 gap-2"
-              onClick={toggleRun}
-              aria-label={running ? 'Pause stopwatch' : 'Start stopwatch'}
-            >
-              {running ? (
-                <Pause className="h-4 w-4" aria-hidden />
-              ) : (
-                <Play className="h-4 w-4" aria-hidden />
-              )}
-              {running ? 'Pause' : 'Start'}
-            </Button>
-            <Button
-              variant="outline"
-              className="h-11 w-11 p-0"
-              onClick={addLap}
-              disabled={!running}
-              aria-label="Record lap"
-            >
-              <Flag className="h-4 w-4" aria-hidden />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      {/* -------- Display + controls -------- */}
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-500/[0.12] via-transparent to-slate-500/[0.05] p-5 text-center sm:p-6">
+        <p
+          className={cn(
+            'text-[10px] font-semibold uppercase tracking-widest',
+            running ? 'text-emerald-400' : 'text-zinc-500'
+          )}
+        >
+          {status}
+        </p>
+        <p
+          className="mt-1 font-mono text-5xl font-bold tracking-tight tabular-nums text-zinc-50 sm:text-6xl"
+          aria-label={`Stopwatch ${formatStopwatch(elapsed)}`}
+        >
+          {formatStopwatch(elapsed)}
+        </p>
 
-      {laps.length > 0 && (
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <h3 className="text-sm font-medium text-muted-foreground">
-              Laps ({laps.length})
-            </h3>
-            <ul className="mt-3 max-h-72 divide-y overflow-y-auto">
-              {reversedLaps.map((l) => (
-                <li
-                  key={l.n}
-                  className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="text-sm font-medium">Lap {l.n}</span>
-                    {l.n - 1 === bestIdx && (
-                      <Badge
-                        variant="outline"
-                        className="border-primary/40 text-[10px] text-primary"
-                      >
-                        Fastest
-                      </Badge>
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <button
+            onClick={reset}
+            disabled={elapsed === 0 && laps.length === 0}
+            aria-label="Reset stopwatch"
+            className="flex size-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <RotateCcw className="size-5" aria-hidden />
+          </button>
+          <Button
+            onClick={toggleRun}
+            className={cn(
+              'h-12 min-w-36 gap-2 rounded-2xl text-base font-bold',
+              running
+                ? 'bg-white/10 text-zinc-100 hover:bg-white/15'
+                : 'bg-gradient-to-r from-emerald-400 to-teal-500 text-zinc-950 shadow-lg shadow-emerald-500/25 hover:from-emerald-300 hover:to-teal-400'
+            )}
+            aria-label={running ? 'Pause stopwatch' : 'Start stopwatch'}
+          >
+            {running ? (
+              <Pause className="size-5" aria-hidden />
+            ) : (
+              <Play className="size-5" aria-hidden />
+            )}
+            {running ? 'Pause' : 'Start'}
+          </Button>
+          <button
+            onClick={addLap}
+            disabled={!running}
+            aria-label="Record lap"
+            className={cn(
+              'flex size-12 items-center justify-center rounded-2xl border transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+              running
+                ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10'
+            )}
+          >
+            <Flag className="size-5" aria-hidden />
+          </button>
+        </div>
+      </div>
+
+      {/* -------- Laps -------- */}
+      {laps.length > 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Laps · {laps.length}
+            </p>
+            <p className="text-[10px] text-zinc-600">
+              <span className="font-bold text-emerald-300">Best</span> ·{' '}
+              <span className="font-bold text-rose-300">Worst</span> highlighted
+            </p>
+          </div>
+          <ol className={cn('max-h-72 space-y-1.5 pr-1', SCROLL_CLASS)}>
+            <AnimatePresence initial={false}>
+              {reversedLaps.map((l) => {
+                const i = l.n - 1
+                const isBest = i === bestIdx
+                const isWorst = i === worstIdx
+                return (
+                  <motion.li
+                    key={l.n}
+                    layout
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                    transition={SPRING}
+                    className={cn(
+                      'flex items-center gap-2 rounded-xl border px-3 py-2',
+                      isBest
+                        ? 'border-emerald-400/25 bg-emerald-500/10'
+                        : isWorst
+                          ? 'border-rose-400/25 bg-rose-500/10'
+                          : 'border-white/10 bg-white/[0.03]'
                     )}
-                    {l.n - 1 === worstIdx && (
-                      <Badge
-                        variant="outline"
-                        className="border-rose-500/40 text-[10px] text-rose-600 dark:text-rose-400"
-                      >
-                        Slowest
-                      </Badge>
+                  >
+                    <span className="w-16 shrink-0 text-xs font-bold uppercase tracking-wider text-zinc-400">
+                      Lap {l.n}
+                    </span>
+                    {isBest && (
+                      <span className="shrink-0 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                        Best
+                      </span>
                     )}
-                  </div>
-                  <div className="flex items-center gap-4 text-sm tabular-nums">
-                    <span
-                      className={cn(
-                        'w-20 text-right font-medium',
-                        l.n - 1 === bestIdx && 'text-primary',
-                        l.n - 1 === worstIdx && 'text-rose-600 dark:text-rose-400'
-                      )}
-                    >
-                      {formatStopwatch(l.split)}
-                    </span>
-                    <span className="w-20 text-right text-muted-foreground">
-                      {formatStopwatch(l.total)}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+                    {isWorst && (
+                      <span className="shrink-0 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+                        Worst
+                      </span>
+                    )}
+                    <span className="flex-1" />
+                    <div className="shrink-0 text-right">
+                      <p
+                        className={cn(
+                          'font-mono text-sm font-bold tabular-nums',
+                          isBest
+                            ? 'text-emerald-300'
+                            : isWorst
+                              ? 'text-rose-300'
+                              : 'text-zinc-100'
+                        )}
+                      >
+                        {formatStopwatch(l.split)}
+                      </p>
+                      <p className="font-mono text-[10px] tabular-nums text-zinc-500">
+                        {formatStopwatch(l.total)} total
+                      </p>
+                    </div>
+                  </motion.li>
+                )
+              })}
+            </AnimatePresence>
+          </ol>
+        </div>
+      ) : (
+        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-center text-xs text-zinc-500">
+          {running
+            ? 'Tap Lap to record a split — best and worst get highlighted.'
+            : 'Laps will appear here once you record them.'}
+        </p>
       )}
     </div>
   )
@@ -388,6 +658,7 @@ function formatTimer(ms: number): string {
 }
 
 function TimerTab() {
+  const { toast } = useToast()
   const [hours, setHours] = useState(0)
   const [minutes, setMinutes] = useState(5)
   const [seconds, setSeconds] = useState(0)
@@ -396,220 +667,385 @@ function TimerTab() {
   const [totalMs, setTotalMs] = useState<number | null>(null)
   const [finished, setFinished] = useState(false)
   const [needsDuration, setNeedsDuration] = useState(false)
+
   const endAtRef = useRef(0)
+  const audioRef = useRef<AudioContext | null>(null)
+  const alarmIntervalRef = useRef<number | null>(null)
+  const alarmUntilRef = useRef(0)
+  const beepCountRef = useRef(0)
 
-  const inputTotalMs = (hours * 3600 + minutes * 60 + seconds) * 1000
+  const stopAlarm = useCallback((): void => {
+    if (alarmIntervalRef.current !== null) {
+      window.clearInterval(alarmIntervalRef.current)
+      alarmIntervalRef.current = null
+    }
+  }, [])
 
+  /* AudioContext is created/resumed inside the Start tap (user gesture),
+     so the looping alarm works later — even offline, no permissions. */
+  const ensureAudio = useCallback((): void => {
+    try {
+      if (!audioRef.current) {
+        const w = window as unknown as {
+          AudioContext?: typeof AudioContext
+          webkitAudioContext?: typeof AudioContext
+        }
+        const Ctx = w.AudioContext ?? w.webkitAudioContext
+        if (!Ctx) return
+        audioRef.current = new Ctx()
+      }
+      if (audioRef.current.state === 'suspended') void audioRef.current.resume()
+    } catch {
+      /* audio unavailable */
+    }
+  }, [])
+
+  const startAlarm = useCallback((): void => {
+    stopAlarm()
+    const ctx = audioRef.current
+    alarmUntilRef.current = Date.now() + 20_000
+    beepCountRef.current = 0
+    const tick = (): void => {
+      if (Date.now() >= alarmUntilRef.current) {
+        stopAlarm()
+        return
+      }
+      haptic([260, 110, 260])
+      if (ctx && ctx.state === 'running') {
+        try {
+          const t0 = ctx.currentTime
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.type = 'sine'
+          osc.frequency.setValueAtTime(
+            beepCountRef.current % 2 === 0 ? 880 : 660,
+            t0
+          )
+          gain.gain.setValueAtTime(0.0001, t0)
+          gain.gain.exponentialRampToValueAtTime(0.28, t0 + 0.02)
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32)
+          osc.connect(gain)
+          gain.connect(ctx.destination)
+          osc.start(t0)
+          osc.stop(t0 + 0.34)
+        } catch {
+          /* ignore a failed beep */
+        }
+        beepCountRef.current += 1
+      }
+    }
+    tick()
+    alarmIntervalRef.current = window.setInterval(tick, 700)
+  }, [stopAlarm])
+
+  /* cleanup on unmount */
+  useEffect(
+    () => () => {
+      stopAlarm()
+      try {
+        void audioRef.current?.close()
+      } catch {
+        /* ignore */
+      }
+    },
+    [stopAlarm]
+  )
+
+  /* countdown ticker — keeps running even when the tab is hidden so the alarm fires */
   useEffect(() => {
     if (!running) return
-    const id = setInterval(() => {
+    const id = window.setInterval(() => {
       const rem = endAtRef.current - performance.now()
       if (rem <= 0) {
         setRemaining(0)
         setRunning(false)
         setFinished(true)
-        playBeep()
+        startAlarm()
+        toast({
+          title: "Time's up",
+          description: 'Your countdown finished — alarm rings for 20 seconds.',
+        })
       } else {
         setRemaining(rem)
       }
     }, 100)
-    return () => clearInterval(id)
-  }, [running])
+    return () => window.clearInterval(id)
+  }, [running, startAlarm, toast])
+
+  const inputTotalMs = (hours * 3600 + minutes * 60 + seconds) * 1000
+
+  const clearRun = (): void => {
+    setRemaining(null)
+    setTotalMs(null)
+    setFinished(false)
+    setNeedsDuration(false)
+  }
 
   const changeInput = (
     setter: (n: number) => void,
     raw: string,
-    min: number,
     max: number
   ): void => {
-    setter(clampInt(raw, min, max))
-    setRemaining(null)
-    setTotalMs(null)
-    setFinished(false)
-    setNeedsDuration(false)
+    setter(clampInt(raw, 0, max))
+    clearRun()
   }
 
   const applyPreset = (mins: number): void => {
+    haptic()
     setHours(0)
     setMinutes(mins)
     setSeconds(0)
-    setRemaining(null)
-    setTotalMs(null)
-    setFinished(false)
-    setNeedsDuration(false)
+    clearRun()
   }
 
-  const toggleRun = (): void => {
-    if (running) {
-      setRunning(false)
-      return
-    }
-    if (finished) {
-      const t = totalMs ?? 0
-      if (t <= 0) {
-        setNeedsDuration(true)
-        return
-      }
-      endAtRef.current = performance.now() + t
-      setRemaining(t)
-      setFinished(false)
-      setNeedsDuration(false)
-      setRunning(true)
-      return
-    }
-    const t = remaining ?? inputTotalMs
-    if (t <= 0) {
+  const start = (duration: number): void => {
+    if (duration <= 0) {
       setNeedsDuration(true)
       return
     }
-    endAtRef.current = performance.now() + t
-    if (totalMs === null) setTotalMs(t)
+    ensureAudio()
+    endAtRef.current = performance.now() + duration
+    setRemaining(duration)
+    setTotalMs((prev) => prev ?? duration)
     setFinished(false)
     setNeedsDuration(false)
     setRunning(true)
   }
 
+  const toggleRun = (): void => {
+    haptic()
+    if (running) {
+      setRemaining(Math.max(0, endAtRef.current - performance.now()))
+      setRunning(false)
+      return
+    }
+    if (finished) {
+      start(totalMs ?? inputTotalMs)
+      return
+    }
+    start(remaining ?? inputTotalMs)
+  }
+
   const reset = (): void => {
+    haptic()
+    stopAlarm()
     setRunning(false)
-    setRemaining(null)
-    setTotalMs(null)
-    setFinished(false)
-    setNeedsDuration(false)
+    clearRun()
   }
 
   const shownMs = remaining ?? inputTotalMs
-  const progress =
-    totalMs !== null && remaining !== null
-      ? Math.min(100, Math.max(0, ((totalMs - remaining) / totalMs) * 100))
-      : 0
+  const frac = finished
+    ? 1
+    : remaining !== null && totalMs
+      ? clamp01(remaining / totalMs)
+      : 1
+  const status = finished
+    ? "Time's up"
+    : running
+      ? 'Running'
+      : remaining !== null
+        ? 'Paused'
+        : 'Ready'
+  const inputsLocked = running || finished
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardContent className="p-6 text-center">
-          {finished ? (
-            <motion.p
-              initial={{ scale: 0.94, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
-              className="text-4xl font-semibold tracking-tight text-rose-600 sm:text-5xl dark:text-rose-400"
-              role="status"
-            >
-              Time&apos;s up!
-            </motion.p>
-          ) : (
-            <p
-              className={cn(
-                'text-5xl font-semibold tracking-tight tabular-nums sm:text-6xl',
-                remaining === null && 'text-muted-foreground'
-              )}
-              aria-label={`Timer ${formatTimer(shownMs)}`}
-            >
-              {formatTimer(shownMs)}
-            </p>
-          )}
-          <Progress value={progress} className="mx-auto mt-4 h-1.5 max-w-xs" />
-
-          <div className="mt-5 flex items-center justify-center gap-3">
-            <Button
-              variant="outline"
-              className="h-11 w-11 p-0"
-              onClick={reset}
-              disabled={remaining === null && !finished}
-              aria-label="Reset timer"
-            >
-              <RotateCcw className="h-4 w-4" aria-hidden />
-            </Button>
-            <Button
-              variant={finished ? 'default' : running ? 'secondary' : 'default'}
-              className="h-11 min-w-32 gap-2"
-              onClick={toggleRun}
-              aria-label={
-                finished ? 'Restart timer' : running ? 'Pause timer' : 'Start timer'
-              }
-            >
-              {running ? (
-                <Pause className="h-4 w-4" aria-hidden />
-              ) : (
-                <Play className="h-4 w-4" aria-hidden />
-              )}
-              {finished ? 'Restart' : running ? 'Pause' : 'Start'}
-            </Button>
-          </div>
-
-          {needsDuration && (
-            <p className="mt-3 text-xs text-rose-600 dark:text-rose-400" role="alert">
-              Set a duration above 0 to start the timer.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-4 p-4 sm:p-6">
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">Quick presets</h3>
-            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Timer presets">
-              {PRESETS.map((p) => (
-                <Button
-                  key={p}
-                  variant="secondary"
-                  className="h-11 px-4"
-                  onClick={() => applyPreset(p)}
-                  aria-label={`Set ${p} minute timer`}
+    <div className="space-y-4">
+      {/* -------- Ring + controls -------- */}
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-500/[0.12] via-transparent to-slate-500/[0.05] p-5 sm:p-6">
+        <div className="relative mx-auto size-56 max-w-full sm:size-64">
+          <svg viewBox="0 0 200 200" className="size-full -rotate-90" aria-hidden>
+            <defs>
+              <linearGradient id="clock-ring-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#34d399" />
+                <stop offset="100%" stopColor="#14b8a6" />
+              </linearGradient>
+              <linearGradient id="clock-ring-rose" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#fb7185" />
+                <stop offset="100%" stopColor="#f43f5e" />
+              </linearGradient>
+            </defs>
+            <circle
+              cx="100"
+              cy="100"
+              r="88"
+              fill="none"
+              stroke="rgb(255 255 255 / 0.07)"
+              strokeWidth="10"
+            />
+            <motion.circle
+              cx="100"
+              cy="100"
+              r="88"
+              fill="none"
+              stroke={finished ? 'url(#clock-ring-rose)' : 'url(#clock-ring-emerald)'}
+              strokeWidth="10"
+              strokeLinecap="round"
+              initial={false}
+              animate={{
+                pathLength: frac,
+                opacity: remaining === null && !finished ? 0.25 : 1,
+              }}
+              transition={{ type: 'spring', stiffness: 55, damping: 20 }}
+              className={cn(finished && 'animate-pulse')}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            {finished ? (
+              <>
+                <BellRing className="size-7 text-rose-300" aria-hidden />
+                <p className="mt-1 text-2xl font-black tracking-tight text-rose-300">
+                  Time&apos;s up
+                </p>
+                <p className="mt-0.5 text-[11px] text-zinc-500">
+                  Alarm rings for 20 s
+                </p>
+              </>
+            ) : (
+              <>
+                <p
+                  className={cn(
+                    'font-mono text-4xl font-bold tracking-tight tabular-nums sm:text-5xl',
+                    remaining === null && !running ? 'text-zinc-500' : 'text-zinc-50'
+                  )}
+                  aria-label={`Timer ${formatTimer(shownMs)}`}
                 >
-                  {p} min
-                </Button>
-              ))}
-            </div>
+                  {formatTimer(shownMs)}
+                </p>
+                <p
+                  className={cn(
+                    'mt-1 text-[11px] font-semibold uppercase tracking-widest',
+                    running
+                      ? 'text-emerald-400'
+                      : remaining !== null
+                        ? 'text-amber-400'
+                        : 'text-zinc-500'
+                  )}
+                >
+                  {status}
+                </p>
+              </>
+            )}
           </div>
+        </div>
 
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">Custom duration</h3>
-            <div className="mt-2 grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="timer-hours">Hours</Label>
-                <Input
-                  id="timer-hours"
-                  type="number"
-                  min={0}
-                  max={99}
-                  value={hours}
-                  onChange={(e) => changeInput(setHours, e.target.value, 0, 99)}
-                  className="h-11"
-                  aria-label="Timer hours"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="timer-minutes">Minutes</Label>
-                <Input
-                  id="timer-minutes"
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={minutes}
-                  onChange={(e) => changeInput(setMinutes, e.target.value, 0, 59)}
-                  className="h-11"
-                  aria-label="Timer minutes"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="timer-seconds">Seconds</Label>
-                <Input
-                  id="timer-seconds"
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={seconds}
-                  onChange={(e) => changeInput(setSeconds, e.target.value, 0, 59)}
-                  className="h-11"
-                  aria-label="Timer seconds"
-                />
-              </div>
+        <div className="mt-5 flex items-center justify-center gap-3">
+          {finished ? (
+            <>
+              <Button
+                onClick={reset}
+                className="h-12 gap-2 rounded-2xl bg-rose-500 px-6 font-bold text-white shadow-lg shadow-rose-500/25 hover:bg-rose-400"
+                aria-label="Dismiss alarm"
+              >
+                <Check className="size-4" aria-hidden /> Dismiss
+              </Button>
+              <Button
+                onClick={toggleRun}
+                variant="outline"
+                className="h-12 min-w-28 gap-2 rounded-2xl border-white/15 bg-white/5 font-bold hover:bg-white/10"
+                aria-label="Restart timer"
+              >
+                <Play className="size-4" aria-hidden /> Restart
+              </Button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={reset}
+                disabled={remaining === null}
+                aria-label="Reset timer"
+                className="flex size-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RotateCcw className="size-5" aria-hidden />
+              </button>
+              <Button
+                onClick={toggleRun}
+                className={cn(
+                  'h-12 min-w-36 gap-2 rounded-2xl text-base font-bold',
+                  running
+                    ? 'bg-white/10 text-zinc-100 hover:bg-white/15'
+                    : 'bg-gradient-to-r from-emerald-400 to-teal-500 text-zinc-950 shadow-lg shadow-emerald-500/25 hover:from-emerald-300 hover:to-teal-400'
+                )}
+                aria-label={running ? 'Pause timer' : 'Start timer'}
+              >
+                {running ? (
+                  <Pause className="size-5" aria-hidden />
+                ) : (
+                  <Play className="size-5" aria-hidden />
+                )}
+                {running ? 'Pause' : remaining !== null ? 'Resume' : 'Start'}
+              </Button>
+            </>
+          )}
+        </div>
+
+        {needsDuration && (
+          <p className="mt-3 text-center text-xs font-medium text-rose-300" role="alert">
+            Set a duration above zero to start.
+          </p>
+        )}
+      </div>
+
+      {/* -------- Presets + manual duration -------- */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          Quick presets
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Timer presets">
+          {PRESETS.map((p) => {
+            const activePreset = !inputsLocked && hours === 0 && minutes === p && seconds === 0
+            return (
+              <button
+                key={p}
+                onClick={() => applyPreset(p)}
+                disabled={inputsLocked}
+                aria-label={`Set ${p} minute timer`}
+                aria-pressed={activePreset}
+                className={cn(
+                  'h-11 min-w-[3.25rem] rounded-xl border px-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                  activePreset
+                    ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-300'
+                    : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white'
+                )}
+              >
+                {p}m
+              </button>
+            )
+          })}
+        </div>
+
+        <p className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          Custom duration
+        </p>
+        <div className="mt-2 grid grid-cols-3 gap-3">
+          {(
+            [
+              { id: 'timer-hours', label: 'Hours', value: hours, set: setHours, max: 99 },
+              { id: 'timer-minutes', label: 'Minutes', value: minutes, set: setMinutes, max: 59 },
+              { id: 'timer-seconds', label: 'Seconds', value: seconds, set: setSeconds, max: 59 },
+            ] as const
+          ).map((f) => (
+            <div key={f.id} className="space-y-1.5">
+              <label
+                htmlFor={f.id}
+                className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
+              >
+                {f.label}
+              </label>
+              <input
+                id={f.id}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={f.max}
+                value={f.value}
+                disabled={inputsLocked}
+                onChange={(e) => changeInput(f.set, e.target.value, f.max)}
+                className="h-12 w-full rounded-xl border border-white/10 bg-white/5 text-center font-mono text-lg font-bold tabular-nums text-zinc-100 outline-none transition-colors [appearance:textfield] [color-scheme:dark] focus:border-emerald-400/50 disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -618,24 +1054,100 @@ function TimerTab() {
 /* ClockTool — default export                                          */
 /* ================================================================== */
 
+type TabId = 'clock' | 'stopwatch' | 'timer'
+
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
+  { id: 'clock', label: 'Clock', icon: Clock },
+  { id: 'stopwatch', label: 'Stopwatch', icon: Watch },
+  { id: 'timer', label: 'Timer', icon: Hourglass },
+]
+
 export default function ClockTool() {
+  const [tab, setTab] = useState<TabId>('clock')
+
+  const switchTab = (t: TabId): void => {
+    if (t === tab) return
+    haptic()
+    setTab(t)
+  }
+
   return (
-    <Tabs defaultValue="world" className="gap-4">
-      <TabsList className="grid h-11 w-full grid-cols-3">
-        <TabsTrigger value="world">World Clock</TabsTrigger>
-        <TabsTrigger value="stopwatch">Stopwatch</TabsTrigger>
-        <TabsTrigger value="timer">Timer</TabsTrigger>
-      </TabsList>
-      {/* forceMount keeps stopwatch/timer state alive while switching tabs */}
-      <TabsContent value="world" forceMount className="mt-2 data-[state=inactive]:hidden">
-        <WorldClockTab />
-      </TabsContent>
-      <TabsContent value="stopwatch" forceMount className="mt-2 data-[state=inactive]:hidden">
-        <StopwatchTab />
-      </TabsContent>
-      <TabsContent value="timer" forceMount className="mt-2 data-[state=inactive]:hidden">
-        <TimerTab />
-      </TabsContent>
-    </Tabs>
+    <div className="mx-auto max-w-2xl">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={SPRING}
+        className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 text-zinc-100 shadow-[0_24px_60px_-24px_rgb(0_0_0/0.65)]"
+      >
+        {/* ---------------- Header + pill switcher ---------------- */}
+        <div className="relative overflow-hidden border-b border-white/5 bg-gradient-to-br from-slate-500/[0.12] via-transparent to-slate-600/[0.07] px-5 py-5">
+          <div className="flex items-center gap-4">
+            <span className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-slate-500 via-slate-600 to-slate-800 text-white ring-1 ring-white/25 shadow-[0_14px_32px_-10px_rgb(71_85_105/0.8),inset_0_1px_1px_rgb(255_255_255/0.35)]">
+              <Clock className="size-7" strokeWidth={1.9} aria-hidden />
+              <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-bold tracking-tight">Clock</h2>
+              <p className="text-xs text-zinc-400">
+                World time, stopwatch and countdowns.
+              </p>
+            </div>
+          </div>
+
+          <div
+            className="mt-5 flex rounded-2xl border border-white/10 bg-white/[0.04] p-1.5"
+            role="tablist"
+            aria-label="Clock tools"
+          >
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                id={`clock-tab-${t.id}`}
+                role="tab"
+                aria-selected={tab === t.id}
+                aria-controls={`clock-panel-${t.id}`}
+                onClick={() => switchTab(t.id)}
+                className={cn(
+                  'relative flex h-11 flex-1 items-center justify-center rounded-xl text-sm font-bold transition-colors',
+                  tab === t.id ? 'text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+                )}
+              >
+                {tab === t.id && (
+                  <motion.span
+                    layoutId="clock-tab-pill"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    className="absolute inset-0 rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.13] to-white/[0.06] shadow-[inset_0_1px_0_rgb(255_255_255/0.12)]"
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <t.icon className="size-4" aria-hidden />
+                  {t.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ---------------- Panels (kept mounted so state survives tab switches) ---------------- */}
+        <div className="p-4 sm:p-5">
+          {TABS.map((t) => (
+            <motion.div
+              key={t.id}
+              id={`clock-panel-${t.id}`}
+              role="tabpanel"
+              aria-labelledby={`clock-tab-${t.id}`}
+              initial={false}
+              animate={{ opacity: tab === t.id ? 1 : 0, y: tab === t.id ? 0 : 10 }}
+              transition={SPRING}
+              className={cn(tab !== t.id && 'hidden')}
+            >
+              {t.id === 'clock' && <WorldClockTab active={tab === 'clock'} />}
+              {t.id === 'stopwatch' && <StopwatchTab active={tab === 'stopwatch'} />}
+              {t.id === 'timer' && <TimerTab />}
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+    </div>
   )
 }

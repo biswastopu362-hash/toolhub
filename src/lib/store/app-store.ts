@@ -32,6 +32,11 @@ interface AppState {
   installed: string[]
   /** app id the App Store should deep-link to on next open, or null */
   storeDeepLink: string | null
+  /**
+   * App Lock configuration (D9). null = never set up.
+   * pinHash is a SHA-256 hex of the 4-digit PIN (never the PIN itself).
+   */
+  appLock: { enabled: boolean; pinHash: string; lockedApps: string[] } | null
 
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
@@ -47,6 +52,7 @@ interface AppState {
   uninstallApp: (id: string) => void
   isInstalled: (id: string) => boolean
   setStoreDeepLink: (id: string | null) => void
+  setAppLock: (lock: AppState['appLock']) => void
 }
 
 /** v2 → v3: installed apps didn't exist — derive them from the old layout. */
@@ -74,6 +80,7 @@ export const useAppStore = create<AppState>()(
       layoutMigrated: false,
       installed: DEFAULT_INSTALLED_IDS,
       storeDeepLink: null,
+      appLock: null,
 
       toggleFavorite: (id) =>
         set((s) => ({
@@ -115,10 +122,11 @@ export const useAppStore = create<AppState>()(
         })),
       isInstalled: (id) => get().installed.includes(id),
       setStoreDeepLink: (id) => set({ storeDeepLink: id }),
+      setAppLock: (lock) => set({ appLock: lock }),
     }),
     {
       name: 'toolhub-store',
-      version: 4,
+      version: 5,
       migrate: (persisted) => {
         const state = persisted as Partial<AppState>
         const next = { ...state, layout: state.layout ?? [], layoutMigrated: false }

@@ -32,10 +32,11 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { ControlCenter } from '@/components/control-center'
 import { InstallBanner } from '@/components/pwa/install-banner'
+import { LockGate } from '@/components/os/lock-gate'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useAppStore } from '@/lib/store/app-store'
-import { DEFAULT_WALLPAPER, WALLPAPERS, getWallpaper, type WallpaperId } from '@/lib/theme'
+import { DEFAULT_WALLPAPER, getWallpaper, type WallpaperId } from '@/lib/theme'
 import {
   addToFolderOp,
   createFolderOp,
@@ -138,6 +139,37 @@ export default function Home() {
 
   /* icon rect the current window zoomed out of (for the open animation) */
   const [winOrigin, setWinOrigin] = useState<IconRect | null>(null)
+  /* app currently waiting behind the App Lock PIN gate */
+  const [lockAppId, setLockAppId] = useState<string | null>(null)
+
+  /*
+   * Wallpaper rendering: only the LIVE layer (+ the outgoing one during a
+   * 700ms crossfade) is mounted. Stacking all 12 wallpapers used to cost
+   * ~10× the GPU memory on phones — the #1 mobile-lag offender.
+   */
+  const [prevWp, setPrevWp] = useState<WallpaperId | null>(null)
+  const [wpOn, setWpOn] = useState(false)
+  const wpRef = useRef(wallpaperId)
+  useEffect(() => {
+    if (wpRef.current === wallpaperId) return
+    setPrevWp(wpRef.current)
+    wpRef.current = wallpaperId
+    setWpOn(false)
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setWpOn(true))
+    })
+    const t = setTimeout(() => setPrevWp(null), 800)
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      clearTimeout(t)
+    }
+  }, [wallpaperId])
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setWpOn(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   const openApp = useCallback(
     (id: string, origin?: HTMLElement | null) => {
@@ -145,6 +177,12 @@ export default function Home() {
         navigator.vibrate?.(8)
       } catch {
         /* haptics unsupported */
+      }
+      /* D9 App Lock: locked apps open the PIN gate instead of the app */
+      const lock = useAppStore.getState().appLock
+      if (lock?.enabled && lock.lockedApps.includes(id)) {
+        setLockAppId(id)
+        return
       }
       setWinOrigin(tileRectOf(origin))
       useAppStore.getState().addRecent(id)
@@ -206,16 +244,19 @@ export default function Home() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative h-dvh w-full overflow-hidden">
-        {/* crossfading wallpaper stack (live layer animates, rest paused) */}
+        {/* live wallpaper (+ outgoing layer during a crossfade) */}
         <div aria-hidden className="pointer-events-none absolute inset-0">
-          {WALLPAPERS.map((w) => (
+          {prevWp && (
             <div
-              key={w.id}
-              data-off={wallpaperId === w.id ? 'false' : 'true'}
-              className={cn('wp-layer', w.className)}
-              style={{ opacity: wallpaperId === w.id ? 1 : 0 }}
+              aria-hidden
+              className={cn('wp-layer', getWallpaper(prevWp).className)}
+              style={{ opacity: 1 }}
             />
-          ))}
+          )}
+          <div
+            className={cn('wp-layer', getWallpaper(wallpaperId).className)}
+            style={{ opacity: wpOn ? 1 : 0 }}
+          />
           {/* film grain + soft top light + gentle edge vignette */}
           <div className="wp-noise absolute inset-0" />
           <div className={cn('wp-veil absolute inset-0', wpDark ? 'wp-veil-dark' : 'wp-veil-light')} />
@@ -270,6 +311,25 @@ export default function Home() {
         {/* Full-screen app window with iPad-style zoom transition */}
         <AnimatePresence>
           {showApp && app && <AppWindow key={app.id} app={app} onHome={goHome} originRect={winOrigin} />}
+        </AnimatePresence>
+
+        {/* App Lock PIN gate (D9) */}
+        <AnimatePresence>
+          {lockAppId && (
+            <LockGate
+              key="app-lock"
+              appId={lockAppId}
+              onUnlock={() => {
+                const id = lockAppId
+                setLockAppId(null)
+                if (id) {
+                  useAppStore.getState().addRecent(id)
+                  navigate(`#/app/${id}`)
+                }
+              }}
+              onCancel={() => setLockAppId(null)}
+            />
+          )}
         </AnimatePresence>
       </div>
     </MotionConfig>
@@ -611,7 +671,10 @@ function HomeItemView({
 
   return (
     <motion.div
-      layout
+      /* FLIP reflow only matters while rearranging icons — keeping `layout`
+         always-on forces projection measurement on every render and made
+         app open/close + scrolling janky on mid-range phones. */
+      layout={editing ? true : undefined}
       data-item-id={item.id}
       data-item-index={index}
       initial={{ opacity: 0, scale: 0.55 }}
@@ -744,7 +807,9 @@ function FolderTile({ item, hinted = false }: { item: HomeFolderItem; hinted?: b
     <span
       data-tile-id={item.id}
       className={cn(
-        'relative grid aspect-square w-full grid-cols-2 place-items-center gap-[7%] overflow-hidden bg-white/[0.16] p-[9%] ring-1 ring-white/25 backdrop-blur-xl',
+        /* no backdrop-blur here — a blur per folder tile made page swipes
+           janky on phones; the glass read comes from the alpha + gloss */
+        'relative grid aspect-square w-full grid-cols-2 place-items-center gap-[7%] overflow-hidden bg-white/[0.2] p-[9%] ring-1 ring-white/25',
         '[border-radius:26%]',
         'shadow-[0_10px_24px_-12px_rgb(0_0_0/0.32),inset_0_1px_1px_rgb(255_255_255/0.35)]',
         hinted && 'scale-[1.08] ring-2 ring-white/90'
@@ -780,10 +845,10 @@ function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>) {
     const el = ref.current
     if (!el) return
     const measure = () => {
-      // Tile size stays ~85-100px on every screen: columns grow with width
-      // (real-launcher behavior) instead of tiles growing with width.
-      const cols = Math.min(12, Math.max(4, Math.floor((el.clientWidth - 40) / 92)))
-      const rows = Math.min(6, Math.max(2, Math.floor((el.clientHeight - 176) / 112)))
+      // Tiles stay ~62-76px on every screen (real-launcher density):
+      // columns grow with width instead of tiles growing with width.
+      const cols = Math.min(12, Math.max(4, Math.floor((el.clientWidth - 40) / 68)))
+      const rows = Math.min(6, Math.max(2, Math.floor((el.clientHeight - 176) / 96)))
       setGrid((g) => (g.cols === cols && g.rows === rows ? g : { cols, rows }))
     }
     const ro = new ResizeObserver(measure)
@@ -1175,9 +1240,9 @@ function AppLibrary({
             key={cat.id}
             onClick={() => onOpenFolder(cat.id)}
             aria-label={`Open ${cat.name} folder, ${items.length} apps`}
-            className="group flex w-full max-w-[150px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            className="group flex w-full max-w-[138px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
-            <span className="grid w-full grid-cols-2 gap-1.5 rounded-[1.4rem] bg-white/[0.14] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20 backdrop-blur-xl">
+            <span className="grid w-full grid-cols-2 gap-1.5 rounded-[1.4rem] bg-white/[0.16] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20">
               {items.slice(0, 4).map((t) => (
                 <span
                   key={t.id}
@@ -1205,9 +1270,9 @@ function AppLibrary({
         <button
           onClick={onOpenStore}
           aria-label="Open the App Store to get more apps"
-          className="group flex w-full max-w-[150px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          className="group flex w-full max-w-[138px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
         >
-          <span className="grid w-full place-items-center rounded-[1.4rem] bg-white/[0.14] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20 backdrop-blur-xl">
+          <span className="grid w-full place-items-center rounded-[1.4rem] bg-white/[0.16] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20">
             <span className="grid aspect-square w-full place-items-center rounded-[0.7rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-sm ring-1 ring-white/20">
               <Plus className="h-[45%] w-[45%]" strokeWidth={2.2} aria-hidden />
             </span>
