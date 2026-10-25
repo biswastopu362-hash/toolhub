@@ -745,3 +745,26 @@ Stage Summary:
 - Day 1 deliverable shipped: a premium private finance app — budgets with traffic-light progress, category analytics, daily cashflow, fully offline IndexedDB persistence; recharts is now part of the app stack
 - Store catalog now 35 built-in apps; Expense Tracker is featured in daily + store search
 - Next: ROADMAP D2 — Notes v2 (folders, pinned notes, search, markdown-lite, colors, export)
+
+---
+Task ID: D2 (ROADMAP Day 2 — Notes v2)
+Agent: main (Z.ai Code)
+Task: Upgrade Notes to v2 — folders, pinned notes, search, markdown-lite rendering, note colors, export
+
+Work Log:
+- Rewrote src/components/tools/notes.tsx (~1.1k lines) in the dark-glass OS idiom (zinc-950 card, amber gradient header matching its registry identity)
+- v1 → v2 migration in place: loadNotes() fills createdAt/folderId/pinned/colorId defaults for old {id,title,body,updatedAt} records; verified in the browser by seeding a v1 note and reloading
+- Folders: chip scroller (All / Unfiled / custom folders with live counts) + Manage modal (8-emoji icon picker, name input, list with note counts, two-tap delete); deleting a folder moves its notes to Unfiled via a parent-owned callback (no direct localStorage mutation); new notes land in the active folder automatically
+- Pinned notes: pin toggle in the editor toolbar, PINNED section above others on the list, pin badge on cards
+- Search: live, global (ignores the folder filter — "searching everywhere" hint), matches title + body, premium no-match state
+- Markdown-lite: Write/Preview pill toggle; renders via react-markdown with dark-glass arbitrary-variant styling (headings, bold/italic, inline code, code blocks, lists, blockquote, hr, amber links) — reuses the ai-chat renderer pattern
+- Note colors: 6 tints (default/amber/emerald/sky/rose/violet) as color dots in the editor; tints card borders/backgrounds and draws an accent strip under the editor header
+- Export: per-note .md download (# title + body) via Blob with slug filename + toast confirmation
+- Registry bumped to version 2.0.0 with new description/keywords (folder, pin, markdown, export, color, notebook)
+- Gates: tsc clean, lint clean, mode-drift fixed (chmod 644)
+- agent-browser E2E (390×844, 360×740, 1280×800): v1 migration, markdown preview render, pin + emerald color, folder create (💼 Work) + move + counts, global search from inside a folder ("1 of 1 note matches · searching everywhere"), export toast, two-tap folder delete → notes back to Unfiled, reload persistence ({folderId, pinned, colorId, body} all intact); zero console/page errors, dev.log clean
+
+Stage Summary:
+- Day 2 shipped: Notes is now a Keep-class notebook — folders, pins, colors, markdown-lite preview and .md export — with automatic in-place v1 migration so no user data is lost on upgrade
+- Architecture decision: folder deletion is owned by the list component (single state owner); modals only emit intents
+- Next: ROADMAP D3 — Clock v2 (stopwatch laps, countdown alarm, world clock strip)

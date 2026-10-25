@@ -472,12 +472,14 @@ export const tools: Tool[] = [
   {
     id: 'notes',
     name: 'Notes',
-    description: 'Write, edit and organize notes — saved on your device',
+    description: 'Folders, pins, colors, markdown-lite preview and .md export — your private notebook',
+    tagline: 'Your notebook, upgraded',
     category: 'daily',
     icon: StickyNote,
     gradient: 'from-amber-300 via-amber-400 to-yellow-600',
     glow: '#fbbf24',
-    keywords: ['notes', 'write', 'memo', 'diary', 'notepad', 'text'],
+    keywords: ['notes', 'write', 'memo', 'diary', 'notepad', 'text', 'folder', 'pin', 'markdown', 'export', 'color', 'notebook'],
+    version: '2.0.0',
     Component: NotesTool,
   },
   {

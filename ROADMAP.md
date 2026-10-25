@@ -79,7 +79,7 @@ Target: **~80+ apps & features** by Day 90.
 
 - [x] **D1** Expense Tracker (daily) — income/expense entries, categories, monthly budget, charts
       (recharts), IndexedDB persistence, dark-glass finance look
-- [ ] **D2** Notes v2 — folders, pinned notes, search, markdown-lite rendering, note colors, export
+- [x] **D2** Notes v2 — folders, pinned notes, search, markdown-lite rendering, note colors, export
 - [ ] **D3** Clock v2 — stopwatch with laps, countdown timer with alarm ring, world clock strip
 - [ ] **D4** Translator (text) — AI-backed translation card, copy/share, language picker, history
 - [ ] **D5** TTS Studio (text) — text→speech with voice/speed picker, play + download where supported
