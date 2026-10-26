@@ -249,11 +249,16 @@ export default function Home() {
           {prevWp && (
             <div
               aria-hidden
+              data-off="true"
               className={cn('wp-layer', getWallpaper(prevWp).className)}
               style={{ opacity: 1 }}
             />
           )}
           <div
+            /* drift blobs pause while an app window covers the launcher —
+               an always-on composite of two full-screen layers burned GPU
+               on mid-range phones even when the wallpaper was invisible */
+            data-off={showApp || !wpOn ? 'true' : 'false'}
             className={cn('wp-layer', getWallpaper(wallpaperId).className)}
             style={{ opacity: wpOn ? 1 : 0 }}
           />
@@ -695,7 +700,7 @@ function HomeItemView({
       {/* jiggle lives on an inner wrapper so framer's FLIP transform is untouched */}
       <div
         ref={elRef}
-        className={cn('flex w-full flex-col items-center gap-1.5', editing && !dragging && 'jiggle')}
+        className={cn('flex w-full flex-col items-center gap-1', editing && !dragging && 'jiggle')}
         style={
           editing && !dragging
             ? { animationDelay: `${(index % 7) * 45}ms`, animationDuration: `${0.3 + (index % 3) * 0.03}s` }
@@ -725,7 +730,7 @@ function HomeItemView({
         ) : null}
         <span
           className={cn(
-            'w-full max-w-[5.5rem] truncate text-center text-[11.5px] font-medium leading-snug sm:text-xs',
+            'w-full max-w-[4.75rem] truncate text-center text-[10.5px] font-medium leading-snug sm:text-xs',
             onLight
               ? 'text-zinc-900 drop-shadow-[0_1px_2px_rgba(255,255,255,0.7)]'
               : 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]'
@@ -845,10 +850,10 @@ function useGridMetrics(ref: React.RefObject<HTMLDivElement | null>) {
     const el = ref.current
     if (!el) return
     const measure = () => {
-      // Tiles stay ~62-76px on every screen (real-launcher density):
-      // columns grow with width instead of tiles growing with width.
-      const cols = Math.min(12, Math.max(4, Math.floor((el.clientWidth - 40) / 68)))
-      const rows = Math.min(6, Math.max(2, Math.floor((el.clientHeight - 176) / 96)))
+      // Compact launcher density (~50-59px tiles on phones): columns grow
+      // with width instead of tiles growing with width.
+      const cols = Math.min(12, Math.max(4, Math.floor((el.clientWidth - 40) / 50)))
+      const rows = Math.min(6, Math.max(2, Math.floor((el.clientHeight - 176) / 88)))
       setGrid((g) => (g.cols === cols && g.rows === rows ? g : { cols, rows }))
     }
     const ro = new ResizeObserver(measure)
@@ -1240,7 +1245,7 @@ function AppLibrary({
             key={cat.id}
             onClick={() => onOpenFolder(cat.id)}
             aria-label={`Open ${cat.name} folder, ${items.length} apps`}
-            className="group flex w-full max-w-[138px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            className="group flex w-full max-w-[118px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             <span className="grid w-full grid-cols-2 gap-1.5 rounded-[1.4rem] bg-white/[0.16] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20">
               {items.slice(0, 4).map((t) => (
@@ -1270,7 +1275,7 @@ function AppLibrary({
         <button
           onClick={onOpenStore}
           aria-label="Open the App Store to get more apps"
-          className="group flex w-full max-w-[138px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          className="group flex w-full max-w-[118px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
         >
           <span className="grid w-full place-items-center rounded-[1.4rem] bg-white/[0.16] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20">
             <span className="grid aspect-square w-full place-items-center rounded-[0.7rem] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-sm ring-1 ring-white/20">

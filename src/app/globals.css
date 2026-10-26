@@ -387,6 +387,16 @@ html.amoled {
       animation: none;
     }
   }
+  /* Phones: keep the wallpaper fully static. Two full-screen pseudo-elements
+     animating forever is a constant GPU composite that made scrolling and
+     app transitions feel laggy on mid-range devices — the blobs are whisper
+     alpha anyway, the static mesh reads identically. */
+  @media (max-width: 767.98px) {
+    .wp-layer::before,
+    .wp-layer::after {
+      animation: none;
+    }
+  }
   @keyframes wp-drift-a {
     0% {
       transform: translate3d(-2%, -1.5%, 0) scale(1);
