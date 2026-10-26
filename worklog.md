@@ -1131,3 +1131,182 @@ Stage Summary:
 - Mobile: wallpaper animations static on phones + paused under app windows; launcher density now ~44-48px tiles (user-reported "icons too big" addressed decisively)
 - New reusable Office category; new IndexedDB namespaces: toolhub-flashcards/habits/decks/resumes/invoices/markdown (all write-through, quota-safe)
 - Next: ROADMAP D21 — Diff Checker (developer)
+---
+Task ID: D22-b
+Agent: regex-tester subagent
+Task: ROADMAP D22 — Regex Tester app component
+
+Work Log:
+- Read worklog house conventions + flashcards.tsx structural template (dark-glass shell, THIN_SCROLLBAR, haptic, spring header) + types.ts Tool contract; verified lucide exports (Regex, TriangleAlert, BookMarked, Sparkles, Copy) and Sheet bottom-side API before use
+- Pattern row: mono input inside decorative /slash/ delimiters (trailing shows live /flags), 6 flag chips (g i m s u y) h-11 aria-pressed toggles with active sky glow
+- Compiled regex via useMemo, try/catch → inline rose error banner (AnimatePresence height expand) showing e.message; UI never crashes, highlight pane falls back to plain text on error or empty pattern
+- Matches via useMemo: exec loop capped at 1000 (badge shows 1000+), zero-width match guard (lastIndex += 1) prevents infinite loops, non-global stops after first match ("first match only" chip); numbered groups comma-joined, named groups appended as name:value
+- Highlight pane: read-only ref'd div, segments memo builds alternating amber/rose ring-tinted spans as React elements (no dangerouslySetInnerHTML); test string > 200 KB → amber warning, highlighting skipped, matching/replace still run on full text
+- Match table: sticky Index/Match/Groups header, min-h-11 click rows, max-h-96 overflow-y-auto pr-1 + THIN_SCROLLBAR; row click centers the pane via offsetTop scrollTo and pulses the match (white ring + animate-pulse, timer ref cleaned up on unmount)
+- Replace section: native String.replace ($1, $&, $<name>), live emerald result pane, copy-to-clipboard with destructive-toast fallback + navigator.vibrate(12)
+- Cheat sheet: bottom Sheet (max-h-[70vh] overflow-y-auto, rounded-t-3xl zinc-950) with 6 grouped sections (Anchors / Char classes / Quantifiers / Groups & refs / Lookaround / Flags), mono token chips + one-line desc, 2-col on md+
+- Sample loader: pattern \b[\w.]+@[\w-]+\.[\w.]{2,}\b over a 3-email text, resets flags to g, toast confirmation
+- Persistence: localStorage hydrate-once + guarded write-through effect (toolhub-regex-pattern/-flags/-test/-replacement), all storage access try/catch
+- Gates: pure code writing per task rules (no tsc/lint/dev/browser); chmod 644; registry/types/shared files untouched
+
+Stage Summary:
+- D22-b deliverable shipped: complete offline Regex Tester — flag toggle chips, alternating amber/rose live match highlighting, jump-and-pulse from match table, capture + named group inspection, $1/$&/$<name> replace preview with copy, grouped cheat-sheet drawer, email sample loader, 200 KB highlight cap, 1000-match cap, zero-width loop guard
+- Storage: localStorage keys toolhub-regex-pattern, toolhub-regex-flags, toolhub-regex-test, toolhub-regex-replacement (no IndexedDB)
+- File: src/components/tools/regex-tester.tsx (718 lines, default export RegexTesterApp); registry entry (developer category, sky gradient) left for main agent
+---
+Task ID: D24-d
+Agent: jwt-decoder subagent
+Task: ROADMAP D24 — JWT Decoder app component
+
+Work Log:
+- Read worklog conventions + flashcards.tsx structure + Tool type; built a single self-contained component (no registry/shared-file edits), mirroring the canonical dark-glass shell (mx-auto max-w-2xl, rounded-3xl zinc-950, border-white/10, gradient header strip, module-level THIN_SCROLLBAR, haptic(12), framer-motion spring enter, useToast)
+- Crypto helpers: base64UrlEncode (TextEncoder) for sample building, base64UrlDecode (-→+, _→/, =-pad, atob → Uint8Array → TextDecoder utf-8), decodeJwt() returning typed ParseResult union — never throws; per-segment errors named (header/payload: empty/not valid base64url/not valid JSON/not a JSON object), wrong-segment-count banner with found count + JWE hint, empty-token idle hint
+- Samples generated at module load programmatically: HS256 header {"alg":"HS256","typ":"JWT"}, realistic iss/sub/aud/name/role/iat/nbf/exp/jti claims; one VALID (exp 2099-12-31, iat now-1h) and one EXPIRED (exp 2023-08-01) behind a "Load sample" picker (2 chips, AnimatePresence)
+- Colorized pretty JSON rendered as React elements only (JsonNode/JsonScalar, no innerHTML): keys sky, strings emerald, numbers amber, booleans rose, null dim; header card + payload card with max-h-96 overflow panes, alg family badge (HS violet/RS emerald/ES amber/Ed sky/other zinc)
+- Standard claims table (iss/sub/aud/exp/nbf/iat/jti → human name + description), friendly values: epoch guard (x<1e12 ? *1000 : x) → toLocaleString + relative chip ("in 2 months"/"3 days ago") + raw epoch; non-date claims type-guarded via claimText (unknown → safe string)
+- Status panel: 3 chips — Valid now (emerald, live countdown "expires in 4d 2h 11m"/"74y" via 30s setInterval, cleared on unmount + when token cleared), Expired (rose, "expired 2 years ago"), Not yet valid (amber); 'no-exp' graceful note when exp/nbf missing
+- Signature card: alg badge, raw segment (middle-truncated on mobile via truncateMiddle + sm: spans), HMAC/secret disclaimer (exact required sentence for HS*)
+- Privacy: amber shield banner ("Decoded 100% locally…"), opt-in "Remember last token" Switch (default OFF, restored on mount when a saved token exists) → localStorage 'toolhub-jwt-last' write-through; OFF always removes key (guarded hydration ref pattern prevents mount-order wipe)
+- Copy buttons (header JSON / payload JSON / full token) via navigator.clipboard + vibrate(12) + toasts; destructive toast fallback; TS strict: all helpers typed, claims unknown + type-guarded, no implicit any, interval + listeners cleaned up
+- Quality gates: no tsc/lint/dev/browser per task rules — manual review + node brace/paren/bracket balance check (all 0) + unused-import audit; no dangerouslySetInnerHTML
+
+Stage Summary:
+- D24-d deliverable: src/components/tools/jwt-decoder.tsx (913 lines) — privacy-first decode-only JWT inspector: 3-segment base64url parser with named per-segment errors, two bundled generated sample tokens (valid 2099 / expired 2023), colorized React-element JSON panes, standard-claims table with human dates + relative time, 3-badge live expiry panel ticking every 30s, signature card with honest no-verification note, copy actions, framer-motion enter animations, 360→1280 responsive with h-11/min-h-14 touch targets
+- Storage: localStorage 'toolhub-jwt-last' ONLY when user enables Remember (default OFF; removed when toggled off or token cleared); no IndexedDB, no network calls
+- Registry entry for id 'jwt-decoder' (category 'developer', sky/indigo gradient) left for main agent
+- QA risks: nested JsonNode uses div nesting for indent (deep objects indent 14px/level inside max-h-96 pane); countdown shows "74y" for 2099 sample (expected); expiry panel relative text is computed at render — static between 30s ticks by design
+---
+Task ID: D23-c
+Agent: hash-uuid subagent
+Task: ROADMAP D23 — Hash & UUID app component
+
+Work Log:
+- Read worklog conventions, flashcards.tsx shell (root dark-glass motion shell, THIN_SCROLLBAR, haptic, toast patterns), types.ts; studied base64-tool Tabs usage + button/badge/switch/textarea variants; confirmed site has a switchable light/dark theme, so shadcn theme-var defaults on TabsList/TabsTrigger/Switch/Input/Textarea are overridden with explicit zinc classes (Tailwind-4 trailing-! for variant-chained defaults)
+- Wrote src/components/tools/hash-uuid.tsx — single new file, no other file touched, registry left to main agent
+- Hash tab: textarea + "Hash a file" picker (file.arrayBuffer() → in-memory Uint8Array, never persisted; 512 MB hard cap toast; file chip w/ name+size+clear; file source takes precedence with amber hint), SHA-1/256/384/512 via crypto.subtle.digest feature-guarded (typeof crypto + crypto.subtle) with amber "secure context" notice card when unavailable, self-contained RFC 1321 MD5 (pure JS over bytes: 0x80 pad to ≡448 mod 512, 64-bit LE bit length, F/G/H/I rounds, precomputed sine table) labeled with "insecure" badge; 44px multi-select algo chips w/ Check indicator; 250ms debounced recompute keyed on [text, fileData, selected] with run-token race guard; global HEX⇄Base64 segmented toggle + Uppercase switch applied to display AND copies; per-row copy w/ Check flash; mobile middle-truncated digest + tap-to-expand (desktop full); >2MB file → "Hashing large file…" Loader2 shimmer; Verify input compared case-insensitively against all computed digests (hex + Base64) → green MATCH·<algo> / red MISMATCH / gray idle+pending Badges
+- MD5 correctness verified empirically against node:crypto (8 RFC text vectors + 301 random lengths 0–300 + boundary lengths 55/56/57/63/64/65/119/120/121/4096/65537 — all match)
+- UUID tab: big gradient Generate → crypto.randomUUID() with manual RFC 4122 v4 fallback (getRandomValues + version/variant bits; Math.random last resort); batch count input 1–100 default 8 (clamped on blur) + Generate batch → max-h-96 THIN_SCROLLBAR list, per-row copy + Copy all (newline-joined, formatted); Uppercase / No-dashes switches apply to display + copies; last 3 batches in memory w/ HH:MM:SS chips, tap-to-restore into list view; newest batch persisted to localStorage toolhub-hashuuid-lastbatch (tolerant JSON restore on mount, count backfilled); info chips RFC 4122 v4 + 122 random bits; haptics(12) + toasts on generate/copy
+- House style: rounded-3xl bg-zinc-950 border-white/10 shell + emerald/teal gradient header strip (Hash icon tile), framer-motion spring enter + row/batch fades, shadcn Button/Tabs/Input/Textarea/Switch/Badge, useToast, 44px targets, English UI, lucide icons all used, TS strict typed (no implicit any, tolerant localStorage parse, hydration-safe probe effects)
+
+Stage Summary:
+- File: src/components/tools/hash-uuid.tsx, 1095 lines, chmod 644; component HashUuidApp (default export); zero other files modified
+- Features: multi-select text/file hashing (SHA-1/256/384/512 + pure-JS RFC 1321 MD5) w/ secure-context guard, Hex⇄Base64 + uppercase formatting, per-row copy, tap-to-expand truncation, live verify badge, debounced recompute + large-file shimmer; UUID v4 single/batch (1–100) generator w/ format toggles, copy-all, restoreable recent-3 batches
+- Storage: localStorage 'toolhub-hashuuid-lastbatch' (JSON {at, uuids}, best-effort) only — no IndexedDB, file contents never persisted
+- Suggested registry entry (main agent): id 'hash-uuid', category 'developer', emerald/teal gradient
+---
+Task ID: D21-a
+Agent: diff-checker subagent
+Task: ROADMAP D21 — Diff Checker app component
+
+Work Log:
+- Read worklog conventions + flashcards.tsx structural patterns (zinc-950 glass shell, module THIN_SCROLLBAR, haptic helper, spring enter motion, useToast) + types.ts (Tool shape; registry untouched)
+- Built diff engine from scratch (no deps): Hirschberg linear-space LCS divide & conquer (O(n·m) time, O(min(n,m)) memory via Int32Array rows) for line diff + word-level LCS on whitespace tokens for intra-line highlighting; common prefix/suffix trim; options (ignore case / ignore trailing whitespace) flow into comparison while display always shows original text
+- Scratch logic gate (bun on /tmp extraction of the pure engine, no tsc/lint/dev): caught a real bug — middle-section op indices were not offset past the trimmed prefix → fixed buildLineOps(aiStart, biStart); then 2000 randomized property cases PASS (op-list reconstruction + LCS-optimality vs brute-force DP), plus patch-header cases (@@ -0,0 +1,3 @@ empty→file, @@ -1,2 +0,0 @@ whole-file delete, two distant hunks with 3-line context merging) and option matrix PASS
+- Views: side-by-side = two pane components with per-row tone classes (del red / add green / equal dim / empty placeholder), 1:1 row lockstep, vertical scroll sync via refs + rAF lock, horizontal scroll inside panes (min-w-0 + overflow-auto); unified = single pane with aNo/bNo gutters + −/＋ marker column; both max-h-96 overflow-auto + THIN_SCROLLBAR
+- Stats chips (+added / −removed / unchanged), amber >3000-line warning chip, Compare (debounced 400ms auto + manual, vibrate 12), Swap, Clear, Copy git-style unified patch (--- a/original / +++ b/changed / @@ headers, clipboard + execCommand fallback + toasts), Load sample (two package.json revisions, trailing-space line demos ignore-trailing toggle)
+- Persistence: localStorage toolhub-diff-left / toolhub-diff-right / toolhub-diff-opts (JSON {ignoreCase, ignoreTrailing, view}), debounced 300ms write-through, lazy-restore on mount with SSR guards
+- Only new file: src/components/tools/diff-checker.tsx ('use client', default export DiffCheckerApp); registry/types/globals/package.json untouched; chmod 644
+
+Stage Summary:
+- D21-a deliverable: complete offline Diff Checker — from-scratch LCS line+word diff engine, synced side-by-side + unified views, git-style patch copy, sample data, options, stats, large-input warning
+- File: src/components/tools/diff-checker.tsx (1069 lines); shadcn Button/Switch/Tabs + lucide icons only; framer-motion shell + per-compare subtle re-entry
+- Storage: localStorage keys toolhub-diff-left, toolhub-diff-right, toolhub-diff-opts; no IndexedDB
+- Registry entry for id 'diff-checker' (developer category, sky/indigo gradient, GitCompare icon) left for main agent
+---
+Task ID: D26-f
+Agent: code-editor subagent
+Task: ROADMAP D26 — Code Editor mini app component
+
+Work Log:
+- Read worklog conventions + hash-uuid.tsx shell (rounded-3xl bg-zinc-950 border-white/10 glass card, spring motion enter, emerald gradient header strip, module-level THIN_SCROLLBAR, haptic + toast + copyToClipboard house helpers), types.ts (Tool shape; registry untouched), and flashcards.tsx IDB block (dbPromise singleton + Promise-wrapped getAll/put/delete + alive-flag hydration + two-tap delete) which were copied as the house pattern
+- react-syntax-highlighter audit: zero existing usage in src/; package v15.6.6 present in node_modules; verified dist/esm/styles/prism/ (one-dark.js + index re-exporting oneDark) exists, so imported `Prism as SyntaxHighlighter` + `oneDark` from dist/esm; note @types/react-syntax-highlighter is NOT installed (prompt said it was) — project tsconfig sets noImplicitAny:false so the untyped import compiles as any; read the library's dist/esm/highlight.js to confirm merge order (customStyle wins over theme pre style; codeTagProps.style wins over wrapLongLines-injected whiteSpace) before designing the alignment contract
+- Alignment contract: one module SHARED_TEXT_STYLE (mono stack, 12.5px, lineHeight 1.6, tabSize 2) spread into ALL FOUR code layers — highlighter <pre> (customStyle: absolute inset-0, transparent bg, overflow hidden, padding 12), inner <code> (codeTagProps: display block, padding 0, background transparent), the transparent overlay <textarea> (padding 12, border 0) and the line-number gutter — plus wrap-derived whiteSpace (pre-wrap|pre) + overflowWrap (break-word|normal) computed once and passed identically to pre, code and textarea (textarea also gets wrap=soft|off); textarea onScroll mirrors scrollTop+scrollLeft onto the pre (via stageRef.querySelector('pre') since the lib doesn't forward refs) and scrollTop onto the gutter; a rAF effect re-syncs after edits/language/wrap changes
+- Editor: 8 language chips (JavaScript/TypeScript/JSON/HTML/CSS/Python/SQL/Bash → prism javascript/typescript/json/markup/css/python/sql/bash) with Check indicator; Tab key = 2 spaces via setRangeText + setCode; spellCheck/autoCapitalize/autoCorrect/autoComplete off; caret-emerald-300 + selection emerald wash; empty state = pointer-events-none centered FileCode2 card ("Open a snippet or start typing"); stats bar (lines/chars/language + Wrap Switch)
+- Snippet library (IndexedDB toolhub-snippets v1, store `snippets`, keyPath id, write-through): searchable list (max-h-96 overflow-y-auto pr-1 + THIN_SCROLLBAR), rows = name + language chip + relative updated date + two-tap trash confirm (3s reset), tap-to-open with unsaved-changes Dialog (Cancel / Discard & open / Save & open when a snippet is open); Save (updates current via IDB put) / Save as new (Dialog name input prefilled from first code line; duplicate names allowed but warned via toast); libLoaded gate keeps server render deterministic (no hydration mismatch from relative dates)
+- File actions: Download (Blob + per-language ext js/ts/json/html/css/py/sql/sh), Share (File + navigator.canShare files guard, fallback download + toast note, share-sheet cancel silent), Copy all (clipboard + execCommand fallback + vibrate 12), Clear (resets buffer + baseline, keeps library)
+- Draft persistence: localStorage `toolhub-code-draft` = JSON {language, code} debounced 400ms behind a draftReadyRef (set inside the mount-time setTimeout restore, which itself defers setState out of the effect body per react-hooks/set-state-in-effect); tolerant parse + language validation on restore
+- Quality gates: no tsc/lint/dev/browser per task rules — manual review + node brace/paren/bracket balance check (0 unclosed), unused-import audit (every icon/hook/import verified used), single section markers, chmod 644; TS strict style: all helpers explicitly typed, unknown-parsed IDB docs guarded by isSnippetDoc type predicate, ShareFilesNavigator cast for canShare, no implicit anys in own code
+- Only new file: src/components/tools/code-editor.tsx ('use client', default export CodeEditorApp); registry/types/globals/package.json untouched
+
+Stage Summary:
+- D26-f deliverable: src/components/tools/code-editor.tsx (1139 lines) — syntax-highlighted Code Editor mini: transparent-textarea-over-pre editing with pixel-matched shared style object, synced line-number gutter, 2-space Tab, word-wrap toggle; 8-language picker; IndexedDB snippet library (search/open/two-tap-delete/save/save-as-new with duplicate-name warning + unsaved-changes dialog); download/share-files/copy/clear; lines+chars stats; premium dark-glass shell with emerald/lime gradient header, framer-motion spring, haptics, 44px targets, 360→1280 responsive (library collapses above editor on mobile via lg:block + toggle button, half-width column on desktop)
+- Storage: IndexedDB `toolhub-snippets` v1 store `snippets` ({id,name,language,code,createdAt,updatedAt}, write-through) + localStorage `toolhub-code-draft` ({language,code}, debounced 400ms); no network calls
+- Registry entry for id 'code-editor' (category 'developer', emerald/lime gradient, Code2 icon) left for main agent
+- QA risks: line-number gutter aligns to logical lines — with Wrap ON a wrapped visual line shows one number for multiple rows (acceptable for a mini tool, numbers still track scroll); highlight re-runs on every keystroke (no debounce/virtualization — very large pastes may lag on low-end phones); react-syntax-highlighter ships without TS types (relies on project noImplicitAny:false); oneDark token colors on zinc-900 are theme-standard but unverified against our palette visually
+---
+Task ID: D27-g
+Agent: task-board subagent
+Task: ROADMAP D27 — Task Board (kanban) app component
+
+Work Log:
+- Read worklog conventions + flashcards.tsx structural patterns (zinc-950 glass shell + spring enter, module THIN_SCROLLBAR, dbPromise-singleton IDB wrappers, alive-flag hydration, two-tap confirms, haptic helper, useToast) + types.ts (registry untouched); verified @dnd-kit/core@6.3.1 / sortable@10.0.0 / utilities@3.2.2 exports from dist .d.ts (first dnd usage in repo) and lucide icon names against installed version (SquareKanban, not KanbanSquare)
+- Wrote src/components/tools/task-board.tsx — single new file, chmod 644, no other file touched, registry entry left to main agent
+- Boards: horizontal chip switcher (name + card count, amber active state) + inline "New board" name input (Enter/Esc/✓/✕), board settings Dialog (rename Save; delete via two-tap 3s confirm; last-board delete blocked with destructive toast), first-run empty state with "Load sample board" (6 realistic cards across columns, mixed priorities, one overdue −2d, one due today) + "New board"
+- 3 fixed columns To Do/Doing/Done with colored header strips (zinc/amber/emerald gradient, dot + uppercase label + count chip); thin overall progress bar in board header (done÷total, emerald→teal fill, "n/m done · pct%") + Pencil → board dialog
+- Cards: title (required) + optional note (line-clamp-2) + native date due + Low/Med/High priority chips (emerald/amber/rose); done column renders title struck-through; due badges: rose "Aug 12 · 2d late" (manual local-date parse, Math.round day diff), amber solid "Today", amber outline ≤3d, neutral zinc otherwise
+- dnd-kit: PointerSensor distance 6 + KeyboardSensor w/ sortableKeyboardCoordinates, closestCorners, MeasuringFrequency.Always; useSortable per card (verticalListSortingStrategy, SortableContext per column) + useDroppable column bodies (empty columns get dashed "Drop tasks here" / "Release to drop"); onDragOver does cross-column live preview (guarded by column-change, state-only), onDragEnd commits order via remove+insert (arrayMove-equivalent) and write-through persists, sig() diff skips no-op writes, onDragCancel restores drag-start snapshot via ref; DragOverlay amber-ringed rotated ghost; post-drag click suppressed via timestamp ref so tap-to-edit stays reliable; fresh-state refs (boardsRef/activeBoardIdRef) avoid stale closures between over→end
+- Touch/keyboard fallback: size-11 ChevronLeft/Right buttons on every card (pointerdown stopPropagation so they never start a drag) move to prev/next column end; cards use touch-manipulation + cursor-grab
+- Add/edit: per-column inline composer (+ Add task → title/note/date/priority chips, Enter submits, Esc closes, auto-resets) + tap card → editor Dialog (title/note Textarea/due native date + clear/priority picker/delete two-tap), title required gates Save
+- IndexedDB write-through: DB toolhub-taskboard v1, store boards keyPath id, Promise-wrappered get/put/delete off a dbPromise singleton, write on every mutation (cards persist on drag end/chevron/composer/editor only); tolerant restore sanitizes shape (id/name/title strings, column/priority enums, ISO due regex, finite numbers) + normalizeOrders reindexes 0..n-1 per column
+- House style: rounded-3xl bg-zinc-950 border-white/10 shell, amber/orange gradient header strip + icon tile (habit-tracker precedent), framer-motion spring shell + staggered column enters, shadcn Button/Badge/Dialog/Input/Textarea (dark-glass INPUT_CLS/TEXTAREA_CLS overrides incl. dark:bg-white/5 to beat variant-chained defaults, [color-scheme:dark] native date), THIN_SCROLLBAR, vibrate(12)/[12,30,12] on move/complete, English UI, 44px targets (size-11 chevrons/buttons, h-11 inputs/chips)
+- Responsive 360→1280: columns = horizontal snap-x scroll panes (min-w-[85%] snap-center) on mobile → md:grid-cols-3; card lists max-h-96 overflow-y-auto pr-1 + THIN_SCROLLBAR; quality gates: no tsc/lint/dev/browser per task rules — node brace/paren/bracket balance (clean), unused-import + TODO/console audit (clean)
+
+Stage Summary:
+- File: src/components/tools/task-board.tsx, 1527 lines; default export TaskBoardApp; zero other files modified
+- Features: multi-board kanban (switcher/new/rename/delete w/ last-board guard), 3 fixed colored columns w/ counts + overall progress bar, drag & drop within/across columns (dnd-kit sortable + droppable bodies + DragOverlay ghost + distance-6 activation), chevron move fallback, due badges (overdue/today/soon/future), priority chips, inline composer + editor dialog w/ delete, first-run sample board, per-column empty hints, haptics + toasts
+- Storage: IndexedDB toolhub-taskboard v1, store 'boards' (keyPath id), doc { id, name, createdAt, cards: Card[] }, Card { id, title, note, due?, priority: 'low'|'med'|'high', column: 'todo'|'doing'|'done', order (int, recomputed), createdAt, doneAt? } — no localStorage, no network
+- Suggested registry entry (main agent): id 'task-board', category 'daily', amber/orange gradient, SquareKanban icon
+- QA risks: on touch, vertical card drags may be claimed by scroll (touch-manipulation) — chevrons are the reliable mobile move path; dropping outside any droppable keeps the cross-column preview state and persists it (design choice); cross-column drop at exact end when hovering the column body below cards; dialog date input relies on [color-scheme:dark] inside portal; parallel agents may have appended worklog entries concurrently
+---
+Task ID: D28-h
+Agent: business-card subagent
+Task: ROADMAP D28 — Business Card Maker app component
+
+Work Log:
+- Read worklog conventions, flashcards.tsx structural shell (zinc-950 glass root, spring enter, module THIN_SCROLLBAR, dbPromise singleton IDB wrappers, preserve-3d flip, useToast), types.ts Tool shape; mirrored jspdf import pattern from invoice-generator (named `import { jsPDF } from 'jspdf'`); verified all lucide icons exist via node require check
+- Wrote src/components/tools/business-card.tsx — single new file, no other file touched, registry left to main agent; no new deps
+- WYSIWYG system: card is a fixed 1050×600 px design canvas (3.5×2in @300DPI); preview renders the SAME CardFace DOM inside ScaledStage (ResizeObserver-driven origin-top-left scale) and template MiniThumbs reuse the same component; all layout numbers shared between DOM (absolute px inline styles) and canvas renderer
+- 6 templates (minimal / bold-accent / gradient / mono / elegant / corporate), each with distinct front + back layouts, shared Theme palette resolved per accent; back side = icon contact rows (Smartphone/Mail/Globe/MapPin in DOM, matching lucide-style 24-grid stroke paths drawn on canvas), accent strip, monogram-or-logo block
+- Pure canvas renderer drawCard(ctx, side, data, template, accentHex, logoEl?) used by both exports: rounded-rect/frames/circles, top-anchored text with shrink-to-fit (−20%) + ellipsis, manual char-by-char tracked text (mono template), monogram circle/square, gradient fills, contain-fit logo drawing
+- Exports: PNG front / PNG back via 1050×600 offscreen canvas → dataURL download (logo awaited through new Image() onload helper); PDF via jsPDF landscape unit 'px' format [1050,600], rasterized pages, Switch toggles 1- vs 2-page deck; slug(name)-card.pdf + slug(name)-card-<side>.png; vibrate(12) + toasts, destructive failure paths
+- 3D flip preview: perspective wrapper + preserve-3d motion.div rotateY 0⇄180, backface-hidden faces, tap/Enter/Space flip + explicit Front/Back segmented toggle + Flip button
+- Saved cards: IndexedDB toolhub-businesscard v1 store 'cards' (keyPath id), write-through on Save / Save as new / Delete; tolerant normalizeCard hydration with alive flag; switcher chips (accent dot + name), Plus → blank card, dirty JSON-compare badge; sample card (Ava Thornton — Creative Director, gradient/fuchsia) seeded on first run only, guarded by localStorage toolhub-businesscard-seeded so user-deleted cards stay deleted
+- Editor: collapsible sections (template picker chips w/ live mini thumbnails in max-h-96 scroll list, details, contact, accent swatches size-11 + custom hex input with live validity icon, logo upload → canvas downscale ≤256px → PNG dataURL, remove); h-11 inputs/buttons, 360→1280 responsive grid (preview stacks above editor on mobile)
+- Quality gates: no tsc/lint/dev/browser per task rules — manual review + node brace/paren/bracket balance check (all 0) + unused-import audit + no-semicolon style match; hydration uses async alive-flag pattern, scale effects use ResizeObserver callback + setTimeout(0) wrapper (react-hooks/set-state-in-effect safe); hex input sync uses render-phase adjust pattern (no effect setState)
+
+Stage Summary:
+- D28-h deliverable: src/components/tools/business-card.tsx (2080 lines, chmod 644); default export BusinessCardApp; zero other files modified
+- Features: WYSIWYG 1050×600 card editor, 6 templates × front/back, live mini-thumbnail picker, 3D flip + front/back toggles, accent presets + custom hex, logo upload (≤256px canvas downscale), PNG front/back @300DPI, 1–2 page landscape PDF (jsPDF), saved-card switcher with save/save-as-new/delete-confirm (Dialog), first-run sample card
+- Storage: IndexedDB 'toolhub-businesscard' v1 store 'cards' — doc { id, name, updatedAt, template, accent, logo?: dataURL, data: { name, title, company, tagline, phone, email, website, address } }; localStorage 'toolhub-businesscard-seeded' first-run guard only; no network calls
+- Registry entry for id 'business-card' (category 'productivity', fuchsia/pink gradient, IdCard icon) left for main agent
+- QA risks: DOM ellipsis (CSS) vs canvas shrink-then-ellipsis can differ ~1 line for very long values; canvas y-offset compensation is ±2-3px vs CSS line boxes; CSS letter-spacing adds trailing space (centered mono text shifts ≤1.5px vs canvas); SVG logos without intrinsic size may fail to draw (toast fallback keeps monogram); deleting all cards then reloading does NOT re-seed (by design, seed flag persists); flip faces use clientWidth-based scaling — first paint may briefly show 0.28 fallback scale
+---
+Task ID: D25-e
+Agent: cron-timestamp subagent (timed out post-write; entry reconstructed by main agent)
+Task: ROADMAP D25 — Cron & Timestamp app component
+
+Work Log:
+- Agent wrote src/components/tools/cron-timestamp.tsx (1519 lines) but hit the task-tool context deadline before reporting; file verified complete (clean component close, default export)
+- Main agent fixed lint/type issues: CronFieldError title prop now renders err.message
+- Cron parser: 5-field (m h dom mon dow), *, */n, a-b, lists, a-b/n combos, @daily/@hourly/@weekly/@monthly/@yearly macros, 0-7 dow (7≡0)
+- Human description generator (from scratch): every-N, at-time(s), ranges, lists, dom/month/dow natural joins
+- Next 5 runs from now (local tz) with minute-iteration + field skip, 366-day cap; presets chips; localStorage toolhub-cron-expr
+- Timestamp tab: live ticking epoch clock (interval cleaned up), epoch⇄local/UTC/ISO/relative/weekday conversions both directions, copy buttons, localStorage toolhub-ts-*
+
+Stage Summary:
+- D25 deliverable shipped: cron-timestamp.tsx 1519 lines, default export CronTimestampApp; registry entry added by main agent (developer, CalendarClock, teal/emerald, v1.0.0)
+- Gates at batch end: tsc clean, lint clean (see D21-D29 batch entry)
+---
+Task ID: D29-i
+Agent: qr-studio-v2 subagent (timed out post-write; entry reconstructed by main agent)
+Task: ROADMAP D29 — QR Studio v2 (qr-generator upgrade)
+
+Work Log:
+- Agent rewrote src/components/tools/qr-generator.tsx in place (1973 lines) but hit the task-tool context deadline before reporting; file verified complete, default export QrGeneratorTool preserved
+- Main agent fixed type issues: WifiMap/ContactMap index signatures for Record<string, number> constraint, readColMap generic assignment cast
+- v1 features preserved: Link/Text QR, Wi-Fi QR (WIFI: payload with escaping), PNG download, qrcode dep
+- v2 additions: vCard 3.0 contact QR (form→escaped VCARD string), Bulk CSV→QR (header toggle, per-type column mapping wifi/contact/text, 60-row cap, per-row PNG + download-all staggered), History (IndexedDB toolhub-qr v1 store history: {id,type,label,payload,createdAt}, tap-to-restore into matching tab, copy/delete/clear), EC level L/M/Q/H, size 512/1024
+- Registry metadata updated: description/keywords v2 scope, version 2.0.0 (id unchanged)
+
+Stage Summary:
+- D29 deliverable shipped: QR Studio v2 in place; IndexedDB namespace toolhub-qr; gates at batch end: tsc clean, lint clean

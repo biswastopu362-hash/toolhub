@@ -106,18 +106,18 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D18** Resume Builder (productivity) — 3 templates, sectioned form, live A4 preview, PDF export
 - [x] **D19** Invoice Generator (productivity) — line items, tax/discount, logo upload, branded PDF
 - [x] **D20** Markdown Studio (text) — editor + live preview, export HTML/PDF, draft autosave
-- [ ] **D21** Diff Checker (developer) — side-by-side + unified view, line/word highlight, copy result
-- [ ] **D22** Regex Tester (developer) — pattern input, flags, match table, live highlighting,
+- [x] **D21** Diff Checker (developer) — side-by-side + unified view, line/word highlight, copy result
+- [x] **D22** Regex Tester (developer) — pattern input, flags, match table, live highlighting,
       cheat-sheet drawer
-- [ ] **D23** Hash & UUID (developer) — SHA-1/256/512, MD5 via WebCrypto where possible, UUID v4,
+- [x] **D23** Hash & UUID (developer) — SHA-1/256/512, MD5 via WebCrypto where possible, UUID v4,
       batch generate + copy
-- [ ] **D24** JWT Decoder (developer) — decode header/payload, expiry warnings, no verification (privacy)
-- [ ] **D25** Cron & Timestamp (developer) — cron expression parser with human description + next runs;
+- [x] **D24** JWT Decoder (developer) — decode header/payload, expiry warnings, no verification (privacy)
+- [x] **D25** Cron & Timestamp (developer) — cron expression parser with human description + next runs;
       epoch ⇄ date converter
-- [ ] **D26** Code Editor mini (developer) — syntax-highlighted editing, snippet library, share as file
-- [ ] **D27** Task Board (daily) — kanban columns, drag between columns, due dates; complements reminders
-- [ ] **D28** Business Card Maker (design-studio template pack) — 6 templates, front/back, PNG/PDF
-- [ ] **D29** QR Studio v2 (utilities) — WiFi QR, vCard contact QR, bulk CSV→QR, scan history
+- [x] **D26** Code Editor mini (developer) — syntax-highlighted editing, snippet library, share as file
+- [x] **D27** Task Board (daily) — kanban columns, drag between columns, due dates; complements reminders
+- [x] **D28** Business Card Maker (design-studio template pack) — 6 templates, front/back, PNG/PDF
+- [x] **D29** QR Studio v2 (utilities) — WiFi QR, vCard contact QR, bulk CSV→QR, scan history
 - [ ] **D30** Phase 2 QA Day — audit + fix + tag **v1.2**
 
 ## Phase 3 — Days 31–45 · "Media & Creative Powerhouse"
