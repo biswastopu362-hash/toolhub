@@ -1104,3 +1104,30 @@ Stage Summary:
 - D18 deliverable shipped: a complete offline Resume Builder — collapsible sectioned editor with reorderable rows, three live A4 paper templates with one-page overflow hint, vector PDF export with automatic pagination, system print-dialog view, JSON device transfer, and multi-resume IndexedDB persistence
 - Storage: IndexedDB 'toolhub-resumes' (v1, store 'resumes', keyPath 'id'), shape { id, name, updatedAt, template, data }; no localStorage keys
 - Export paths: <slug(name)>.pdf (jsPDF vector, A4 portrait), <slug(name)>.json (full Resume shape, re-importable); registry entry for id 'resume-builder' (productivity, slate gradient) left for main agent
+---
+Task ID: PERF-2 + D11-D20 (ROADMAP Days 11-20 batch + second mobile perf/icon pass)
+Agent: main (Z.ai Code) + 8 parallel subagents (D11,D12,D13,D14,D16+D17,D18,D19,D20)
+Task: Ship ROADMAP D11-D20 (Flashcards, Habit Tracker, Compass & Level, Metronome & Tuner, QA Day v1.1, Presentation Studio, Resume Builder, Invoice Generator, Markdown Studio) + deeper mobile lag fix + smaller launcher icons
+
+Work Log:
+- PERF-2: wallpaper drift blobs (2x full-screen pseudo-elements, 58s/74s infinite) were compositing 24/7 on phones — now `animation: none` under 768px + `data-off` pauses them whenever an app window covers the launcher (they kept burning GPU behind open apps)
+- PERF-2 icons: grid divisor 68->50 / rows 96->88 — 7 cols ~44px tiles @390, 6 cols ~48px @360 (was 5 cols ~62px); labels 10.5px max-w-[4.75rem]; App Library cards 138->118px; verified screenshots at 360/390
+- Ops incident: 4 parallel tsc runs + dev server + Chrome OOM-killed next-server (2.1GB RSS on 4GB box); dev server now double-fork detached (survives tool-call cleanup); dev-only stale-chunk races resolved via agent-browser close resets
+- D11 Flashcards (subagent): decks/cards IndexedDB 'toolhub-flashcards', 3D flip (preserve-3d), Again/Got-it grading with wrong-card re-queue, session summary with first-try accuracy, shuffle pref, keyboard shortcuts; E2E: deck+2 cards -> study -> flip -> Again re-queue (2 of 3) -> Got it -> summary 50%/GOT IT 2/AGAIN 1 persisted
+- D12 Habit Tracker (subagent): IndexedDB 'toolhub-habits', today ring x/y, streaks with yesterday-grace, milestone toasts, week dots, 30-day heatmap, 16-emoji/10-color editor; E2E: create "Drink water" -> check -> 1/1 100% streak 1d -> heatmap Best/Total/Week chips -> reload persisted
+- D13 Compass & Level (subagent): SVG rose w/ shortest-path spring rotation, deviceorientationabsolute->fallback, iOS requestPermission in gesture, 1.6s demo fallback (draggable dial), bullseye level with flat<=1.5deg haptic; E2E verified both tabs + permission/demo paths
+- D14 Metronome & Tuner (subagent): Chris Wilson scheduler (25ms lookahead), accent 880 vs 660 clicks, 2/4 3/4 4/4 6/8, tap tempo, beat dots via rAF drawer synced to audio clock; tuner = autocorrelation pitch detect, cents gauge, 432-444Hz reference; E2E: start->Stop + dots pulse, tuner "No microphone" graceful card (fixed self-referencing rAF loop + set-state-in-effect)
+- D15 QA Day: catalog sweep — all 45 apps opened via hash router, every AppWindow dialog rendered with content, zero console errors, dev.log clean; fixed compass lint (ref mirrors in effect, lazy pref init), flashcards (summary transition in grade handler), metronome; tagged v1.1
+- D16+D17 Presentation Studio (subagent): normalized 0-1 slide model, 16:9 canvas w/ drag/resize/double-tap edit, text/rect/ellipse/line/image (<=1280px downscale), 6 themes, filmstrip sorter, fullscreen presenter w/ next-thumb + keyboard, jsPDF vector export (960x540), JSON import/export; IndexedDB 'toolhub-decks'
+- D18 Resume Builder (subagent): 6 collapsible sections w/ row reorder, 3 templates (Classic serif/Modern sidebar/Compact), live white A4 preview w/ overflow hint, jsPDF vector A4 w/ pagination + print view, sample data; IndexedDB 'toolhub-resumes'
+- D19 Invoice Generator (subagent): line items + Intl currency (৳$€£₹¥), %/flat discount + labeled tax, logo <=256px dataURL, status Draft/Sent/Paid, accent-colored paper preview w/ PAID stamp, jsPDF multi-page w/ repeating header; IndexedDB 'toolhub-invoices'
+- D20 Markdown Studio (subagent): react-markdown live preview w/ dark-glass component map, 8-button formatting toolbar (module-level TOOL_ITEMS + runTool dispatch — fixed react-hooks/refs false positive), 600ms autosave + "Saved HH:MM", Export HTML (Dark/Paper) + PDF print + PDF quick (jspdf), word/char/read stats; IndexedDB 'toolhub-markdown'
+- Registry: 8 new entries (catalog 49); NEW category 'productivity' (name "Office", Briefcase) added to types + toolCategories; sheet-studio + pdf-tools moved media->productivity per roadmap
+- Fix: presentation-studio list/editor lacked the standard zinc-950 shell card -> white-on-white text in light theme; wrapped root in dark-glass shell, verified
+- Gates: bunx tsc --noEmit clean; bun run lint clean (0 errors, 0 warnings); mode-drift chmod 644; commits f4b0c5f (perf), bae4f57 (D11-14), 9fd2b75 (D15-20)
+
+Stage Summary:
+- Days 11-20 complete: catalog now 49 built-in apps (+8), Phase 1 closed with tag v1.1, Phase 2 productivity suite opened with 4 Office-class apps sharing jsPDF vector export
+- Mobile: wallpaper animations static on phones + paused under app windows; launcher density now ~44-48px tiles (user-reported "icons too big" addressed decisively)
+- New reusable Office category; new IndexedDB namespaces: toolhub-flashcards/habits/decks/resumes/invoices/markdown (all write-through, quota-safe)
+- Next: ROADMAP D21 — Diff Checker (developer)

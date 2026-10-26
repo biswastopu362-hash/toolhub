@@ -90,22 +90,22 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D9** App Lock (platform) — optional PIN gate for chosen apps, lock settings integration
 - [x] **D10** Backup & Restore (platform) — export all localStorage/IndexedDB app data to a JSON
       file; restore on a new device; privacy note (file never leaves device)
-- [ ] **D11** Flashcards (daily) — deck builder, flip animation, self-grading, progress stats
-- [ ] **D12** Habit Tracker (daily) — habits grid, streaks, 30-day heatmap, daily check reminders
-- [ ] **D13** Compass & Level (utilities) — device orientation, bubble level, true-north readout
-- [ ] **D14** Metronome & Tuner (media) — BPM tap, time signatures, mic pitch tuner
-- [ ] **D15** Phase 1 QA Day — full audit: tsc/lint/browser sweep of ALL apps ×390/1280, fix
+- [x] **D11** Flashcards (daily) — deck builder, flip animation, self-grading, progress stats
+- [x] **D12** Habit Tracker (daily) — habits grid, streaks, 30-day heatmap, daily check reminders
+- [x] **D13** Compass & Level (utilities) — device orientation, bubble level, true-north readout
+- [x] **D14** Metronome & Tuner (media) — BPM tap, time signatures, mic pitch tuner
+- [x] **D15** Phase 1 QA Day — full audit: tsc/lint/browser sweep of ALL apps ×390/1280, fix
       everything, tag **v1.1**
 
 ## Phase 2 — Days 16–30 · "Productivity Suite" (Office-class coverage)
 
-- [ ] **D16** Presentation Studio (productivity) — slide editor reusing design-studio engine,
+- [x] **D16** Presentation Studio (productivity) — slide editor reusing design-studio engine,
       16:9 canvas, text/shapes/images, slide sorter
-- [ ] **D17** Presentation Studio II — 6 pro templates, presenter mode (fullscreen + next-slide),
+- [x] **D17** Presentation Studio II — 6 pro templates, presenter mode (fullscreen + next-slide),
       export PDF deck
-- [ ] **D18** Resume Builder (productivity) — 3 templates, sectioned form, live A4 preview, PDF export
-- [ ] **D19** Invoice Generator (productivity) — line items, tax/discount, logo upload, branded PDF
-- [ ] **D20** Markdown Studio (text) — editor + live preview, export HTML/PDF, draft autosave
+- [x] **D18** Resume Builder (productivity) — 3 templates, sectioned form, live A4 preview, PDF export
+- [x] **D19** Invoice Generator (productivity) — line items, tax/discount, logo upload, branded PDF
+- [x] **D20** Markdown Studio (text) — editor + live preview, export HTML/PDF, draft autosave
 - [ ] **D21** Diff Checker (developer) — side-by-side + unified view, line/word highlight, copy result
 - [ ] **D22** Regex Tester (developer) — pattern input, flags, match table, live highlighting,
       cheat-sheet drawer
