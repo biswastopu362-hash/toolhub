@@ -1015,11 +1015,11 @@ export default function DiffCheckerApp() {
             </div>
           ) : (
             <Tabs value={view} onValueChange={(v) => updateView(v === 'unified' ? 'unified' : 'split')}>
-              <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl border border-white/10 bg-white/[0.04] p-1">
-                <TabsTrigger value="split" className="gap-1.5 text-xs sm:text-sm">
+              <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl border border-white/10 bg-white/[0.04] p-1 text-zinc-400">
+                <TabsTrigger value="split" className="h-full rounded-lg text-xs font-semibold text-zinc-500! shadow-none data-[state=active]:bg-white/10! data-[state=active]:text-white! data-[state=active]:shadow-none! sm:text-sm">
                   <Columns2 className="size-4" aria-hidden /> Side-by-side
                 </TabsTrigger>
-                <TabsTrigger value="unified" className="gap-1.5 text-xs sm:text-sm">
+                <TabsTrigger value="unified" className="h-full rounded-lg text-xs font-semibold text-zinc-500! shadow-none data-[state=active]:bg-white/10! data-[state=active]:text-white! data-[state=active]:shadow-none! sm:text-sm">
                   <AlignJustify className="size-4" aria-hidden /> Unified
                 </TabsTrigger>
               </TabsList>

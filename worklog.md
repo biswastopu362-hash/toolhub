@@ -1310,3 +1310,24 @@ Work Log:
 
 Stage Summary:
 - D29 deliverable shipped: QR Studio v2 in place; IndexedDB namespace toolhub-qr; gates at batch end: tsc clean, lint clean
+---
+Task ID: D21-D29 + D30
+Agent: main (Z.ai Code) + 9 subagents (D21-a..D29-i)
+Task: ROADMAP Days 21-30 — Phase 2 close: developer suite, Task Board, Business Card Maker, QR Studio v2, QA Day v1.2
+
+Work Log:
+- Wave 1 (parallel subagents): D21 diff-checker (1069 ln, Hirschberg LCS line+word diff, side-by-side/unified, git-style patch copy), D22 regex-tester (718 ln, live match table/groups, replace preview, cheat-sheet sheet), D23 hash-uuid (1095 ln, SHA-1/256/384/512 + pure-JS RFC1321 MD5 verified vs node:crypto, file hashing, UUID v4 batch 1-100), D24 jwt-decoder (913 ln, base64url decode, claims table, live expiry countdown, privacy-first remember-off)
+- Wave 2 (parallel subagents): D25 cron-timestamp (1519 ln, 5-field cron + macros + human description + next-5-runs with 366-day cap, epoch⇄date both ways), D26 code-editor (1139 ln, transparent-textarea-over-Prism alignment contract, 8 languages, snippet library IndexedDB, download/share), D27 task-board (1527 ln, dnd-kit kanban cross-column drag + chevron fallback, multi-board, due badges, progress), D28 business-card (2080 ln, 6 templates × front/back WYSIWYG 1050×600, canvas PNG @300DPI + jsPDF, saved cards), D29 qr-generator upgraded in place (1973 ln, vCard 3.0 + bulk CSV→QR with column mapping + IndexedDB history, v1 features kept)
+- Two subagents hit context deadline AFTER writing files (D25, D29) — files verified complete, worklog reconstructed, type errors fixed by main agent
+- Main-agent fixes: TS Uint8Array<ArrayBuffer> generics (hash-uuid), IconKind literal widening through .filter (business-card), ShareFilesNavigator canShare signature (code-editor), CronFieldError title (cron), WifiMap/ContactMap index signatures (qr), MeasuringStrategy vs MeasuringFrequency (task-board), react-hooks set-state-in-effect deferred restores (4 files), forwardRef DiffPane + memo-regex clone (react-compiler rules)
+- Registry: 9 entries (catalog 56), qr-generator metadata bumped to v2.0.0
+- D30 QA Day: 57-app sweep @390×844 → zero page/console errors; 9 new apps @1280×800 → clean; golden paths verified in browser: diff sample/stats/unified markers, regex 3-email match table + replace + cheat sheet, hash known-vector SHA-256 b94d… + MD5 5eb6… + 8×UUID v4 batch, JWT sample decode + countdown + privacy banner, cron "Weekdays 09:00" → next runs in correct local tz + epoch convert, code editor highlight-layer alignment + snippet persisted in toolhub-snippets + draft restore, task board sample → 2 moves → 2/6 33% progress persisted, business card flip/back contacts + Mono template apply, QR vCard form → rendered QR + history entry + bulk CSV 3 QRs + Download all
+- Bug found & fixed during QA: diff-checker TabsTrigger text invisible in light theme (text-foreground on dark-glass) → house override pattern from hash-uuid applied, verified white/gray contrast in browser
+- Environmental (not code): dev SW stale-chunk races and 2 dev-server OOM restarts worked around via agent-browser close + restart; production unaffected
+- Gates: bunx tsc --noEmit clean; bun run lint clean; mode-drift chmod 644; commit 5797a2b (D21-29) pushed
+
+Stage Summary:
+- Days 21-30 complete: Phase 2 closed, tagged v1.2; catalog 56 built-in apps (+6 developer, +1 daily kanban, +1 productivity, QR Studio v2.0.0)
+- New IndexedDB namespaces: toolhub-snippets, toolhub-taskboard, toolhub-businesscard, toolhub-qr
+- Developer category now 7 apps (json-formatter, diff-checker, regex-tester, hash-uuid, jwt-decoder, cron-timestamp, code-editor)
+- Next: ROADMAP D31 — Screen Recorder (media, Phase 3 opens)

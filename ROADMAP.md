@@ -118,7 +118,7 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D27** Task Board (daily) — kanban columns, drag between columns, due dates; complements reminders
 - [x] **D28** Business Card Maker (design-studio template pack) — 6 templates, front/back, PNG/PDF
 - [x] **D29** QR Studio v2 (utilities) — WiFi QR, vCard contact QR, bulk CSV→QR, scan history
-- [ ] **D30** Phase 2 QA Day — audit + fix + tag **v1.2**
+- [x] **D30** Phase 2 QA Day — audit + fix + tag **v1.2**
 
 ## Phase 3 — Days 31–45 · "Media & Creative Powerhouse"
 
