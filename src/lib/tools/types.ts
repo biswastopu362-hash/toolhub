@@ -7,6 +7,7 @@ export type ToolCategoryId =
   | 'generator'
   | 'text'
   | 'developer'
+  | 'productivity'
   | 'daily'
   | 'media'
   | 'games'
