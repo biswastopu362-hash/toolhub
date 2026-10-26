@@ -932,3 +932,88 @@ Stage Summary:
 - Mobile performance: wallpaper VRAM -90%, FLIP off outside edit mode, blur overdraw removed from tiles — swipes and app open/close much lighter on mid-range phones
 - Icon density now matches real launchers (~62-76px tiles, cols grow with width)
 - Next: ROADMAP D11 — Flashcards (daily)
+---
+Task ID: D12
+Agent: general-purpose subagent
+Task: Create src/components/tools/habit-tracker.tsx — daily Habit Tracker with streaks, week dots, 30-day heatmaps and IndexedDB persistence
+
+Work Log:
+- Read worklog conventions, expense-tracker.tsx (dark-glass idiom, IndexedDB write-through, modals, toasts, haptics), types.ts and the reserved fire-family gradient guidance; confirmed 'toolhub-habits' DB name was free and registry untouched (main agent owns it)
+- Built src/components/tools/habit-tracker.tsx (880 lines, 'use client', default export; no other files touched): zinc-950 rounded-3xl dark-glass card, amber→orange (from-amber-300 via-orange-400 to-orange-600) Flame icon tile with gloss overlay, title + "Small streaks, big change." subtitle, spring entrance
+- Model: Habit { id, name, emoji, color, createdAt, checks: Record<'YYYY-MM-DD', true> } — local-timezone date keys via getFullYear/getMonth/getDate padding; IDB 'toolhub-habits' v1, store 'habits' keyPath 'id' with the exact expense-tracker openDb/idbGetAll/idbPut/idbDelete pattern; hydration useEffect with alive flag + skeleton; optimistic setState then void idbPut(...).catch(() => {})
+- Habits: create/edit via one glass modal — name input ([color-scheme:dark], Enter submits), curated 16-emoji picker, 10-color warm/violet palette with check ring, live row preview; delete via two-tap "Sure?" (2.6s auto-reset) with idbDelete + toast
+- Today view: rows with emoji tile (color-tinted bg), name, 🔥 streak count, 7 week dots (filled = done, today ringed when pending), big 48px spring check button (whileTap scale 0.82, haptics, aria-pressed); row tap expands detail; list max-h-96 thin-scrollbar
+- Streak logic: current streak = consecutive days ending today, or ending yesterday while today is still pending (never breaks before the day is over); best streak + total + this-week computed from checks per render; milestone toasts (3/7/14/21/30/50/100/200/365) with double haptic pattern
+- 30-day heatmap per expanded habit: grid-cols-10 aspect squares, done = accent color with inner gloss, today ringed amber, date-range label + native tooltips; Best/Total/Week stat chips + Edit/Delete actions
+- Stats header: SVG progress ring (gradient stroke, spring dashoffset) showing done x/y today + % bar + "Longest streak 🔥 n d" chip + "All done — see you tomorrow" celebration when complete; premium dashed-glass empty state with CTA; 44px+ targets throughout, no blue/indigo, English UI
+- Gates: bunx tsc --noEmit exit 0 (fixed one error: haptic() widened to number | number[]); file chmod 644; no lint/git/server/browser runs per instructions
+
+Stage Summary:
+- Day 12 deliverable shipped: an offline Habit Tracker — big-tap daily checks with springy feedback, streak flame counting (graceful until midnight), week dots, expandable 30-day heatmaps, today progress ring and milestone celebrations, all persisted in IndexedDB 'toolhub-habits'/habits (keyPath id), shape { id, name, emoji, color, createdAt, checks }
+- Registry entry 'habit-tracker' (daily category, amber→orange gradient, #f97316 glow, Flame icon) still needs to be added by the main agent
+
+---
+Task ID: D11
+Agent: general-purpose subagent
+Task: Create src/components/tools/flashcards.tsx — Flashcards study app (deck builder, 3D flip study mode, grading with re-queue, IndexedDB write-through)
+
+Work Log:
+- Read worklog conventions, expense-tracker.tsx (canonical dark-glass + IndexedDB write-through idiom), notes.tsx storage shape, types.ts; confirmed no shared files touched
+- Built src/components/tools/flashcards.tsx (~1.6k lines, 'use client', default export FlashcardsApp, no props) as four screens composed as child components: Home (stats strip + deck grid), Deck (meta + actions + card list), Study (3D flip card), Summary
+- Persistence: IndexedDB 'toolhub-flashcards' v1, object store 'decks' keyPath 'id' — openDb/idbGetAll/idbPut/idbDelete mirroring expense-tracker; every mutation is optimistic setState then void idbPut(...).catch(() => {}) (memory is the fallback); hydration via useEffect with `alive` flag + tolerant shape validation (cards array, counters coerced, unknown accent → violet, sorted newest-first)
+- Deck shape { id, name, emoji, color, createdAt, cards: Card[] }, Card { id, front, back, correct, wrong, lastResult?: 'correct'|'wrong' }; 8-accent palette (violet/fuchsia/pink/rose/emerald/teal/amber/orange, no blue/indigo) + 20-emoji icon picker (optional, 'None' tile) in the create/edit deck modal
+- Deck builder: create/rename via one modal (name, emoji, accent swatch grid with Check + ring), two-tap delete with 3s auto-reset; card modal with front/back multi-line textareas (1,000-char caps + live counters), edit and two-tap delete per row; rows show lastResult dot + all-time ✓/✗ counters; long lists capped at max-h-96 overflow-y-auto with the shared thin glass scrollbar constant
+- Study mode: tap card / Flip button (44px+) → framer-motion rotateY spring with [perspective:1400px] parent, [transform-style:preserve-3d], backface-hidden faces (back face pre-rotated 180°); after flip, AnimatePresence swaps to Again (rose gradient) / Got it (emerald gradient) h-12 buttons
+- Grading: writes card counters + lastResult to the deck and idbPut immediately (partial sessions never lose stats); first-attempt results tracked per card id for accuracy; wrong cards re-queued at the end of the session queue (progress bar + "x of N" grow accordingly); session-complete effect flips to Summary
+- Summary screen: big first-try accuracy %, Got it / Again tap counts, per-deck all-time stats (gradings, mastered/cards, accuracy bar in the deck accent), Study again + Back to deck
+- Shuffle: persisted toggle (localStorage 'toolhub-flashcards-shuffle', default on) on the deck screen; during a session it re-shuffles only the remaining queue
+- Extras: keyboard shortcuts while studying (Space/Enter flip · 1/← Again · 2/→ Got it, guarded against focused controls), haptics navigator.vibrate?.(12) (wrong grade gets a [12,40,12] buzz) in try/catch, toasts for deck/card create/update/delete, empty states as dashed glass + gradient CTA for both decks and cards, stat strip (cards / mastered correct>wrong / decks), [color-scheme:dark] inputs, 44px targets throughout, 360px-first responsive (max-w-2xl like expense-tracker)
+- Gates: bunx tsc --noEmit → exit 0 with zero errors (fixed one missed destructure of onAskDeleteCard during self-check); registry/page/shared files untouched; chmod 644 applied
+
+Stage Summary:
+- Day 11 deliverable shipped: a complete flip-card study app — deck builder with emoji + accent identity, 3D flip study mode with Again/Got-it grading, wrong-card re-queue, session summary with first-try accuracy, and all-time per-card/per-deck stats, all client-side
+- Storage: IndexedDB 'toolhub-flashcards' (v1, store 'decks', keyPath 'id') + localStorage 'toolhub-flashcards-shuffle'; ready for the registry entry (id 'flashcards', daily category, violet→purple→fuchsia identity)
+- Next: ROADMAP D12 per roadmap
+---
+Task ID: D14
+Agent: general-purpose subagent
+Task: Create src/components/tools/metronome.tsx — Metronome & Tuner app (WebAudio click scheduler + autocorrelation pitch tuner), single new file, no shared files touched
+
+Work Log:
+- Read worklog conventions + expense-tracker.tsx (dark-glass idiom, toasts, haptics), clock.tsx (pill tablist, gesture-created AudioContext, unmount teardown), src/lib/tools/types.ts, ui/slider.tsx; confirmed registry has NO metronome entry yet and left it untouched
+- Built src/components/tools/metronome.tsx (~870 lines, 'use client', default export MetronomeApp, no props): zinc-950 rounded-3xl dark-glass card, rose→pink→fuchsia gradient header band with gloss AudioLines icon tile ("Metronome & Tuner" / "Keep time, find pitch."), 44px (h-11) pill tablist with layoutId spring (Metronome/Tuner); panels stay mounted (CSS hidden + opacity/y spring) like clock v2
+- Metronome tab: big tabular-nums BPM readout with 44px −/+ (clamped 30–240), shadcn Slider 30–240 with rose→fuchsia range + tick labels, 5 tempo preset chips (Largo 60 … Presto 200); time-signature chips 2/4, 3/4, 4/4, 6/8 (live-switchable, beat index re-modulo); beat dots row — accent filled emerald glow, others hollow, active dot springs + transform/opacity-only expanding ring keyed by a monotonic beat counter; TAP TEMPO (averages intervals of last ≤6 taps, >2 s gap restarts, 2 s timeout clears state); h-12 Start/Stop (rose gradient ↔ white/10); volume slider driving a master GainNode
+- Audio: Chris Wilson scheduler — 25 ms setInterval queues clicks 0.12 s ahead on ctx.currentTime; accent = 880 Hz square with 2 ms attack/100 ms decay envelope, normal = 660 Hz sine (7 ms/70 ms); 6/8 = 6 clicks/bar at 60/bpm (eighth-note subdivision feel); visual sync via notesInQueue popped by a rAF drawer so dots pulse exactly with the audio clock; AudioContext created/resumed inside the Start tap (clock.tsx pattern, webkitAudioContext fallback); auto-stop when switching to the Tuner tab; unmount: interval + rAF cancelled, ctx.close(), per-click nodes self-disconnect via onended
+- Tuner tab: "Enable microphone" 44px button → AudioContext created/resumed synchronously in the tap gesture, then getUserMedia({audio:{echoCancellation/noiseSuppression/autoGainControl:false}}) → MediaStreamSource → AnalyserNode (fftSize 2048, smoothing 0); pitch = time-domain autocorrelation (ACF2+ style: RMS gate 0.006, lag window from sampleRate/1300…sampleRate/60 with fixed summation window so lags stay comparable, strongest peak after first descent, corr≥20% of lag-0 energy noise gate, parabolic interpolation) → fundamental 60–1300 Hz; analysis rAF throttled to ~20 Hz; nearest note from 69+12·log2(f/refPitch), cents=(midi−nearest)·100
+- Tuner UI: giant note name + octave, freq readout (0.1 Hz), target Hz + "A{refPitch}", transform-only spring needle on a −50…+50¢ gauge with green ±5¢ zone, tick marks, "In tune ✓ / N¢ flat/sharp" label, haptic tick on entering tune (edge-triggered ref), last note stays while signal weak (dimmed + amber "Weak signal" pulsing dot vs emerald "Listening…"), 44px stop button; reference pitch chips 432/438/440/442/444 Hz; graceful phase cards for permission-denied (browser-settings guidance), no-mic (NotFoundError/OverconstrainedError), and error — each with 44px Retry; alive-flag guards after the getUserMedia await (late streams killed)
+- Prefs: localStorage 'toolhub-metronome-prefs' {bpm, signature, volume, refPitch} with validated parse (range clamps 30–240 / 0–100, signature+refPitch whitelist) on load, JSON.stringify save effect; [color-scheme:dark] on the shell; 360px-first responsive (max-w-2xl), emerald reserved for beat accent/in-tune, rose family for controls, English UI, haptics navigator.vibrate?.(12) via haptic(), toasts via '@/hooks/use-toast' (audio-unavailable, mic error)
+- Gates: bunx tsc --noEmit → metronome.tsx contributes ZERO errors (fixed one Float32Array<ArrayBuffer> generic on the analyser scratch buffer); the only 2 remaining errors are in compass.tsx — a sibling parallel agent's file (D13), untouched per instructions; no lint/git/dev-server/browser runs; chmod 644
+
+Stage Summary:
+- D14 deliverable shipped: a two-tab pocket music kit — a sample-accurate WebAudio metronome (25 ms lookahead scheduler, accent/normal clicks, 2/4–6/8 with eighth-note 6/8 feel, tap tempo, pulsing beat dots) and an on-device instrument tuner (autocorrelation pitch detection 60–1300 Hz, ±50¢ gauge with green ±5¢ zone + haptic tick, selectable 432–444 Hz A4), both fully offline with strict gesture-created audio and complete unmount teardown
+- Reusable patterns landed: notesInQueue + rAF drawer for audio-clock-synced visuals (beyond the clock's simple beeper), and the windowed fixed-length autocorrelation detector (cheap: ~1M mult-adds @20 Hz) for future pitch tools
+- Note: metronome auto-stops when switching to the Tuner tab so clicks never drone behind the mic; mic keeps listening across in-app tab switches and is released on Stop/unmount
+- Registry wiring for id 'metronome' (media category, rose gradient) is left to the main agent — component is ready at src/components/tools/metronome.tsx
+---
+Task ID: D13
+Agent: general-purpose subagent
+Task: Create src/components/tools/compass.tsx — Compass & Bubble Level app (compass rose + bubble level, sensor plumbing with manual demo fallback)
+
+Work Log:
+- Read worklog conventions, expense-tracker/clock (dark-glass idiom, mounted-but-hidden pill tabs), src/lib/tools/types.ts; touched NO shared files (registry/page.tsx untouched) — registry entry for id 'compass' to be wired by main agent
+- Built compass.tsx (~1.25k lines, 'use client', export default CompassApp): rounded-3xl zinc-950 dark-glass shell, emerald→teal gradient header band + Compass icon tile, title "Compass & Level" / subtitle "Find north, level up.", 44px (h-11) pill tablist (Compass/Level) with layoutId spring pill; panels stay mounted + CSS-hidden so sensor state survives tab switches
+- Compass tab: memoized SVG rose (glass face, 60 minor / 12 major tick lines, degree numerals every 30°, N/E/S/W + NE/SE/SW/NW labels, glowing rose-gradient north needle + zinc tail + pivot, fixed white lubber line, ambient emerald glow + deep shadow), dial w-[min(72vw,280px)]
+- Rotation smoothing: continuous (unbounded) heading MotionValue → useSpring (stiffness 120 / damping 21) → useTransform negate → motion.div rotate (HTML wrapper avoids SVG transform-origin quirks); 359°→0° shortest-path via wrap180 accumulation so the dial never unwinds backwards; center glass readout = degree (tabular-nums) + 16-wind name (N…NNW) + True/Magnetic tag, subscribed via useMotionValueEvent (re-renders per degree only)
+- Sensor plumbing: 'deviceorientationabsolute' preferred (feature-detected), fallback 'deviceorientation'; iOS webkitCompassHeading used for true north when toggle on, otherwise heading = 360 − alpha (counter-clockwise inversion); true-north toggle row (44px, role=switch) labeled "Use true north (declination ignored)"; honest footer: browsers don't expose magnetic-field strength
+- iOS 13+ permission: DeviceOrientationEvent.requestPermission detected → "Enable compass" h-12 emerald-gradient button calls it inside the tap gesture; denied → amber note + manual demo persists; non-iOS attaches listeners on mount
+- NO-SENSOR fallback: 1.6s demo timer (cleared on first valid reading) flips compass to manual mode — dial becomes draggable (pointer capture, touch-none, cursor-grab, arrow-key support, role=slider) with "Demo — no magnetometer" chip, 15° haptic ticks while dragging, toast fired once; never blank
+- Level tab: circular bullseye (w-[min(68vw,250px)], crosshair + dashed target ring via static SVG) with spring-driven bubble (teal→emerald glass sphere, scales + glows when flat); DeviceMotion accelerationIncludingGravity → tilt X = atan2(ax, az), tilt Y = atan2(ay, az) (z-sign normalized for stacks reporting inverted gravity), bubble mapped to high side and Euclidean-clamped inside the disc; ResizeObserver keeps bubble travel radius in sync and re-applies last tilt
+- Flat state: |X|<1.5° && |Y|<1.5° → green "Flat — within 1.5°" chip, emerald target ring + bubble glow, edge-triggered haptic(18) gated by the "Haptic tick when flat" settings row (44px switch row); tilt X/Y readout cards show −/+/abs 0.1° values, "--" until data (desktop fallback: "Waiting for sensor…" + demo hint)
+- Level permission handling mirrors compass (DeviceMotionEvent.requestPermission inside gesture, "Enable level" button); desktop: values "--" + draggable demo bubble (pointer → inverse tilt mapping, so dragging shows real numbers with the demo state visible); bonus fallback: if motion never fires but orientation does, tilt is derived from beta/gamma (motion outranks it once it delivers)
+- Persistence: { trueNorth, hapticsOn } → localStorage 'toolhub-compass-prefs' (try/catch, tolerant parse)
+- Cleanup: single unmount teardown removes deviceorientationabsolute/deviceorientation/devicemotion listeners, clears both demo timers; aliveRef guards every async/timer setState; demo toasts + denials fire once via ref map
+- Gates: bunx tsc --noEmit → EXIT 0 (zero errors); chmod 644; no lint/git/dev-server/browser runs per instructions
+
+Stage Summary:
+- D13 shipped: a sensor-first Compass & Level suite in the dark-glass OS idiom — spring-smoothed rotating rose with true-north toggle (webkitCompassHeading / absolute-alpha inversion), bubble level with flat haptic tick, iOS gesture-scoped permission buttons, and premium manual demo modes (draggable dial + draggable bubble) for devices without magnetometer/accelerometer
+- Sensor fallbacks: no magnetometer → draggable demo dial (badge + toast); no accelerometer → "--" readouts + draggable demo bubble, with beta/gamma orientation fallback before demo; denied permissions keep manual mode; magnetic field strength intentionally not faked (noted in UI)

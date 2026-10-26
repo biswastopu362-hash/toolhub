@@ -19,8 +19,11 @@ import {
   CircleDollarSign,
   Clapperboard,
   Clock,
+  Compass,
   DatabaseBackup,
   FileStack,
+  Flame,
+  Layers,
   Table2,
   CloudSun,
   Gamepad2,
@@ -119,6 +122,10 @@ const TtsStudioApp = load(() => import('@/components/tools/tts-studio'))
 const SpeechToTextApp = load(() => import('@/components/tools/speech-to-text'))
 const AudioStudioApp = load(() => import('@/components/tools/audio-studio'))
 const BackupRestoreApp = load(() => import('@/components/tools/backup-restore'))
+const FlashcardsApp = load(() => import('@/components/tools/flashcards'))
+const HabitTrackerApp = load(() => import('@/components/tools/habit-tracker'))
+const CompassApp = load(() => import('@/components/tools/compass'))
+const MetronomeApp = load(() => import('@/components/tools/metronome'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -642,6 +649,62 @@ export const tools: Tool[] = [
     featured: true,
     version: '1.0.0',
     Component: AdminConsoleApp,
+  },
+  {
+    id: 'flashcards',
+    name: 'Flashcards',
+    description: 'Build decks, flip cards and grade yourself with live accuracy stats — perfect for exams and language practice',
+    tagline: 'Memorize anything, one flip at a time',
+    category: 'daily',
+    icon: Layers,
+    gradient: 'from-violet-400 via-purple-500 to-fuchsia-600',
+    glow: '#a855f7',
+    keywords: ['flashcards', 'deck', 'study', 'memorize', 'learn', 'revision', 'exam', 'quiz', 'cards', 'flip', 'practice'],
+    featured: true,
+    version: '1.0.0',
+    Component: FlashcardsApp,
+  },
+  {
+    id: 'habit-tracker',
+    name: 'Habit Tracker',
+    description: 'Build streaks with daily check-offs, week dots, milestone toasts and a 30-day heatmap per habit',
+    tagline: 'Small streaks, big change',
+    category: 'daily',
+    icon: Flame,
+    gradient: 'from-amber-300 via-orange-400 to-orange-600',
+    glow: '#f97316',
+    keywords: ['habit', 'streak', 'routine', 'tracker', 'heatmap', 'daily', 'checklist', 'consistency', 'discipline'],
+    featured: true,
+    version: '1.0.0',
+    Component: HabitTrackerApp,
+  },
+  {
+    id: 'compass',
+    name: 'Compass & Level',
+    description: 'Magnetic compass with true-north readout plus a bubble level — sensor fallbacks keep it working everywhere',
+    tagline: 'Find north, level up',
+    category: 'utilities',
+    icon: Compass,
+    gradient: 'from-emerald-300 via-teal-500 to-teal-600',
+    glow: '#14b8a6',
+    keywords: ['compass', 'level', 'bubble', 'direction', 'north', 'heading', 'tilt', 'orientation', 'magnetic'],
+    featured: true,
+    version: '1.0.0',
+    Component: CompassApp,
+  },
+  {
+    id: 'metronome',
+    name: 'Metronome & Tuner',
+    description: 'Precision metronome with tap tempo, time signatures and beat dots, plus a live microphone pitch tuner',
+    tagline: 'Keep time, find pitch',
+    category: 'media',
+    icon: AudioLines,
+    gradient: 'from-rose-300 via-pink-500 to-fuchsia-600',
+    glow: '#ec4899',
+    keywords: ['metronome', 'tuner', 'bpm', 'tempo', 'beat', 'pitch', 'music', 'tap tempo', 'tuning', 'instrument'],
+    featured: true,
+    version: '1.0.0',
+    Component: MetronomeApp,
   },
 ]
 
