@@ -1790,3 +1790,120 @@ Stage Summary:
 - New IndexedDB namespace: toolhub-weather (locations/cache/settings); legacy localStorage 'weather-cache' + 'weather-unit' migrated one-time then removed — NOTE for main agent: backup-restore.tsx still lists 'weather-cache'/'weather-unit' as localStorage entries and does not yet know 'toolhub-weather' (harmless no-op; suggest adding toolhub-weather to IDB_DBS in a D60 QA pass)
 - API: Open-Meteo geocoding + forecast (current incl. wind_direction_10m/surface_pressure, hourly incl. uv_index, daily incl. sunrise/sunset/uv_index_max/precipitation_probability_max, timezone=auto) + best-effort BigDataCloud reverse geocode (key-free)
 - Caveats: geocoding/forecast/refresh need network; cached payloads render offline; v1 cached forecasts without hourly import as location-only (fresh fetch on activate)
+---
+Task ID: P4-2c (D53 Travel & Fuel)
+Agent: subagent
+Task: Travel & Fuel — fuel cost split, mileage log with efficiency chart, trip split settlement
+
+Work Log:
+- Read worklog tail + studied canonical patterns: expense-tracker.tsx (IndexedDB write-through, dark-glass shell, modal + ConfirmTrash-style flows, recharts dark ticks, framer springs, haptics) and emi-calculator.tsx (calculator look & feel); health-tracker tab-bar role=tablist pattern; workout-planner/weather THIN_SCROLL glass scrollbar class; globals.css `no-scrollbar` confirmed
+- Created src/components/tools/travel-fuel.tsx (default export, 'use client', ~1870 lines, zero placeholders) — road-trip dark-glass: zinc-950 shell, gradient identity from-yellow-300 via-amber-500 to-orange-600, glow #eab308 (icon tile shadow + chart dots), Lucide Route/Fuel/Car/Users/Gauge/TrendingUp/Repeat2/Wallet/ArrowRight iconography
+- Tab bar (3 tabs, role=tablist, h-11, amber active gradient ring): Fuel Cost / Mileage / Trip Split, each remounts with spring (stiffness 260–340)
+- Fuel Cost tab: petrol/diesel/CNG chip selector with colored dots + per-type last-price memory (auto-refills price input on switch, write-through on change), distance/mileage/price inputs (numeric-filtered, unit suffixes km · km/l · /L, Enter = haptic), passengers stepper (1–20, size-9 buttons), round-trip ×2 toggle (aria-pressed, persists), live useMemo math → big hero result card (cost per person in 4xl/5xl gradient numerals, animated spring pop on change, aria-live) + Fuel-needed/Total-cost sub-stats + context footnote; premium dashed empty state while inputs invalid; distance-unit note
+- Mileage tab: 4 stat cards (Best km/l amber, Average km/l weighted, Total spent, Total distance); add fill-up form (odometer, liters, optional paid amount, FULL TANK/PARTIAL toggle chip, date input [color-scheme:dark], validation toasts, quick re-log resets only amounts); full-to-full efficiency algorithm — km/l = (odoNow − odoPrevFull) / litersNow, partials skipped and badged, first full tank badged 'base'; recharts LineChart with yellow→orange gradient stroke (#fde047→#ea580c), padded Y domain, tick={{fill:'#71717a',fontSize:9}}, TOOLTIP_STYLE shell, <2 points → premium empty state; fill-up log list (max-h-96 overflow-y-auto + THIN_SCROLL, newest first, per-row km/l amber chip or partial/base chip, two-tap ConfirmTrash delete)
+- Trip Split tab: trips list (newest first, active = amber ring, per-trip people/expenses/total + all-time total line, two-tap delete, keyboard-accessible rows role=button+Enter/Space) + New trip button; active trip editor — Crew card (add via input/Enter, dup-guard + 12-max toasts, chip X blocked if person has expenses), Expenses card (payer min-h-11 chip radiogroup, amount + optional note, list with initial avatars and delete), Settlement card (per-person paid/share/net rows colored emerald/rose, greedy minimal-transfers algorithm largest-debtor↔largest-creditor with round2 dust guards, amber transfer rows from→to or 'All settled' emerald state, Copy summary button → clipboard.writeText full breakdown with toast success/failure)
+- IndexedDB 'toolhub-travel' v1: settings store (keyPath 'key', singleton {currency, lastPrices:{petrol,diesel,cng}, roundTrip}), fillups store ({id, odo, liters, price?, fullTank, date, createdAt}), trips store ({id, people[], expenses[{id,payer,amount,note?,createdAt}], createdAt}); hydration useEffect loads all 3 stores in parallel with alive flag; every mutation setState-first then `void idbPut/idbDelete(...).catch()` memory-only fallback; currency picker (৳ $ € £ ₹ ¥) in settings modal persisted via saveSettings write-through
+- Design/QA: responsive 360px-safe (2-col numeric grids, truncate everywhere, no fixed widths), all touch targets h-11/size-11 (small inline chip-X/steppers match codebase precedent), navigator.vibrate?.(12) haptics on calculate-Enter/fuel chips/round-trip/toggles/adds/tab switches, springs throughout, motion.popLayout-free plain lists for perf
+- Verified: bunx tsc --noEmit → 0 errors in travel-fuel.tsx (only unrelated tmplint/a.tsx scratch error from a parallel agent); bunx eslint on the file → clean; chmod 644; registry.tsx untouched; no dev server started/stopped (dev.log healthy GET / 200); no new npm packages; English UI; zero uploads
+
+Stage Summary:
+- Travel & Fuel shipped as P4-2c: fuel-cost splitter with per-fuel-type price memory + round-trip ×2, full-tank mileage logger with stats + gradient efficiency trend chart, group trip splitter with greedy minimal-transfer settlement + clipboard summary
+- New IndexedDB namespace toolhub-travel (settings / fillups / trips) — independent of toolhub-expenses; NOTE for main agent: backup-restore.tsx does not yet know 'toolhub-travel' (harmless no-op; consider adding to IDB_DBS in the D60 QA pass together with toolhub-weather)
+- Component at src/components/tools/travel-fuel.tsx (default export TravelFuelTool) — NOT yet registered in src/lib/tools/registry.tsx per task constraint; wiring is left to the main agent
+---
+Task ID: P4-2e (D55 Currency v2)
+Agent: subagent
+Task: Currency v2 — offline rate cache, favorites strip, swap animation, rate deltas
+
+Work Log:
+- Read worklog tail + expense-tracker.tsx (canonical dark-glass/recharts/haptics patterns) and upgraded src/components/tools/currency.tsx in place; kept API https://open.er-api.com/v6/latest/USD (free, key-less) and full 31-currency list + FALLBACK_RATES; registry.tsx untouched
+- Offline-first cache: IndexedDB 'toolhub-currency' v1 (stores 'cache' + 'settings', keyPath 'key'); cache row {key:'rates', base:'USD', rates, fetchedAt, prev:{rates,fetchedAt}|null} written through on every successful fetch; boot hydrates rates INSTANTLY from IDB before any network, then always background-refreshes; one-time migration from legacy localStorage 'currency-rates' (imported → IDB, key removed)
+- Status model: loading | live | stale | stale-offline | fallback; header status pill (emerald pulsing dot 'Live', zinc 'as of 3h 12m', amber 'Offline · …' + WifiOff, amber 'Approx.'); pill turns amber when cache older than 12h; 60s ticker keeps age labels fresh; explicit offline banner (role=alert) when fetch fails but cache exists (distinguishes navigator.onLine offline vs service unreachable), amber approximate-rates banner when no cache and fetch fails; both banners carry a 44px Retry button; 'online' event auto-retries, 'offline' event flips status immediately; request-token race guard + 10s AbortController
+- Favorites strip: star/unstar via 44px star toggle on the result hero (aria-pressed); persists in 'settings' store {key:'favs', value:[codes]} (seeded EUR/GBP/JPY/INR/BDT on first run); chips render in a horizontal snap-scroll row above the converter (one tap sets target currency, active chip emerald-highlighted, spring popLayout enter/exit); each chip shows star + code + live rate vs current 'from' + ▲/▼ delta % vs previous sync (threshold 0.01%, title tooltip shows previous value); empty state hint text
+- Swap: framer-motion rotate +=180° spring (stiffness 260, damping 16) + whileTap scale on a 48px emerald glow button; hero numeral crossfades via AnimatePresence popLayout keyed by from→to; navigator.vibrate?.(12) on swap, 8–10ms on chip/star/quick-amount taps
+- Amount input: 56px keypad-friendly field (inputMode=decimal) with from-symbol suffix, paste-safe sanitizeAmount (commas→dots, multi-dot thousands handled "1,234.56"→1234.56, strips non-numeric, 15-char cap) applied on change AND paste (preventDefault + re-parse); quick chips 1/10/100/1000 (active state) + clear ✕, all min-h-11
+- Persisted extras: last pair {from,to} + debounced amount in 'settings' store (restored on boot); hero = gradient numeral (from-emerald-300 via-emerald-400 to-green-600, glow #22c55e blob) over dark-glass zinc-950 card, premium loading shimmer state, rate line + synced-time footer
+- Responsive: single-column From/swap/To at <sm, favorites strip overflow-x-auto with hidden scrollbar, 5-col quick chips fit 360px, no horizontal overflow; all touch targets ≥44px
+- Verified: bunx tsc --noEmit clean; bun run lint clean for currency.tsx (remaining 8 project errors are pre-existing in cycle-tracker.tsx / emi-calculator.tsx / tmplint/a.tsx — other agents' files); chmod 644; no new npm packages; no dev server started/stopped (dev.log healthy GET / 200)
+
+Stage Summary:
+- Currency v2 shipped: offline-first rate cache with instant boot, favorites strip with rate movement ▲▼ deltas, spring swap animation, paste-safe keypad input, dark-glass premium UI preserving the green identity
+- API: https://open.er-api.com/v6/latest/USD (unchanged, free no-key)
+- New IndexedDB namespace: toolhub-currency (stores: cache [row key 'rates' incl. prev-sync payload for deltas], settings [keys: favs, pair, amount]); legacy localStorage 'currency-rates' migrated one-time then removed
+- NOTE for main agent: backup-restore.tsx does not yet know 'toolhub-currency' (suggest adding to IDB_DBS in a D60 QA pass, alongside 'toolhub-weather')
+- Caveats: first-ever run (no cache + offline) shows built-in approximate rates; deltas only appear after ≥2 synced payloads
+---
+Task ID: P4-2b (D49 Cycle Tracker)
+Agent: subagent
+Task: Cycle Tracker — private period logging, 3-month predictions calendar, notes/mood
+
+Work Log:
+- Read worklog tail + canonical expense-tracker.tsx (IndexedDB write-through, hydration alive-flag, dark-glass shell) and habit-tracker.tsx (calendar/heatmap cell rendering, confirm-delete pattern)
+- Created src/components/tools/cycle-tracker.tsx (default export, 'use client', ~1330 lines) following the canonical pattern; registry.tsx untouched, no dev servers touched, no new packages
+- Privacy-first: emerald ShieldCheck notice card on first run ("Everything stays on this device — no accounts, no uploads. For extra privacy, enable App Lock for Cycle Tracker in Settings."), dismiss persisted in IDB settings store
+- Period logging: header "Log" button → centered modal (native date inputs, [color-scheme:dark]), start required + optional end (min=start, empty = ongoing); list (newest first, max-h-72 scroll) with month/day tile, range label, length or "Ongoing" chip, edit (prefill) + two-tap confirm delete
+- Cycle math: intervals between consecutive starts, avg from last up-to-6 gaps (default 28 when <2 periods, surfaced as "Learning your cycle…" state); trend = last interval vs avg of prior ones (longer/shorter/steady with TrendingUp/Down/Minus)
+- Predictions: next start = last start + avg; predicted period length = last known length else 5; ovulation = next start − 14, fertile window = ±2 days
+- Calendar: paged month grid with prev/next chevrons + 3-month tab strip (M−1 / M / M+1, center shows "Mar 2025"), touch-swipe (48px, angle-guarded) with directional spring slide (AnimatePresence mode="wait"), Today jump chip when off-month
+- Day cells (7 cols, gap-px → ≥40px taps at 360): rose-gradient fill for period days, dashed rose ring for predicted, soft pink bg for fertile, fuchsia glow dot for ovulation, pink ring for today, tiny dot for saved note; full legend row; per-cell aria-labels incl. state
+- Daily notes: tap any day → bottom sheet (rounded-t-3xl, safe-area padding, focus textarea): note (600 chars), mood chips (😌 Calm/😊 Happy/😴 Tired/😣 Cramps/None), flow chips with 1–3 filled Droplets shown only on logged period days; empty save or "Clear this day" removes the row
+- Insights: next-period hero card (fmtLong date + "in 9 days"/"tomorrow"/"N days late" rose glow badge), avg cycle + trend card, last period length card (Ongoing when no end), ovulation estimate card with fertile-range chip
+- IndexedDB 'toolhub-cycle' v1: 'periods' keyPath id {id,start,end?,createdAt}, 'notes' keyPath date {date,note,mood,flow}, 'settings' keyPath key {key:'privacy',value:{dismissed}}; hydration Promise.all + alive flag; all mutations setState first then void idbPut/idbDelete(...).catch; haptics on key taps
+- Design: gradient identity from-pink-300 via-rose-400 to-fuchsia-600, glow rgb(236 72 153), dark-glass zinc-950 + border-white/10, framer springs 260–500, discreet Flower2 empty state, SCROLL_CLS scrollbars, 44px icon buttons/chips, flawless 360px (cells ~41px)
+- Fixed React Compiler lint (react-hooks/preserve-manual-memoization ×5): made addDaysKey mutation-free (constructor day arithmetic instead of Date.setDate), converted fertileKeys/fertileSet/predictedDays to plain derivations + openLog to plain function
+- Verified: bunx tsc --noEmit → 0 errors in cycle-tracker.tsx (only pre-existing emi-calculator.tsx errors remain, other agent's scope); bunx eslint on file → clean; chmod 644; dev.log healthy
+
+Stage Summary:
+- Cycle Tracker shipped: private period log (start/optional end), 3-month paged+swipeable prediction calendar, per-day notes/mood/flow bottom sheet, insight cards with countdown badge
+- IndexedDB namespace 'toolhub-cycle' (stores: periods/notes/settings) — predictions = last start + avg(last ≤6 cycle gaps, default 28 while learning), ovulation = next start − 14 ± 2 days fertile, predicted period length = last known else 5
+- NOTE for main agent: like toolhub-weather, 'toolhub-cycle' is a new IDB namespace backup-restore.tsx does not know yet (harmless no-op; candidates for D60 QA IDB_DBS pass)
+- Quirk logged for future agents: this project lint runs React Compiler — avoid Date mutation helpers (setDate on parsed keys) and useMemo/useCallback whose deps are plain derived values; prefer mutation-free constructor arithmetic or plain derivations when the compiler flags preserve-manual-memoization
+---
+Task ID: P4-2a (D47 Prayer Times)
+Agent: subagent
+Task: Prayer Times — location schedule, Bengali labels, adhan toggle, countdown
+
+Work Log:
+- Read worklog tail + expense-tracker.tsx canonical pattern (IDB write-through, hydration alive-flag, dark-glass, springs); skimmed weather.tsx for geolocation/Open-Meteo geocoding/reverse-geocode conventions
+- Created src/components/tools/prayer-times.tsx (default export, 'use client', ~1815 lines, zero new packages)
+- Location: header chip + premium empty state → device geolocation (10s timeout, denial/unsupported → toast + auto-opens search modal focused) OR Open-Meteo geocoding search (400ms debounce, count=5, max-h-52 glass list) OR manual lat/lng inputs (validated −90..90 / −180..180, best-effort 3.5s BigDataCloud reverse-geocode label, fallback '23.81°, 90.41°'); saved location persisted
+- Daily schedule: Aladhan /v1/timings/{DD-MM-YYYY}?latitude&longitude&method&school (no key), timings parsed with /(\d{1,2}):(\d{2})/ (strips ' (BST)' suffix), 12h display; 5 prayer cards (Fajr/Dhuhr/Asr/Maghrib/Isha; Isha spans full width on mobile) + amber Sunrise row; per-prayer lucide icons + Bengali labels (ফজর সূর্যোদয় যোহর আসর মাগরিব এশা, lang=bn), next prayer highlighted with emerald glow + Next badge, past prayers dimmed
+- Next-prayer hero: night-sky panel (twinkling star field, emerald glow blob) with SVG progress ring (gradient #5eead4→#34d399→#16a34a, drop-shadow #10b981, spring-animated strokeDashoffset) from previous prayer → next prayer; big tabular-nums countdown inside ring ('2h 14m' / '14m 05s'), 'at 4:28 PM' line; after Isha counts to tomorrow's Fajr — lazy-fetches tomorrow's schedule on crossing Isha (falls back to Fajr+24h) and caches it
+- Adhan reminder: toggle (hero chip + settings GlassSwitch, persisted); when ON and app open, prayer arrival (90s grace window, fired-set dedup per date+prayer) → synthesized maqam-flavoured chime (AudioContext, D5-F#5-G5-C6-G5-D5 sine + octave shimmer, fully try/catch guarded, resume() unlock + 2-note confirm blip on enable) + navigator.vibrate?.([200,100,200]) + fixed AnimatePresence banner (auto-dismiss 90s) + optional Notification API (permission probe/request, graceful fallback, never blocks); Preview chime button in settings
+- Method picker Karachi/ISNA/MWL/Egypt (Aladhan 1/2/3/5, default 1) + Asr school Hanafi(1)/Shafi(0) segmented pickers, persisted, refetch on change; Hijri date chip '12 Ramadan 1446 · রমজান' (date.hijri + Bengali month map 1-12)
+- Offline: IndexedDB 'toolhub-prayer' v1 — 'settings' {key:'settings', value:{lat,lng,city,method,school,adhanOn}} + 'cache' keyPath 'date' ({timings,hijri,meta,savedAt}); hydration renders matching cache instantly (meta-validated: date+lat+lng+method+school), pruneCache keeps latest 40; sync state footer (Live · Aladhan.com / Saved copy / Syncing… / Waiting), online/offline listeners, race-token + AbortController guards, midnight rollover refetch, visibility re-sync, Try-again error card, silent vs non-silent fetch logic
+- Mutations all setState-first then void idbPut(...).catch(); hydration useEffect with alive flag; haptics on key taps; springs stiffness 260–500; touch targets ≥44px via after:-inset hit-expansion on small controls
+- Design: bg-zinc-950 dark glass, identity gradient from-teal-300 via-emerald-500 to-green-700, emerald-tinted borders, MoonStar crescent motif everywhere, no blue/indigo
+- Verified: bunx tsc --noEmit → ZERO errors in prayer-times.tsx (only residual errors are in emi-calculator.tsx, a concurrent agent's in-progress file); bun run lint clean; chmod 644; registry.tsx untouched; no dev server started/stopped; no new npm packages
+
+Stage Summary:
+- Prayer Times tool shipped as src/components/tools/prayer-times.tsx — ready for registry wiring by main agent (NOT wired by this agent)
+- New IndexedDB namespace 'toolhub-prayer' v1: stores 'settings' (keyPath 'key', singleton row {key:'settings', value:PrayerSettings}) and 'cache' (keyPath 'date', DayData rows meta-validated on read, pruned to 40)
+- APIs (all key-free): Aladhan timings (method 1/2/3/5, school 0/1, timings 'HH:MM (TZ)' parsing, date.hijri → '12 Ramadan 1446' + Bengali month), Open-Meteo geocoding search, best-effort BigDataCloud reverse geocode
+- Adhan = Web Audio synthesized chime + vibrate [200,100,200] + in-app banner + optional native Notification; fires only while app open (90s grace, per-date dedup)
+- Caveats: geocoding/timings need network; cached day renders offline; post-Isha countdown uses tomorrow's fetched Fajr (exact) or today's Fajr+24h (approx, seconds-level) until fetch lands
+---
+Task ID: P4-2d (D54 EMI/Loan v2)
+Agent: subagent
+Task: EMI v2 — amortization chart, loan comparison, prepayment insight
+
+Work Log:
+- Read worklog tail, existing emi-calculator.tsx (375 ln) and expense-tracker.tsx (1037 ln) for canonical dark-chart patterns (tick={{fill:'#71717a',fontSize:9}}, TOOLTIP_STYLE rgba(9,9,11,0.95), white/10 glass cards, teal/emerald gradients, springs 260–340)
+- Rewrote emi-calculator.tsx in place (default export, 'use client', id 'emi-calculator' untouched in registry): premium dark-glass shell (rounded-3xl zinc-950, glow rgb(13_148_136/0.7) icon tile with from-teal-400 via-teal-500 to-emerald-700 gradient) matching expense-tracker
+- computeSchedule() unified simulator: returns emi, actual payoff months, scheduledMonths, totals, monthly[] (cum principal/interest) and yearly[] rows; extra>0 closes loan early; non-amortizing guard; 1200-month cap kept
+- Calculator tab: loan inputs (amount/rate/tenure+unit, validation preserved incl. error copy), EMI hero (gradient glow + spring AnimatedMoney), total interest/payment stat cards, recharts donut (principal #2dd4bf vs interest #fbbf24, center Total payment, dark tooltip, % legend rows), amortization table kept (Collapsible, dark sticky header, max-h-96 overflow-y-auto), currency picker ৳/$/€/£/₹/¥ (default ৳)
+- NEW amortization chart card: Yearly stacked BarChart (principal/interest per year) ↔ Monthly stacked AreaChart (cumulative paid, gradient fills) with h-11 Yearly/Monthly radio toggle, compact Y-axis ticks, animation disabled above 120/400 pts
+- NEW prepayment insight: extra-monthly-payment input → new tenure (fmtTenure "3 yr 6 mo"), months earlier, interest saved (emerald tile) + payoff summary line
+- NEW Compare tab: two loan cards (editable lender labels "Bank A"/"BRAC", amount/rate/tenure+unit each), per-loan EMI/total interest/total payment/tenure rows, emerald "Better" BadgeCheck badge + card highlight for lower total interest, verdict strip ("saves ৳X in interest", EMI delta), total-interest comparison BarChart (teal=winner, amber=loser, tickFormatter truncates long labels)
+- Persistence: localStorage 'toolhub-emi' v1 (currency, amount, rate, tenure, unit, extra, granularity, loanA, loanB) — microtask-deferred restore (SSR-safe defaults first paint, no hydration mismatch), type-guarded fields, save effect gated by loaded flag
+- AnimatedMoney: useSpring MotionValue + useTransform computed text rendered as motion.span child (no React state per frame; handles currency switch)
+- Fixed react-hooks/set-state-in-effect lint errors by deferring restore setStates into queueMicrotask callback (rule tracks sync setState in effect body)
+- framer-motion: AnimatePresence mode="wait" tab transitions (exit 0.14s easeIn, enter spring 320/28), layoutId tab pill spring 340/30, badge/verdict pop springs; haptics vibrate(12) on tab switch
+- Responsive: max-w-2xl, grids collapse at 360px (stat cards 2-col, compare cards stack, donut h-48), all interactive controls ≥ h-11 (44px), charts ResponsiveContainer 100%
+- Verified: bunx tsc --noEmit clean; bun run lint clean (whole project); no new npm packages; registry.tsx untouched; no dev server started/stopped (dev.log healthy GET / 200)
+
+Stage Summary:
+- EMI v2 shipped: dark-glass finance redesign (teal/emerald identity + #0d9488 glow preserved), donut + payoff timeline (yearly bars / monthly cumulative areas), prepayment insight, side-by-side loan comparison with Better badge + savings verdict, currency picker (default ৳)
+- All prior features preserved: EMI/total interest/total payment math, yearly amortization schedule table, validation, empty state
+- New localStorage namespace 'toolhub-emi' (NOTE for main agent: if backup-restore.tsx enumerates tool localStorage keys, add 'toolhub-emi' in a QA pass — harmless no-op today)
+- Caveat: charts/AnimatedMoney render client-side only (dynamic import); prepayment + compare math is pure simulation, no APIs

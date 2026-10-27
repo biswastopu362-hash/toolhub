@@ -76,6 +76,9 @@ import {
   ChefHat,
   ShoppingCart,
   Dices,
+  MoonStar,
+  CalendarHeart,
+  Fuel,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -179,6 +182,9 @@ const WorkoutPlannerApp = load(() => import('@/components/tools/workout-planner'
 const RecipeBoxApp = load(() => import('@/components/tools/recipe-box'))
 const ShoppingListApp = load(() => import('@/components/tools/shopping-list'))
 const RandomToolsApp = load(() => import('@/components/tools/random-tools'))
+const PrayerTimesApp = load(() => import('@/components/tools/prayer-times'))
+const CycleTrackerApp = load(() => import('@/components/tools/cycle-tracker'))
+const TravelFuelApp = load(() => import('@/components/tools/travel-fuel'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -435,6 +441,33 @@ export const tools: Tool[] = [
     Component: ShoppingListApp,
   },
   {
+    id: 'prayer-times',
+    name: 'Prayer Times',
+    description: 'Location-based daily prayer schedule with Bengali labels, countdown and gentle adhan reminder',
+    tagline: 'Never miss a prayer',
+    category: 'daily',
+    icon: MoonStar,
+    gradient: 'from-teal-300 via-emerald-500 to-green-700',
+    glow: '#10b981',
+    keywords: ['prayer', 'salah', 'namaz', 'islamic', 'adhan', 'fajr', 'maghrib', 'hijri', 'muslim', 'times'],
+    featured: true,
+    version: '1.0.0',
+    Component: PrayerTimesApp,
+  },
+  {
+    id: 'cycle-tracker',
+    name: 'Cycle Tracker',
+    description: 'Private period logging with predictions, fertile window, moods and notes — all on-device',
+    tagline: 'Your cycle, privately',
+    category: 'daily',
+    icon: CalendarHeart,
+    gradient: 'from-pink-300 via-rose-400 to-fuchsia-600',
+    glow: '#ec4899',
+    keywords: ['cycle', 'period', 'tracker', 'health', 'calendar', 'predictions', 'privacy', 'ovulation'],
+    version: '1.0.0',
+    Component: CycleTrackerApp,
+  },
+  {
     id: 'translator',
     name: 'Translator',
     description: 'AI translation between 25+ languages with swap, copy, share and history',
@@ -576,13 +609,28 @@ export const tools: Tool[] = [
   {
     id: 'emi-calculator',
     name: 'Loan Calculator',
-    description: 'EMI, interest and total repayment with yearly breakdown',
+    description: 'EMI, interest and total repayment with amortization charts, prepayment savings and side-by-side loan comparison',
     category: 'calculator',
     icon: Banknote,
     gradient: 'from-teal-400 via-teal-500 to-emerald-700',
     glow: '#0d9488',
-    keywords: ['emi', 'loan', 'bank', 'interest', 'mortgage', 'installment'],
+    keywords: ['emi', 'loan', 'bank', 'interest', 'mortgage', 'installment', 'amortization', 'prepayment', 'compare'],
+    featured: true,
+    version: '2.0.0',
     Component: EmiCalculatorTool,
+  },
+  {
+    id: 'travel-fuel',
+    name: 'Travel & Fuel',
+    description: 'Fuel cost split, mileage log with efficiency charts and group trip settlement',
+    tagline: 'Every trip, costed and split',
+    category: 'calculator',
+    icon: Fuel,
+    gradient: 'from-yellow-300 via-amber-500 to-orange-600',
+    glow: '#eab308',
+    keywords: ['fuel', 'mileage', 'travel', 'trip', 'petrol', 'diesel', 'km/l', 'split', 'car cost'],
+    version: '1.0.0',
+    Component: TravelFuelApp,
   },
   {
     id: 'age-calculator',
@@ -797,12 +845,13 @@ export const tools: Tool[] = [
   {
     id: 'currency',
     name: 'Currency Converter',
-    description: 'Convert between 30+ world currencies with live rates',
+    description: 'Live currency conversion with offline rate cache, favorites strip and rate movement hints',
     category: 'converter',
     icon: CircleDollarSign,
     gradient: 'from-emerald-300 via-emerald-400 to-green-600',
     glow: '#22c55e',
-    keywords: ['currency', 'money', 'exchange', 'usd', 'eur', 'forex', 'rate'],
+    keywords: ['currency', 'money', 'exchange', 'usd', 'eur', 'forex', 'rate', 'offline', 'bdt', 'convert'],
+    version: '2.0.0',
     Component: CurrencyTool,
   },
   {
