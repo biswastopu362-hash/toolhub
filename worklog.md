@@ -1654,3 +1654,139 @@ Stage Summary:
 - Theme engine now supports user-designed custom wallpapers (CustomWallpaper in zustand persist, rendered by page.tsx wp-layer, surfaced in Control Center)
 - Design Studio ships 33-template pack system (posters/banners/thumbs/stories)
 - Next: ROADMAP D46 — Weather v2 (Phase 4 opens)
+---
+Task ID: P4-1b (D48 Health Tracker)
+Agent: subagent
+Task: Health Tracker — BMI/BMR, water intake rings, weight log, history heatmap
+
+Work Log:
+- Gathered canonical pattern from expense-tracker.tsx (IndexedDB write-through, alive-flag hydration, dark-glass design, recharts dark ticks, spring entrances) + habit-tracker heatmap grid-cols-10 style; confirmed lucide-react 0.525 (UserRound/HeartPulse) + recharts 2.15.4 exports
+- Created src/components/tools/health-tracker.tsx (1418 ln, 'use client', default export) — rose identity 'from-rose-300 via-rose-500 to-red-600', glow rgb(244_63_94/0.7), HeartPulse chip, h-11 touch targets, 360px-safe (min-w-0/truncate/flex wraps)
+- Tab bar (Today/Weight/History) in gradient header pill; per-section framer-motion spring stagger
+- Today: BMI gauge ring (SVG motion.circle stroke-dashoffset spring, BMI 14→40 mapped, threshold tick dots at 18.5/25/30, band color amber/emerald/amber/rose) + BMR Mifflin-St Jeor + calorie target (activity picker 4 chips inline, ×1.2/1.375/1.55/1.725) + premium empty state with Set-up CTA when profile unset
+- Water: animated day ring with rose gradient stroke + drop-shadow glow at goal, big h-14 "+Add a glass · +N ml" button (navigator.vibrate 12), quick −1 correction, goal-reached toast, 7-day recharts bar chart (today highlighted, dashed ReferenceLine at daily goal, tick={{fill:'#71717a',fontSize:9}}, hidden YAxis with computed 100-rounded max)
+- Weight: log form (kg h-14 input + native date [color-scheme:dark] max=today + optional note, Enter submits), auto-syncs latest weigh-in into profile weight→BMI; trend LineChart (CartesianGrid, #f43f5e line, padded numeric Y domain) shown at ≥2 entries; delta badges (TrendingDown emerald / TrendingUp rose / ±) vs previous entry; list max-h-96 overflow-y-auto + thin custom scrollbar (tailwind arbitrary variants), two-tap SURE? delete confirm with 2.6s auto-reset, AnimatePresence layout rows
+- History: 30-day heatmap grid-cols-10 (hit=emerald glow / partial=emerald-35 / miss / today ring), stats cards (goal hit n/30, best streak, avg ml/day), legend, 30-day totals footer
+- IndexedDB 'toolhub-health' v1: stores 'metrics' (keyPath key, {key:'profile'} singleton), 'water' (keyPath date, {date,count,goalMl}), 'weights' (keyPath id, {id,kg,date,note,createdAt}); all mutations setState FIRST then void idbPut/idbDelete(...).catch(); refs mirror state for write-through payloads; today's water row goalMl re-synced on goal change
+- Profile & goals modal (AnimatePresence overlay, spring panel): height/weight/age numeric drafts, sex segmented, goal stepper (1–20, applies instantly), glass-size chips 150–500 ml
+- Gates: bunx tsc --noEmit clean; bun run lint clean; dev.log healthy; registry.tsx untouched
+
+Stage Summary:
+- D48 Health Tracker ready for registry wiring (main agent): component src/components/tools/health-tracker.tsx
+- New IndexedDB namespace: toolhub-health (metrics / water / weights)
+- Next: main agent registry entry + QA pass
+---
+Task ID: P4-1e (D52 Shopping List)
+Agent: subagent
+Task: Shopping List — lists, check-off, quantity steppers, Web Share
+
+Work Log:
+- Context-gathered from expense-tracker.tsx (canonical IndexedDB write-through, hydration alive-flag, dark-glass, spring motions) + worklog tail; confirmed house SCROLLBAR class and useToast API
+- Created src/components/tools/shopping-list.tsx (1430 ln, default export, 'use client'), registry untouched per task split
+- IndexedDB 'toolhub-shopping' v1: stores 'lists' {id,name,createdAt} + 'items' {id,listId,name,qty,note?,category,price?,checked,createdAt}; onupgradeneeded → dbPromise singleton → idbGetAll/idbPut/idbDelete Promise wrappers (canonical pattern)
+- Multiple lists: switcher chip tablist w/ per-list count badges + "New" chip, manage-lists sheet (create w/ Enter, two-tap confirm delete that cascades items, inline rename w/ save/cancel, ACTIVE badge, tap row to switch); last-active list remembered in localStorage
+- Items: composer (name + Add, Enter-to-add), Options expander (note, $ price, category chips), QtyStepper shared component (− / editable number / +, clamp 1–99, tap number to type); rows 56px w/ 44px check targets, category dot, ×qty chip, note·price meta, two-tap trash confirm
+- Category auto-guess: phrase rules (peanut butter/olive oil…) + per-word dictionary across produce/dairy/meat/bakery/pantry/other, plural-stripped; derived state (catOverride ?? guess(name)) — no setState-in-effect (lint rule), "auto" badge + Auto reset chip on manual override; distinct dot colors per category
+- Check-off: spring check pop (stroke rotate-in) + layout sink into "Done" section (count in header, sorted desc), strikethrough lime decoration, un-check restores, navigator.vibrate(12), haptic on check only
+- Progress: animated SVG ring (lime→green gradient stroke, dashoffset spring) showing done/total, status text, Est. total chip when prices set (Σ price×qty)
+- Share: Web Share API w/ formatted text (list name, checked/total, est. total, "To buy:" bullets, "Done:" ☑, per-line qty/price); AbortError → silent, unsupported/failed → clipboard fallback + toast; "Nothing to share" guard on empty
+- Clear-checked w/ count (batch idbDelete), all-done 🎉 empty state, no-lists premium empty state, empty-aisle state, skeleton hydration rows
+- First run seeds "Groceries" + 5 priced sample items guarded by localStorage flag 'toolhub-shopping:seeded' (persists across delete-all); active list flag 'toolhub-shopping:active'
+- Design: from-lime-300 via-lime-500 to-green-600 identity, #84cc16 glow shadows, zinc-950 glass, no-scrollbar chip rail, max-h-96/max-h-64 scrolled sections, footer privacy line; all mutations setState-first then void idbPut(...).catch()
+- Gates: bunx tsc --noEmit clean; bun run lint clean (fixed react-hooks/set-state-in-effect by converting auto-guess to derived state)
+
+Stage Summary:
+- D52 Shopping List shipped: src/components/tools/shopping-list.tsx (new, 1430 ln) — multi-list manager, spring check-off workflow, qty steppers, category auto-guess, est. totals, Web Share + clipboard fallback
+- New IndexedDB namespace: toolhub-shopping (stores: lists, items); localStorage flags: toolhub-shopping:seeded, toolhub-shopping:active
+- Registry NOT edited (handled by main agent); tsc + lint green
+---
+Task ID: P4-1f (D56 Random Tools)
+Agent: subagent
+Task: Random Tools — dice, coin flip, wheel spinner, name/number picker
+
+Work Log:
+- Context: read worklog tail + expense-tracker.tsx (canonical dark-glass pattern, springs, haptics, IDB patterns); confirmed registry does NOT reference random-tools yet (registry untouched per hard rule)
+- Created src/components/tools/random-tools.tsx (1423 ln, 'use client', default export RandomToolsApp): playful arcade dark-glass (bg-zinc-950, border-white/10, rounded-3xl), header gradient identity from-fuchsia-300 via-purple-500 to-violet-600 with #c084fc glow shadow + Dices tile, sticky-in-card footer note
+- Segmented tab bar (role=tablist, 4 tabs: Dices/Coins/Disc3/Users icons + labels, min-h-12, per-tab accent tints amber/yellow/fuchsia/teal, AnimatePresence mode=wait spring panel swaps)
+- Dice tab: 1–6 count picker (44px chips) + d6/d12/d20 sides picker; big tap-to-roll dice (96px for 1-2 dice, 64-80px grid for 3-6) — CSS 3×3 dot pips for d6, gradient number faces for d12 (amber) / d20 (violet); per-die re-roll + Roll-all; framer tumble (rotate -360→0 + scale, 500ms ease-out) keyed by per-die nonce; total badge with spring pop + /max; horizontal last-10 history strip (d-sides badge, values, sum) with clear + premium empty state
+- Coin tab: 160px gold coin (radial-gradient, inset rings, H/HEADS + T/TAILS faces, backface-hidden, preserve-3d) flips via accumulating rotateX (+180 face delta + extra spins, 0.9s ease-out) with launch tick + landing two-tone ding; result badge pop; tally heads/tails cards with %, animated split bar, last-14 flip dots strip, reset
+- Wheel tab: 280px conic-gradient wheel (segments hard-stopped from top), 2–12 segments, index-assigned distinct 12-color palette, rotated on-wheel labels, top pointer triangle + glow, 80px center SPIN hub button (spinning Disc3 icon state); decelerating CSS transform transition 4.3s cubic-bezier(0.15,0.9,0.25,1) with exact pointer math (target segment + edge-safe jitter, 4–6 full spins); 12 decaying Web Audio ticks during spin; winner announcement card (Trophy) + confetti burst (22 absolutely-positioned motion dots, polar scatter, no package) + haptic pattern; segment editor (add/remove/rename, max-h-60 scroll, disabled during spin)
+- Picker tab: Names|Numbers pill toggle; Names → textarea (dedup on parse), winners Stepper (1–min(pool,10)), Fisher-Yates draw with NO REPEATS until reset (picked pool strikethrough list + reset), staggered spring winner cards; Numbers → min/max/unique-count (clamps to range size with toast), sorted results as staggered mono chips; both with premium empty states
+- Sound: lazy Web Audio (AudioContext created on first gesture, suspended-resume, full try/catch), tick on roll start + ding on land per game; header mute toggle (Volume2/VolumeX, aria-pressed)
+- Persistence: localStorage 'toolhub-random' { v:1, muted, wheel:[labels] } — hydrate on mount (validates types, ≥2 labels), write-through on change; corrupted/blocked storage silently falls back to defaults
+- A11y/UX: aria-live polite status line (sr-only) announces every result; navigator.vibrate?.(12) guarded on all rolls ([12,60,24] on wheel win); all touch targets ≥44px (hub 80px, dice 64px+, chips 44px); toasts on pool/range edge cases
+- Responsive: root max-w-2xl; 360px audited (6-chip row, dice grids, 280px fixed wheel all fit in 328px content); 390/430/1280 clean; history/pool strips use hidden/thin custom scrollbars
+- Gates: bunx tsc --noEmit clean (project-wide); bunx eslint on random-tools.tsx clean (a recipe-box.tsx memoization lint error exists from another task — not this file)
+
+Stage Summary:
+- Random Tools component complete and registry-ready (default export, src/components/tools/random-tools.tsx) — awaiting registry wiring by main agent (not done here per hard rule)
+- New localStorage namespace: toolhub-random (wheel segment labels + mute pref; everything else memory-only by design)
+- No new npm packages; no IndexedDB needed (spec asked localStorage only); no edits to registry.tsx or any other file
+---
+Task ID: P4-1d (D51 Recipe Box)
+Agent: subagent
+Task: Recipe Box — recipes, cook mode, meal planner week view, shopping aggregation
+
+Work Log:
+- Gathered context: worklog tail + expense-tracker.tsx canonical pattern (IndexedDB write-through, dbPromise singleton, Promise wrappers, setState-first mutations, hydration alive flag, dark-glass design)
+- Created src/components/tools/recipe-box.tsx (~1230 ln, default export, 'use client'), zero new packages, registry.tsx untouched
+- Recipes: editor modal (name, 20-emoji palette, 5 category chips breakfast/lunch/dinner/snack/dessert, servings, prep min, ingredient rows name+qty, steps one-per-line textarea, comma tags), two-tap confirm delete (cascades to planner slots), search across name/ingredient/tag + scrollable category filter chips
+- Cook mode: full-screen overlay — ingredients tap-to-strike check-off list (navigator.vibrate?.(12), x/y counter, reset), steps one-at-a-time big gradient card with spring slide transitions, prev/next (h-12), "Step x of y" progress bar, last step → "Finish 🍽️" toast; pencil jumps to editor
+- Meal planner: Mon–Sun × lunch/dinner week grid — 7 narrow columns (h-11 cells, emoji dots on mobile, names at sm+), today column amber ring + gradient underline, tap slot → bottom-sheet recipe picker (mini filter >5 recipes, clear-slot button), slot id `${dayIdx}-${meal}`
+- Shopping aggregation (bonus): planner button → bottom sheet merging all planned recipes' ingredients (same-unit quantities summed e.g. "Rice — 3 cups", mixed units kept as "a + b", qty-less bare), alphabetical, plain-text with copy button (clipboard + execCommand fallback)
+- Seeding: first-run flag in settings store inserts 4 real recipes (Chicken Khichuri, Vegetable Fried Rice, Masala Omelette, Fruit Smoothie) then writes {key:'seeded',value:true}; seeds only when recipes store empty
+- IndexedDB 'toolhub-recipes' v1: stores recipes (keyPath id), planner (keyPath slot), settings (keyPath key); dbPromise singleton + idbGetAll/idbPut/idbDelete wrappers; all mutations setState-first then void idbPut(...).catch(); hydration useEffect with alive flag + skeleton
+- Design: warm kitchen dark-glass, gradient identity from-amber-200 via-orange-400 to-red-500, glow #f97316, per-category hex chips (amber/orange/red/yellow/pink), framer-motion springs, premium empty states, bottom sheets items-end→sm:center with safe-area padding
+- Responsive: 360px week grid fits 296px inner width with no overflow (chips in no-scrollbar strips), ≥44px primary touch targets, lists max-h-96/72 overflow-y-auto with global custom scrollbar
+- Gates: bunx tsc --noEmit clean; bun run lint clean — fixed one React Compiler preserve-manual-memoization error by extracting collectPlannedEntries() module helper + plain render-body call
+
+Stage Summary:
+- Recipe Box component ready at src/components/tools/recipe-box.tsx (needs registry wiring by main agent — id 'recipe-box', icon ChefHat, gradient from-amber-200 via-orange-400 to-red-500, glow #f97316)
+- New IndexedDB namespace: toolhub-recipes (recipes / planner / settings stores)
+- Cook mode + week planner + aggregated shopping list complete; seeded with 4 real recipes so empty state never blocks
+---
+Task ID: P4-1c (D50 Workout Planner)
+Agent: subagent
+Task: Workout Planner — routine builder, guided player with rest beeps, history/streaks
+
+Work Log:
+- Context pass: tail worklog.md + full read of expense-tracker.tsx to mirror the canonical pattern (IndexedDB write-through, hydration alive-flag, setState-first mutations, dark-glass card, spring transitions, metronome.tsx AudioContext-in-gesture pattern, clock.tsx SCROLLBAR utility)
+- Created src/components/tools/workout-planner.tsx (2052 ln, default export, 'use client', no new deps)
+- Exercise library: 46 curated moves across 8 groups (Chest/Back/Shoulders/Arms/Legs/Core/Cardio/Full Body) each with type reps|time + default sets/reps/seconds; searchable + group-chip library modal with "Added" feedback
+- Routine builder: inline panel with rename input, reorder up/down, two-tap delete, expandable per-exercise editor (type toggle reps↔time, sets/reps/seconds steppers, weight note), starter templates (Push Day / Leg Day / Core & Cardio) in new-routine modal; card shows exercises/sets/≈min estimate
+- Guided player (full-screen z-70): work card (big exercise name, set x/y, reps numeral or 216px countdown ring for time exercises, set dots, weight-note chip), auto-advance after last set of an exercise → rest phase → next exercise; time exercises auto-complete on 0; Done-set with haptic tick
+- Rest timer: editable presets 30/45/60/90/120s (persists to settings singleton, adjusts live countdown), pulsing amber ring + glow, Web Audio beeps — short 660Hz at 3-2-1, long 880Hz at 0 (oscillator + gain envelope, created/resumed inside Start tap, all try/catch) — plus navigator.vibrate?.([100,50,100]) at rest end; skip rest; pause/resume freezes all timers; overall spring progress bar + sets counter
+- Session state machine: single 1s interval created once, reads sessionRef/sessionRoutineRef (no stale closures, StrictMode-safe); end-workout modal with Keep going / Save & finish / Discard (partial sessions with ≥1 set saved)
+- History: entries {id, routineId, routineName, date YYYY-MM-DD, durationSec, totalSets, completedAt}; 3 stat cards (this week / all-time / day streak with today-or-yesterday anchor), list with expandable details (duration, sets, finish time) + two-tap delete; Done → auto-navigates to History tab
+- IndexedDB 'toolhub-workouts' v1: stores routines(id), history(id), settings(key) — write-through everywhere, hydration Promise.all + alive flag + graceful private-mode fallback
+- Design: energetic dark-glass zinc-950, identity gradient from-orange-300 via-amber-500 to-orange-600 with #f59e0b glow shadows, amber/orange accents (no blue/indigo), premium empty states, big bold tabular numerals, framer-motion springs on cards/rows
+- HARD RULES honored: registry.tsx untouched, no dev server actions, no bun run build; 360px-safe (min-w-0/truncate, no horizontal overflow), all icon buttons size-10/CTAs h-11+, long lists max-h-96/max-h-[26rem] overflow-y-auto with thin glass scrollbar; English UI, zero uploads
+
+Stage Summary:
+- P4-1c complete: workout-planner.tsx (2052 ln) ready for registry wiring (P4 main-agent task)
+- New IndexedDB namespace: toolhub-workouts (routines, history, settings)
+- bunx tsc --noEmit clean; bun run lint clean
+---
+Task ID: P4-1a (D46 Weather v2)
+Agent: subagent
+Task: Weather v2 — hourly + 7-day charts, multiple saved locations, dynamic backdrops
+
+Work Log:
+- Context-gathered: worklog tail, ROADMAP D46 scope, expense-tracker.tsx canonical pattern (IDB write-through, dark-glass shell, recharts ticks/tooltip), old weather.tsx (Open-Meteo fetch + localStorage cache)
+- Rewrote src/components/tools/weather.tsx in place (default export, 'use client', ~1730 ln): dark-glass shell (rounded-3xl border-white/10 bg-zinc-950) with cyan/sky identity tile kept 'from-cyan-300 via-cyan-500 to-sky-600'
+- Dynamic hero backdrop: 8 condition buckets × day/night gradients (clear-day amber→sky→cyan, clear-night slate-900→zinc-950, rain slate/steel, snow pale, storm near-black), AnimatePresence 0.7s crossfade + constant readability scrim + giant condition-icon watermark; hero shows place, big temp, condition, H/L, updated-ago ticker (30s), offline/stale pills, glass refresh button, °C/°F glass segmented pill (44px targets)
+- Multiple saved locations: horizontal chip row with active ring, add via debounced (400ms) Open-Meteo geocoding search panel (spring height animation), remove via Edit/Done toggle or 550ms long-press (pointer events + click suppression + onContextMenu guard), framer popLayout chip animations; active place persisted in IDB settings store
+- Current location: 'geolocation' permission probe via navigator.permissions (graceful catch), My Location chip + panel button, reverse-geocoded name via key-free BigDataCloud (3.5s AbortController, best-effort fallback 'My Location'); denial/timeout → toast + auto-opens manual search (never blocks)
+- Next 24 hours: horizontal strip (Now highlight, temp + condition icon w/ per-bucket tint + precip %) AND recharts LineChart temp curve (stroke #22d3ee, tick={{fill:'#71717a',fontSize:9}}, no gridlines); hourly isDay derived from per-date sunrise/sunset string compare
+- 7-day: AreaChart max/min with amber/sky gradient fills + legend, horizontal day cards (hi/lo/precip, Today highlighted)
+- Details grid (8 cells): feels-like, humidity, wind + rotated Navigation2 direction arrow + 16-point compass, pressure hPa, UV index (hourly uv_index at current hour → daily uv_index_max fallback + Low→Extreme label), precip-today, sunrise, sunset (12h clock labels parsed from location-local ISO strings, TZ-safe)
+- IndexedDB 'toolhub-weather' v1 (stores: locations keyPath id, cache keyPath locationId, settings keyPath key); write-through on every successful fetch; boot restores locations+cache+active+unit instantly, silent refresh when stale (>10 min); one-time migration from v1 localStorage 'weather-cache' (location always imported; forecast row only if v2-shaped) + 'weather-unit', legacy key removed after migrate, 'legacyMigrated' flag set
+- Robustness: request-token race guard, online/offline listeners with auto-retry on reconnect, premium error Alert with Try-again, offline last-known state, validation of cached payloads (validForecast guards current/daily/hourly)
+- Haptics navigator.vibrate?.(12) on all key taps; all springs stiffness 260–340
+- Verified: bunx tsc --noEmit clean; bun run lint clean; chmod 644; no new packages; registry.tsx untouched; no dev server started/stopped (dev.log shows GET / 200 healthy)
+
+Stage Summary:
+- Weather v2 shipped: multiple saved places, hourly strip+line chart, 7-day area+day cards, 8-cell details grid, condition/day-night dynamic backdrops
+- New IndexedDB namespace: toolhub-weather (locations/cache/settings); legacy localStorage 'weather-cache' + 'weather-unit' migrated one-time then removed — NOTE for main agent: backup-restore.tsx still lists 'weather-cache'/'weather-unit' as localStorage entries and does not yet know 'toolhub-weather' (harmless no-op; suggest adding toolhub-weather to IDB_DBS in a D60 QA pass)
+- API: Open-Meteo geocoding + forecast (current incl. wind_direction_10m/surface_pressure, hourly incl. uv_index, daily incl. sunrise/sunset/uv_index_max/precipitation_probability_max, timezone=auto) + best-effort BigDataCloud reverse geocode (key-free)
+- Caveats: geocoding/forecast/refresh need network; cached payloads render offline; v1 cached forecasts without hourly import as location-only (fresh fetch on activate)

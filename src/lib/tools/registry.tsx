@@ -71,6 +71,11 @@ import {
   Wallpaper,
   CaseSensitive,
   Settings as SettingsIcon,
+  HeartPulse,
+  Dumbbell,
+  ChefHat,
+  ShoppingCart,
+  Dices,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -169,6 +174,11 @@ const StickerStudioApp = load(() => import('@/components/tools/sticker-studio'))
 const SubtitleStudioApp = load(() => import('@/components/tools/subtitle-studio'))
 const WallpaperStudioApp = load(() => import('@/components/tools/wallpaper-studio'))
 const FontPlaygroundApp = load(() => import('@/components/tools/font-playground'))
+const HealthTrackerApp = load(() => import('@/components/tools/health-tracker'))
+const WorkoutPlannerApp = load(() => import('@/components/tools/workout-planner'))
+const RecipeBoxApp = load(() => import('@/components/tools/recipe-box'))
+const ShoppingListApp = load(() => import('@/components/tools/shopping-list'))
+const RandomToolsApp = load(() => import('@/components/tools/random-tools'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -369,6 +379,60 @@ export const tools: Tool[] = [
     featured: true,
     version: '1.0.0',
     Component: ExpenseTrackerApp,
+  },
+  {
+    id: 'health-tracker',
+    name: 'Health Tracker',
+    description: 'BMI & BMR metrics, daily water intake rings, weight trend chart and a 30-day goal heatmap',
+    tagline: 'Your body, understood',
+    category: 'daily',
+    icon: HeartPulse,
+    gradient: 'from-rose-300 via-rose-500 to-red-600',
+    glow: '#f43f5e',
+    keywords: ['health', 'bmi', 'bmr', 'water', 'hydration', 'weight', 'calories', 'fitness', 'body', 'tracker'],
+    featured: true,
+    version: '1.0.0',
+    Component: HealthTrackerApp,
+  },
+  {
+    id: 'workout-planner',
+    name: 'Workout Planner',
+    description: 'Build routines from a 46-exercise library, train with a guided timer and rest beeps, track history',
+    tagline: 'Train smart, every day',
+    category: 'daily',
+    icon: Dumbbell,
+    gradient: 'from-orange-300 via-amber-500 to-orange-600',
+    glow: '#f59e0b',
+    keywords: ['workout', 'gym', 'exercise', 'fitness', 'routine', 'training', 'timer', 'reps', 'sets', 'muscle'],
+    featured: true,
+    version: '1.0.0',
+    Component: WorkoutPlannerApp,
+  },
+  {
+    id: 'recipe-box',
+    name: 'Recipe Box',
+    description: 'Save recipes, cook step-by-step in cook mode and plan your week of meals',
+    tagline: 'Cook, plan, enjoy',
+    category: 'daily',
+    icon: ChefHat,
+    gradient: 'from-amber-200 via-orange-400 to-red-500',
+    glow: '#f97316',
+    keywords: ['recipe', 'cooking', 'food', 'meal', 'planner', 'kitchen', 'ingredients', 'dinner', 'lunch'],
+    version: '1.0.0',
+    Component: RecipeBoxApp,
+  },
+  {
+    id: 'shopping-list',
+    name: 'Shopping List',
+    description: 'Multiple lists with quantities, categories, prices and check-offs — share in one tap',
+    tagline: 'Never forget the milk again',
+    category: 'daily',
+    icon: ShoppingCart,
+    gradient: 'from-lime-300 via-lime-500 to-green-600',
+    glow: '#84cc16',
+    keywords: ['shopping', 'list', 'grocery', 'buy', 'cart', 'checklist', 'market', 'errand'],
+    version: '1.0.0',
+    Component: ShoppingListApp,
   },
   {
     id: 'translator',
@@ -701,7 +765,9 @@ export const tools: Tool[] = [
     icon: CloudSun,
     gradient: 'from-cyan-300 via-cyan-500 to-sky-600',
     glow: '#0ea5e9',
-    keywords: ['weather', 'forecast', 'temperature', 'rain', 'city', 'climate'],
+    keywords: ['weather', 'forecast', 'temperature', 'rain', 'city', 'climate', 'hourly', 'humidity', 'uv', 'sunrise', 'wind'],
+    featured: true,
+    version: '2.0.0',
     Component: WeatherTool,
   },
   {
@@ -1021,6 +1087,19 @@ export const tools: Tool[] = [
     featured: true,
     version: '1.0.0',
     Component: WallpaperStudioApp,
+  },
+  {
+    id: 'random-tools',
+    name: 'Random Tools',
+    description: 'Dice, coin flips, a customizable spinning wheel and random pickers — decisions made fun',
+    tagline: 'Leave it to chance',
+    category: 'utilities',
+    icon: Dices,
+    gradient: 'from-fuchsia-300 via-purple-500 to-violet-600',
+    glow: '#c084fc',
+    keywords: ['random', 'dice', 'coin', 'flip', 'wheel', 'spinner', 'picker', 'lottery', 'chance', 'luck'],
+    version: '1.0.0',
+    Component: RandomToolsApp,
   },
   {
     id: 'font-playground',
