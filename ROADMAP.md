@@ -122,22 +122,22 @@ Target: **~80+ apps & features** by Day 90.
 
 ## Phase 3 — Days 31–45 · "Media & Creative Powerhouse"
 
-- [ ] **D31** Screen Recorder (media) — display capture API, mic mix, preview + save to device
-- [ ] **D32** GIF Maker (media) — video segment → GIF, fps/size controls, from Camera/Gallery too
-- [ ] **D33** Video Converter & Compressor (media) — resolution/bitrate presets, progress UI
-- [ ] **D34** Video Studio v2 — multi-clip timeline strip, reorder, per-clip trim, combined export
-- [ ] **D35** Subtitle Studio (media) — SRT/VTT editor, timeline sync, preview overlay on video, export
-- [ ] **D36** Meme Maker (media) — top/bottom text, image picker, share-ready export
-- [ ] **D37** Collage Maker (media) — 8 layout grids, gap/radius controls, photos from Gallery
-- [ ] **D38** Design Studio template packs — posters, sale banners, YouTube thumbs, story packs (24+)
-- [ ] **D39** Wallpaper Studio (platform) — design your own launcher wallpaper (gradients/meshes),
+- [x] **D31** Screen Recorder (media) — display capture API, mic mix, preview + save to device
+- [x] **D32** GIF Maker (media) — video segment → GIF, fps/size controls, from Camera/Gallery too
+- [x] **D33** Video Converter & Compressor (media) — resolution/bitrate presets, progress UI
+- [x] **D34** Video Studio v2 — multi-clip timeline strip, reorder, per-clip trim, combined export
+- [x] **D35** Subtitle Studio (media) — SRT/VTT editor, timeline sync, preview overlay on video, export
+- [x] **D36** Meme Maker (media) — top/bottom text, image picker, share-ready export
+- [x] **D37** Collage Maker (media) — 8 layout grids, gap/radius controls, photos from Gallery
+- [x] **D38** Design Studio template packs — posters, sale banners, YouTube thumbs, story packs (24+)
+- [x] **D39** Wallpaper Studio (platform) — design your own launcher wallpaper (gradients/meshes),
       save into theme engine
-- [ ] **D40** Music Player v2 — playlists, shuffle/repeat, equalizer presets, sleep timer
-- [ ] **D41** Voice Recorder v2 — trim, rename, speed playback, notes per recording
-- [ ] **D42** Camera v2 — document scan mode (edge detect + flatten), timer, grid, mirror mode
-- [ ] **D43** Sticker Studio (media) — emoji/sticker sheets, transparent PNG export, use in design-studio
-- [ ] **D44** Font Playground (text) — font stacks preview, text-on-image quote cards
-- [ ] **D45** Phase 3 QA Day — audit + fix + tag **v1.3**
+- [x] **D40** Music Player v2 — playlists, shuffle/repeat, equalizer presets, sleep timer
+- [x] **D41** Voice Recorder v2 — trim, rename, speed playback, notes per recording
+- [x] **D42** Camera v2 — document scan mode (edge detect + flatten), timer, grid, mirror mode
+- [x] **D43** Sticker Studio (media) — emoji/sticker sheets, transparent PNG export, use in design-studio
+- [x] **D44** Font Playground (text) — font stacks preview, text-on-image quote cards
+- [x] **D45** Phase 3 QA Day — audit + fix + tag **v1.3**
 
 ## Phase 4 — Days 46–60 · "Daily Life & Intelligence"
 

@@ -57,6 +57,9 @@ export function ControlCenter({
   const setAccent = useAppStore((s) => s.setAccent)
   const wallpaper = useAppStore((s) => s.wallpaper)
   const setWallpaper = useAppStore((s) => s.setWallpaper)
+  const activeCustom = useAppStore((s) =>
+    s.customWallpapers.find((c) => c.id === s.activeCustomId),
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -195,10 +198,27 @@ export function ControlCenter({
                 Wallpaper
               </h3>
               <span className="text-xs font-semibold text-primary">
-                {WALLPAPERS.find((w) => w.id === wallpaper)?.name}
+                {wallpaper === 'custom'
+                  ? (activeCustom?.name ?? 'Custom')
+                  : WALLPAPERS.find((w) => w.id === wallpaper)?.name}
               </span>
             </div>
             <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1" role="group">
+              {wallpaper === 'custom' && (
+                <button
+                  type="button"
+                  onClick={() => useAppStore.getState().setWallpaper('custom')}
+                  aria-pressed
+                  aria-label={`${activeCustom?.name ?? 'Custom'} wallpaper`}
+                  title={activeCustom?.name ?? 'Custom'}
+                  className="relative aspect-square w-14 shrink-0 overflow-hidden rounded-xl shadow-sm ring-2 ring-primary ring-offset-2 ring-offset-background"
+                  style={{ background: activeCustom?.css }}
+                >
+                  <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground shadow">
+                    <Check className="size-3" aria-hidden />
+                  </span>
+                </button>
+              )}
               {WALLPAPERS.map((w) => {
                 const active = wallpaper === w.id
                 return (

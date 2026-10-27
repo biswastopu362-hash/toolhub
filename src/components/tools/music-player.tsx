@@ -1,17 +1,22 @@
 'use client'
 
 /**
- * Music Player — local audio library persisted in its own IndexedDB
- * ('toolhub-audio' / 'tracks'), Web Audio visualizer, full transport
- * controls and a phone-OS style playlist.
+ * Music Player v2 — local audio library persisted in its own IndexedDB
+ * ('toolhub-audio': 'tracks' + 'playlists'), Web Audio 5-band equalizer with
+ * presets, real shuffle queue (Fisher–Yates) + repeat modes, sleep timer with
+ * fade-out, canvas visualizer and a phone-OS style playlist UI.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import {
+  ChevronDown,
+  ChevronLeft,
+  Check,
   ListMusic,
   Music,
   Pause,
+  Pencil,
   Play,
   Plus,
   Repeat,
@@ -19,9 +24,12 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
+  SlidersHorizontal,
+  Timer,
   Trash2,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -31,7 +39,7 @@ import { useToast } from '@/hooks/use-toast'
 import { ensureFreshIndex, entryUrl, listEntries } from '@/lib/device-media'
 
 /* ================================================================== */
-/* IndexedDB — tiny private store for imported audio tracks            */
+/* IndexedDB — tiny private store for imported audio + playlists       */
 /* ================================================================== */
 
 interface TrackRecord {
@@ -41,9 +49,17 @@ interface TrackRecord {
   addedAt: number
 }
 
+interface PlaylistRecord {
+  id: string
+  name: string
+  trackIds: string[]
+  createdAt: number
+}
+
 const AUDIO_DB = 'toolhub-audio'
-const AUDIO_DB_VERSION = 1
+const AUDIO_DB_VERSION = 2 // v2 adds the 'playlists' store; v1 data upgrades in place
 const AUDIO_STORE = 'tracks'
+const PLAYLIST_STORE = 'playlists'
 const MP_KEY = 'toolhub.music-player.state'
 const MAX_FILE_BYTES = 25 * 1024 * 1024
 const BAR_COUNT = 32
@@ -55,6 +71,9 @@ function openAudioDb(): Promise<IDBDatabase> {
       const db = req.result
       if (!db.objectStoreNames.contains(AUDIO_STORE)) {
         db.createObjectStore(AUDIO_STORE, { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains(PLAYLIST_STORE)) {
+        db.createObjectStore(PLAYLIST_STORE, { keyPath: 'id' })
       }
     }
     req.onsuccess = () => resolve(req.result)
@@ -73,6 +92,21 @@ async function audioTx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore)
   })
 }
 
+async function playlistTx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await openAudioDb()
+  return new Promise<T>((resolve, reject) => {
+    const t = db.transaction(PLAYLIST_STORE, mode)
+    const req = run(t.objectStore(PLAYLIST_STORE))
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB request failed'))
+    t.oncomplete = () => db.close()
+  })
+}
+
+function putPlaylist(rec: PlaylistRecord): Promise<IDBValidKey> {
+  return playlistTx('readwrite', (s) => s.put(rec) as IDBRequest<IDBValidKey>)
+}
+
 function fileToAudioDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -83,10 +117,50 @@ function fileToAudioDataUrl(file: File): Promise<string> {
 }
 
 /* ================================================================== */
-/* Helpers                                                             */
+/* Equalizer + sleep timer constants                                   */
 /* ================================================================== */
 
 type RepeatMode = 'off' | 'all' | 'one'
+type EqPresetId = 'flat' | 'bass' | 'vocal' | 'treble' | 'electronic' | 'acoustic' | 'custom'
+type SleepMode = 'off' | 'end' | 'timer'
+
+const EQ_FREQS = [60, 230, 910, 3600, 14000] as const
+const EQ_BAND_LABELS = ['60 Hz', '230 Hz', '910 Hz', '3.6 kHz', '14 kHz'] as const
+const EQ_PRESET_IDS: EqPresetId[] = ['flat', 'bass', 'vocal', 'treble', 'electronic', 'acoustic', 'custom']
+const EQ_LABELS: Record<EqPresetId, string> = {
+  flat: 'Flat',
+  bass: 'Bass Boost',
+  vocal: 'Vocal',
+  treble: 'Treble',
+  electronic: 'Electronic',
+  acoustic: 'Acoustic',
+  custom: 'Custom',
+}
+const EQ_PRESETS: { id: Exclude<EqPresetId, 'custom'>; label: string; gains: number[] }[] = [
+  { id: 'flat', label: 'Flat', gains: [0, 0, 0, 0, 0] },
+  { id: 'bass', label: 'Bass Boost', gains: [8, 5, 2, 0, -1] },
+  { id: 'vocal', label: 'Vocal', gains: [-2, 1, 4, 3, 0] },
+  { id: 'treble', label: 'Treble', gains: [-3, -1, 1, 5, 7] },
+  { id: 'electronic', label: 'Electronic', gains: [7, 3, 0, 2, 5] },
+  { id: 'acoustic', label: 'Acoustic', gains: [4, 2, 0, 3, 4] },
+]
+const SLEEP_CHOICES = [5, 10, 15, 30, 45, 60] as const
+
+function isEqPreset(v: unknown): v is EqPresetId {
+  return typeof v === 'string' && (EQ_PRESET_IDS as string[]).includes(v)
+}
+
+function sanitizeGains(v: unknown): number[] {
+  const arr = Array.isArray(v) ? v : []
+  return EQ_FREQS.map((_, i) => {
+    const g = arr[i]
+    return typeof g === 'number' && isFinite(g) ? Math.min(12, Math.max(-12, g)) : 0
+  })
+}
+
+/* ================================================================== */
+/* Helpers                                                             */
+/* ================================================================== */
 
 interface SavedState {
   lastTrackId: string | null
@@ -95,10 +169,21 @@ interface SavedState {
   muted: boolean
   shuffle: boolean
   repeat: RepeatMode
+  eqGains: number[]
+  eqPreset: EqPresetId
 }
 
 function loadSavedState(): SavedState {
-  const fallback: SavedState = { lastTrackId: null, position: 0, volume: 0.8, muted: false, shuffle: false, repeat: 'off' }
+  const fallback: SavedState = {
+    lastTrackId: null,
+    position: 0,
+    volume: 0.8,
+    muted: false,
+    shuffle: false,
+    repeat: 'off',
+    eqGains: [0, 0, 0, 0, 0],
+    eqPreset: 'flat',
+  }
   if (typeof window === 'undefined') return fallback
   try {
     const raw = window.localStorage.getItem(MP_KEY)
@@ -114,6 +199,8 @@ function loadSavedState(): SavedState {
       muted: parsed.muted === true,
       shuffle: parsed.shuffle === true,
       repeat: parsed.repeat === 'all' || parsed.repeat === 'one' ? parsed.repeat : 'off',
+      eqGains: sanitizeGains(parsed.eqGains),
+      eqPreset: isEqPreset(parsed.eqPreset) ? parsed.eqPreset : 'flat',
     }
   } catch {
     return fallback
@@ -130,8 +217,34 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
+function formatDb(db: number): string {
+  const rounded = Math.round(db)
+  if (rounded > 0) return `+${rounded} dB`
+  if (rounded === 0) return '0 dB'
+  return `${rounded} dB`
+}
+
 function stripExtension(name: string): string {
   return name.replace(/\.[^./\\]+$/, '')
+}
+
+/** Fisher–Yates shuffle; keeps the current track first so playback continues. */
+function buildShuffledOrder(ids: string[], firstId: string | null): string[] {
+  const arr = [...ids]
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = arr[i]
+    arr[i] = arr[j]
+    arr[j] = tmp
+  }
+  if (firstId) {
+    const at = arr.indexOf(firstId)
+    if (at > 0) {
+      arr.splice(at, 1)
+      arr.unshift(firstId)
+    }
+  }
+  return arr
 }
 
 const ART_GRADIENTS = [
@@ -170,6 +283,64 @@ function EqualizerBars({ className }: { className?: string }) {
   )
 }
 
+/** Small read-only indicator chip (queue source, shuffle, repeat, EQ, sleep). */
+function IndicatorChip({
+  children,
+  tone = 'default',
+  onClick,
+  label,
+}: {
+  children: ReactNode
+  tone?: 'default' | 'accent'
+  onClick?: () => void
+  label?: string
+}) {
+  const cls = cn(
+    'inline-flex max-w-[210px] items-center truncate rounded-full border px-2.5 py-1 text-[11px] font-semibold',
+    tone === 'accent'
+      ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+      : 'border-border/70 bg-muted/50 text-muted-foreground'
+  )
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} aria-label={label} className={cn(cls, 'transition-colors hover:bg-muted/80')}>
+        {children}
+      </button>
+    )
+  }
+  return <span className={cls}>{children}</span>
+}
+
+/** Toggleable option chip for preset / sleep-timer rows. */
+function ChipButton({
+  active,
+  onClick,
+  children,
+  label,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+  label?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={label}
+      className={cn(
+        'h-10 shrink-0 rounded-full border px-3.5 text-xs font-semibold transition-colors',
+        active
+          ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+          : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 /* ================================================================== */
 /* Component                                                           */
 /* ================================================================== */
@@ -187,9 +358,26 @@ export default function MusicPlayer() {
   const [volume, setVolume] = useState(saved.volume)
   const [muted, setMuted] = useState(saved.muted)
   const [shuffle, setShuffle] = useState(saved.shuffle)
+  const [shuffleOrder, setShuffleOrder] = useState<string[] | null>(null)
   const [repeat, setRepeat] = useState<RepeatMode>(saved.repeat)
   const [audioOk, setAudioOk] = useState(true)
   const [durations, setDurations] = useState<Record<string, number>>({})
+  const [eqGains, setEqGains] = useState<number[]>(saved.eqGains)
+  const [eqPreset, setEqPreset] = useState<EqPresetId>(saved.eqPreset)
+  const [eqOpen, setEqOpen] = useState(false)
+  const [sleepMode, setSleepMode] = useState<SleepMode>('off')
+  const [sleepMinutes, setSleepMinutes] = useState<number | null>(null)
+  const [sleepEndsAt, setSleepEndsAt] = useState<number | null>(null)
+  const [sleepRemaining, setSleepRemaining] = useState(0)
+  const [fadeFactor, setFadeFactor] = useState(1)
+
+  /* ---- playlists (D40: named playlists, persisted in IndexedDB v2) ---- */
+  const [playlists, setPlaylists] = useState<PlaylistRecord[]>([])
+  const [openPlaylistId, setOpenPlaylistId] = useState<string | null>(null)
+  const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null)
+  const [newPlaylistName, setNewPlaylistName] = useState('')
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -197,6 +385,7 @@ export default function MusicPlayer() {
   const ctxRef = useRef<AudioContext | null>(null)
   const srcRef = useRef<MediaElementAudioSourceNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
+  const eqNodesRef = useRef<BiquadFilterNode[]>([])
   const autoAdvanceRef = useRef(false)
   const pendingSeekRef = useRef<number | null>(null)
   const currentIdRef = useRef<string | null>(null)
@@ -296,7 +485,7 @@ export default function MusicPlayer() {
   )
 
   /* latest settings snapshot for persistence from event handlers */
-  const settingsRef = useRef({ volume, muted, shuffle, repeat })
+  const settingsRef = useRef({ volume, muted, shuffle, repeat, eqGains, eqPreset })
 
   /* ---- keep refs in sync with latest state (no setState here) ---- */
   useEffect(() => {
@@ -305,18 +494,23 @@ export default function MusicPlayer() {
   }, [currentId, playing])
 
   useEffect(() => {
-    settingsRef.current = { volume, muted, shuffle, repeat }
-  }, [volume, muted, shuffle, repeat])
+    settingsRef.current = { volume, muted, shuffle, repeat, eqGains, eqPreset }
+  }, [volume, muted, shuffle, repeat, eqGains, eqPreset])
+
+  const sleepModeRef = useRef<SleepMode>('off')
+  useEffect(() => {
+    sleepModeRef.current = sleepMode
+  }, [sleepMode])
 
   useEffect(() => {
-    /* mirror volume / mute / loop onto the single audio element */
+    /* mirror volume / mute / loop (and sleep fade) onto the single audio element */
     const audio = audioRef.current
     if (audio) {
-      audio.volume = muted ? 0 : volume
+      audio.volume = muted ? 0 : Math.max(0, Math.min(1, volume * fadeFactor))
       audio.muted = muted
       audio.loop = repeat === 'one'
     }
-  }, [volume, muted, repeat])
+  }, [volume, muted, repeat, fadeFactor])
 
   /* ---- load library + restore last session (paused, never autoplay) ---- */
   useEffect(() => {
@@ -336,6 +530,9 @@ export default function MusicPlayer() {
           pendingSeekRef.current = restoreId === saved.lastTrackId ? saved.position : 0
           setCurrentId(restoreId)
         }
+        if (saved.shuffle) {
+          setShuffleOrder(buildShuffledOrder(sorted.map((t) => t.id), restoreId))
+        }
       })
       .catch(() => {
         /* library simply starts empty */
@@ -347,6 +544,22 @@ export default function MusicPlayer() {
       cancelled = true
     }
   }, [saved])
+
+  /* ---- load saved playlists (IndexedDB v2 store; missing → empty) ---- */
+  useEffect(() => {
+    let cancelled = false
+    playlistTx<PlaylistRecord[]>('readonly', (s) => s.getAll() as IDBRequest<PlaylistRecord[]>)
+      .then((rows) => {
+        if (cancelled) return
+        setPlaylists(rows.sort((a, b) => a.createdAt - b.createdAt))
+      })
+      .catch(() => {
+        /* playlists simply start empty */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   /* ---- preload durations for the playlist (metadata only) ---- */
   useEffect(() => {
@@ -386,15 +599,57 @@ export default function MusicPlayer() {
           muted,
           shuffle,
           repeat,
+          eqGains,
+          eqPreset,
         })
       )
     } catch {
       /* storage unavailable */
     }
-  }, [currentId, volume, muted, shuffle, repeat])
+  }, [currentId, volume, muted, shuffle, repeat, eqGains, eqPreset])
 
   /* ================================================================== */
-  /* Web Audio visualizer                                                */
+  /* Play queue (library or playlist, shuffled with Fisher–Yates)        */
+  /* ================================================================== */
+
+  const activePlaylist = activePlaylistId ? playlists.find((p) => p.id === activePlaylistId) ?? null : null
+  const activePlaylistName = activePlaylist?.name ?? null
+
+  const allTrackIdSet = useMemo(() => new Set(allTracks.map((t) => t.id)), [allTracks])
+
+  const naturalQueueIds = useMemo(() => {
+    if (activePlaylist) {
+      return activePlaylist.trackIds.filter((id) => allTrackIdSet.has(id))
+    }
+    return allTracks.map((t) => t.id)
+  }, [activePlaylist, allTrackIdSet, allTracks])
+
+  /* reconciled shuffled order: dropped tracks removed, new ones appended */
+  const queueIds = useMemo(() => {
+    if (!shuffle || !shuffleOrder) return naturalQueueIds
+    const known = new Set(naturalQueueIds)
+    const kept = shuffleOrder.filter((id) => known.has(id))
+    const keptSet = new Set(kept)
+    for (const id of naturalQueueIds) {
+      if (!keptSet.has(id)) kept.push(id)
+    }
+    return kept
+  }, [shuffle, shuffleOrder, naturalQueueIds])
+
+  const toggleShuffle = () => {
+    const next = !shuffle
+    navigator.vibrate?.(12)
+    setShuffle(next)
+    setShuffleOrder(next ? buildShuffledOrder(naturalQueueIds, currentIdRef.current) : null)
+  }
+
+  const toggleRepeat = () => {
+    navigator.vibrate?.(12)
+    setRepeat((m) => (m === 'off' ? 'all' : m === 'all' ? 'one' : 'off'))
+  }
+
+  /* ================================================================== */
+  /* Web Audio: 5-band peaking EQ → analyser (visualizer hears the EQ)   */
   /* ================================================================== */
 
   const ensureAnalyser = useCallback(() => {
@@ -408,13 +663,28 @@ export default function MusicPlayer() {
         setAudioOk(false)
         return
       }
+      // created lazily on first play (autoplay policies) — one context per session
       const ctx = new Ctor()
+      // MediaElementSource must be created ONCE per element — creating twice throws
       const source = ctx.createMediaElementSource(audio)
+      const gains = settingsRef.current.eqGains
+      const filters = EQ_FREQS.map((freq, i) => {
+        const f = ctx.createBiquadFilter()
+        f.type = 'peaking'
+        f.frequency.value = freq
+        f.Q.value = 1.1
+        f.gain.value = gains[i] ?? 0
+        return f
+      })
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 64
       analyser.smoothingTimeConstant = 0.82
-      source.connect(analyser)
+      // chain: source → 60 → 230 → 910 → 3.6k → 14k Hz → analyser → destination
+      source.connect(filters[0])
+      for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1])
+      filters[filters.length - 1].connect(analyser)
       analyser.connect(ctx.destination)
+      eqNodesRef.current = filters
       ctxRef.current = ctx
       srcRef.current = source
       analyserRef.current = analyser
@@ -422,6 +692,32 @@ export default function MusicPlayer() {
       setAudioOk(false)
     }
   }, [])
+
+  /* live-apply slider changes to the filter nodes (smooth, click-free) */
+  useEffect(() => {
+    const ctx = ctxRef.current
+    const nodes = eqNodesRef.current
+    if (!ctx || nodes.length === 0) return
+    for (let i = 0; i < nodes.length; i++) {
+      const target = eqGains[i] ?? 0
+      try {
+        nodes[i].gain.setTargetAtTime(target, ctx.currentTime, 0.04)
+      } catch {
+        nodes[i].gain.value = target
+      }
+    }
+  }, [eqGains])
+
+  const setEqBand = (band: number, db: number) => {
+    setEqGains((prev) => prev.map((g, i) => (i === band ? db : g)))
+    setEqPreset('custom')
+  }
+
+  const applyEqPreset = (preset: (typeof EQ_PRESETS)[number]) => {
+    navigator.vibrate?.(12)
+    setEqGains([...preset.gains])
+    setEqPreset(preset.id)
+  }
 
   const drawVisualizer = useCallback(() => {
     const canvas = canvasRef.current
@@ -468,6 +764,64 @@ export default function MusicPlayer() {
   }, [playing, audioOk, currentId, drawVisualizer])
 
   /* ================================================================== */
+  /* Sleep timer (wall-clock countdown + fade over the last 10 s)        */
+  /* ================================================================== */
+
+  const clearSleep = useCallback(() => {
+    setSleepMode('off')
+    setSleepMinutes(null)
+    setSleepEndsAt(null)
+    setSleepRemaining(0)
+    setFadeFactor(1)
+  }, [])
+
+  const startSleep = (minutes: number) => {
+    navigator.vibrate?.(12)
+    setSleepMode('timer')
+    setSleepMinutes(minutes)
+    setSleepEndsAt(Date.now() + minutes * 60_000)
+    setSleepRemaining(minutes * 60)
+    setFadeFactor(1)
+  }
+
+  const setSleepEndOfTrack = () => {
+    navigator.vibrate?.(12)
+    setSleepMode('end')
+    setSleepMinutes(null)
+    setSleepEndsAt(null)
+    setSleepRemaining(0)
+    setFadeFactor(1)
+  }
+
+  useEffect(() => {
+    if (sleepMode !== 'timer' || sleepEndsAt === null) return
+    let stopped = false
+    const apply = () => {
+      if (stopped) return
+      const remainS = Math.max(0, (sleepEndsAt - Date.now()) / 1000)
+      setSleepRemaining(remainS)
+      if (remainS <= 10) setFadeFactor(remainS / 10) // linear fade-out over the last 10 s
+      if (remainS <= 0) {
+        stopped = true
+        audioRef.current?.pause()
+        setFadeFactor(1)
+        setSleepMode('off')
+        setSleepMinutes(null)
+        setSleepEndsAt(null)
+        toast({ title: 'Sleep timer done', description: 'Playback paused. Sleep well.' })
+      }
+    }
+    // defer the first tick out of the effect body; interval keeps it ticking
+    const kick = window.setTimeout(apply, 0)
+    const iv = window.setInterval(apply, 250)
+    return () => {
+      stopped = true
+      window.clearTimeout(kick)
+      window.clearInterval(iv)
+    }
+  }, [sleepMode, sleepEndsAt, toast])
+
+  /* ================================================================== */
   /* Playback                                                            */
   /* ================================================================== */
 
@@ -498,20 +852,28 @@ export default function MusicPlayer() {
 
   const advance = useCallback(
     (dir: 1 | -1, autoPlay: boolean) => {
-      if (allTracks.length === 0) return
-      const idx = allTracks.findIndex((t) => t.id === currentIdRef.current)
-      const cur = idx >= 0 ? idx : 0
-      let nextIdx: number
-      if (settingsRef.current.shuffle && allTracks.length > 1 && dir === 1) {
-        do {
-          nextIdx = Math.floor(Math.random() * allTracks.length)
-        } while (nextIdx === cur)
-      } else {
-        nextIdx = (cur + dir + allTracks.length) % allTracks.length
+      const q = queueIds
+      if (q.length === 0) return
+      const idx = q.indexOf(currentIdRef.current ?? '')
+      const from = idx >= 0 ? idx : 0
+      let nextIdx = from + dir
+      if (nextIdx < 0) {
+        // manual previous wraps; auto never walks backwards
+        nextIdx = autoPlay ? -1 : q.length - 1
+      } else if (nextIdx >= q.length) {
+        // manual next wraps; auto stops unless repeat-all
+        nextIdx = autoPlay && settingsRef.current.repeat !== 'all' ? -1 : 0
       }
-      skipTo(allTracks[nextIdx].id, autoPlay)
+      if (nextIdx < 0) {
+        // auto-advance ran past the end with repeat off — stop cleanly
+        positionRef.current = 0
+        setPosition(0)
+        persistSnapshot()
+        return
+      }
+      skipTo(q[nextIdx], autoPlay)
     },
-    [allTracks, skipTo]
+    [queueIds, skipTo, persistSnapshot]
   )
 
   const togglePlay = useCallback(() => {
@@ -564,19 +926,15 @@ export default function MusicPlayer() {
   }
 
   const handleEnded = useCallback(() => {
-    const rep = settingsRef.current.repeat
-    if (rep === 'all' || settingsRef.current.shuffle) {
-      advance(1, true)
+    if (sleepModeRef.current === 'end') {
+      // sleep timer in end-of-track mode: stop here instead of advancing
+      audioRef.current?.pause()
+      clearSleep()
+      toast({ title: 'Sleep timer done', description: 'Stopped at the end of this track.' })
       return
     }
-    const idx = allTracks.findIndex((t) => t.id === currentIdRef.current)
-    if (idx >= 0 && idx < allTracks.length - 1) {
-      advance(1, true)
-    } else {
-      positionRef.current = 0
-      setPosition(0)
-    }
-  }, [advance, allTracks])
+    advance(1, true)
+  }, [advance, clearSleep, toast])
 
   /* device file unreadable / moved / permission expired — never leave the
    * player silently stuck or surprise-autoplay the next track */
@@ -652,7 +1010,7 @@ export default function MusicPlayer() {
   }
 
   const removeTrack = async (id: string) => {
-    const track = tracks.find((t) => t.id === id)
+    const track = allTracks.find((t) => t.id === id)
     if (id === currentIdRef.current) {
       const audio = audioRef.current
       if (audio) {
@@ -668,19 +1026,114 @@ export default function MusicPlayer() {
       setPosition(0)
     }
     setTracks((prev) => prev.filter((t) => t.id !== id))
+    // keep playlists tidy: drop the track from every playlist that holds it
+    const affected = playlists.filter((p) => p.trackIds.includes(id))
+    if (affected.length > 0) {
+      setPlaylists((prev) => prev.map((p) => (p.trackIds.includes(id) ? { ...p, trackIds: p.trackIds.filter((t) => t !== id) } : p)))
+      for (const p of affected) {
+        const updated: PlaylistRecord = { ...p, trackIds: p.trackIds.filter((t) => t !== id) }
+        void putPlaylist(updated).catch(() => undefined)
+      }
+    }
     try {
       await audioTx('readwrite', (s) => s.delete(id) as unknown as IDBRequest<undefined>)
     } catch {
       /* ignore */
     }
-    toast({ title: 'Track removed', description: track ? `"${track.name}" left your library.` : undefined })
+    toast({ title: 'Track removed', description: track ? `"${stripExtension(track.name)}" left your library.` : undefined })
   }
 
-  const onRowClick = (id: string) => {
+  /* ---- playlist CRUD (D40) ---- */
+
+  const createPlaylist = () => {
+    const name = newPlaylistName.trim()
+    if (!name) return
+    navigator.vibrate?.(12)
+    const rec: PlaylistRecord = {
+      id: `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      name: name.slice(0, 60),
+      trackIds: [],
+      createdAt: Date.now(),
+    }
+    setPlaylists((prev) => [...prev, rec])
+    setNewPlaylistName('')
+    setOpenPlaylistId(rec.id)
+    void putPlaylist(rec).catch(() => {
+      toast({ title: 'Could not save playlist', description: 'Storage is unavailable on this device.', variant: 'destructive' })
+    })
+  }
+
+  const beginRename = (pl: PlaylistRecord) => {
+    setRenamingId(pl.id)
+    setRenameDraft(pl.name)
+  }
+
+  const commitRename = () => {
+    const id = renamingId
+    if (!id) return
+    const name = renameDraft.trim().slice(0, 60)
+    const pl = playlists.find((p) => p.id === id)
+    setRenamingId(null)
+    if (!pl || !name || name === pl.name) return
+    const updated: PlaylistRecord = { ...pl, name }
+    setPlaylists((prev) => prev.map((p) => (p.id === id ? updated : p)))
+    void putPlaylist(updated).catch(() => undefined)
+  }
+
+  const deletePlaylist = (id: string) => {
+    const pl = playlists.find((p) => p.id === id)
+    navigator.vibrate?.(12)
+    setPlaylists((prev) => prev.filter((p) => p.id !== id))
+    if (openPlaylistId === id) setOpenPlaylistId(null)
+    if (activePlaylistId === id) setActivePlaylistId(null)
+    void playlistTx('readwrite', (s) => s.delete(id) as unknown as IDBRequest<undefined>).catch(() => undefined)
+    toast({ title: 'Playlist deleted', description: pl ? `"${pl.name}" was removed.` : undefined })
+  }
+
+  const addTrackToPlaylist = (playlistId: string, trackId: string) => {
+    const pl = playlists.find((p) => p.id === playlistId)
+    if (!pl || pl.trackIds.includes(trackId)) return
+    const updated: PlaylistRecord = { ...pl, trackIds: [...pl.trackIds, trackId] }
+    setPlaylists((prev) => prev.map((p) => (p.id === playlistId ? updated : p)))
+    void putPlaylist(updated).catch(() => undefined)
+  }
+
+  const removeTrackFromPlaylist = (playlistId: string, trackId: string) => {
+    const pl = playlists.find((p) => p.id === playlistId)
+    if (!pl) return
+    const updated: PlaylistRecord = { ...pl, trackIds: pl.trackIds.filter((t) => t !== trackId) }
+    setPlaylists((prev) => prev.map((p) => (p.id === playlistId ? updated : p)))
+    void putPlaylist(updated).catch(() => undefined)
+  }
+
+  const playPlaylist = (playlistId: string) => {
+    const pl = playlists.find((p) => p.id === playlistId)
+    if (!pl) return
+    const ids = pl.trackIds.filter((id) => allTrackIdSet.has(id))
+    if (ids.length === 0) {
+      toast({ title: 'Playlist is empty', description: 'Add some tracks from your library first.' })
+      return
+    }
+    navigator.vibrate?.(12)
+    setActivePlaylistId(playlistId)
+    skipTo(ids[0], true)
+  }
+
+  const onLibraryRowClick = (id: string) => {
     if (id === currentId) {
       togglePlay()
       return
     }
+    setActivePlaylistId(null) // tapping the library plays the full library queue
+    skipTo(id, true)
+  }
+
+  const onPlaylistRowClick = (playlistId: string, id: string) => {
+    if (id === currentId) {
+      togglePlay()
+      return
+    }
+    setActivePlaylistId(playlistId)
     skipTo(id, true)
   }
 
@@ -701,7 +1154,12 @@ export default function MusicPlayer() {
   /* Render                                                              */
   /* ================================================================== */
 
-  const canPlay = allTracks.length > 0
+  const openPlaylist = openPlaylistId ? playlists.find((p) => p.id === openPlaylistId) ?? null : null
+  const openPlaylistValidIds = openPlaylist ? openPlaylist.trackIds.filter((id) => allTrackIdSet.has(id)) : []
+  const addableTracks = openPlaylist ? allTracks.filter((t) => !openPlaylist.trackIds.includes(t.id)) : []
+  const canPlay = queueIds.length > 0 || currentTrack != null
+  const showChips =
+    shuffle || repeat !== 'off' || activePlaylistName != null || eqPreset !== 'flat' || sleepMode !== 'off'
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-5">
@@ -747,7 +1205,7 @@ export default function MusicPlayer() {
           <div className="h-80 animate-pulse rounded-3xl bg-muted" />
           <div className="h-24 animate-pulse rounded-2xl bg-muted" />
         </div>
-      ) : allTracks.length === 0 ? (
+      ) : allTracks.length === 0 && playlists.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-14 text-center">
           <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white shadow-xl shadow-emerald-500/30">
             <Music className="h-9 w-9" aria-hidden />
@@ -805,9 +1263,31 @@ export default function MusicPlayer() {
                       ? playing
                         ? 'Now playing'
                         : 'Paused'
-                      : 'Pick a track from your playlist below'}
+                      : 'Pick a track from your library below'}
                   </p>
                 </div>
+
+                {/* Session indicator chips */}
+                {showChips && (
+                  <div className="flex flex-wrap items-center justify-center gap-1.5" aria-label="Playback settings">
+                    {activePlaylistName && (
+                      <IndicatorChip
+                        tone="accent"
+                        onClick={() => setActivePlaylistId(null)}
+                        label={`Playing from playlist ${activePlaylistName} — tap to play the full library`}
+                      >
+                        Queue: {activePlaylistName} ✕
+                      </IndicatorChip>
+                    )}
+                    {shuffle && <IndicatorChip>Shuffle</IndicatorChip>}
+                    {repeat !== 'off' && <IndicatorChip>{repeat === 'one' ? 'Repeat one' : 'Repeat all'}</IndicatorChip>}
+                    {eqPreset !== 'flat' && <IndicatorChip>EQ · {EQ_LABELS[eqPreset]}</IndicatorChip>}
+                    {sleepMode === 'timer' && (
+                      <IndicatorChip tone="accent">Sleep {formatTime(sleepRemaining)}</IndicatorChip>
+                    )}
+                    {sleepMode === 'end' && <IndicatorChip tone="accent">Sleep · end of track</IndicatorChip>}
+                  </div>
+                )}
 
                 {/* Seek */}
                 <div className="w-full space-y-1.5">
@@ -832,7 +1312,7 @@ export default function MusicPlayer() {
                     size="icon"
                     aria-pressed={shuffle}
                     aria-label="Shuffle"
-                    onClick={() => setShuffle((v) => !v)}
+                    onClick={toggleShuffle}
                     className={cn(
                       'h-11 w-11 rounded-full',
                       shuffle && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
@@ -886,7 +1366,7 @@ export default function MusicPlayer() {
                     size="icon"
                     aria-pressed={repeat !== 'off'}
                     aria-label={`Repeat: ${repeat}`}
-                    onClick={() => setRepeat((m) => (m === 'off' ? 'all' : m === 'all' ? 'one' : 'off'))}
+                    onClick={toggleRepeat}
                     className={cn(
                       'h-11 w-11 rounded-full',
                       repeat !== 'off' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
@@ -928,76 +1408,491 @@ export default function MusicPlayer() {
             </CardContent>
           </Card>
 
-          {/* Playlist */}
+          {/* Equalizer (D40) */}
+          <Card className="border-border/70 shadow-lg shadow-black/5">
+            <CardContent className="p-3 sm:p-4">
+              <button
+                type="button"
+                onClick={() => setEqOpen((v) => !v)}
+                aria-expanded={eqOpen}
+                className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-1 text-left"
+              >
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-md shadow-sky-500/20">
+                    <SlidersHorizontal className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold tracking-tight">Equalizer</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {EQ_LABELS[eqPreset]}
+                      {audioOk ? ' · 5-band' : ' · Web Audio unavailable'}
+                    </span>
+                  </span>
+                </span>
+                <ChevronDown
+                  className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', eqOpen && 'rotate-180')}
+                  aria-hidden
+                />
+              </button>
+
+              {eqOpen && (
+                <div className="mt-3 space-y-4 px-1">
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label="Equalizer presets">
+                    {EQ_PRESETS.map((preset) => (
+                      <ChipButton
+                        key={preset.id}
+                        active={eqPreset === preset.id}
+                        onClick={() => applyEqPreset(preset)}
+                        label={`${preset.label} equalizer preset`}
+                      >
+                        {preset.label}
+                      </ChipButton>
+                    ))}
+                    {eqPreset === 'custom' && (
+                      <span className="inline-flex h-10 items-center rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                        Custom
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3" role="group" aria-label="Equalizer bands">
+                    {EQ_FREQS.map((freq, i) => (
+                      <div key={freq} className="flex items-center gap-3">
+                        <span className="w-14 shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+                          {EQ_BAND_LABELS[i]}
+                        </span>
+                        <Slider
+                          value={[eqGains[i] ?? 0]}
+                          min={-12}
+                          max={12}
+                          step={1}
+                          onValueChange={(vals) => setEqBand(i, vals[0] ?? 0)}
+                          aria-label={`${EQ_BAND_LABELS[i]} gain in decibels`}
+                        />
+                        <span className="w-14 shrink-0 text-right text-[11px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                          {formatDb(eqGains[i] ?? 0)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Sleep timer (D40) */}
+          <Card className="border-border/70 shadow-lg shadow-black/5">
+            <CardContent className="space-y-2.5 p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-600 text-white shadow-md shadow-amber-500/20">
+                    <Timer className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold tracking-tight">Sleep timer</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">Pause playback automatically</span>
+                  </span>
+                </span>
+                {sleepMode === 'timer' && (
+                  <motion.span
+                    key="sleep-countdown"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="inline-flex shrink-0 items-center rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold tabular-nums text-emerald-700 dark:text-emerald-400"
+                  >
+                    {formatTime(sleepRemaining)}
+                  </motion.span>
+                )}
+                {sleepMode === 'end' && (
+                  <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                    End of track
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 px-1" role="group" aria-label="Sleep timer options">
+                <ChipButton active={sleepMode === 'off'} onClick={clearSleep} label="Turn sleep timer off">
+                  Off
+                </ChipButton>
+                {SLEEP_CHOICES.map((m) => (
+                  <ChipButton
+                    key={m}
+                    active={sleepMode === 'timer' && sleepMinutes === m}
+                    onClick={() => startSleep(m)}
+                    label={`Sleep in ${m} minutes`}
+                  >
+                    {m} min
+                  </ChipButton>
+                ))}
+                <ChipButton active={sleepMode === 'end'} onClick={setSleepEndOfTrack} label="Sleep at end of track">
+                  End of track
+                </ChipButton>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Playlists (D40) */}
+          <Card className="border-border/70 shadow-lg shadow-black/5">
+            <CardContent className="space-y-3 p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2 px-1">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-md shadow-violet-500/20">
+                    <ListMusic className="h-4 w-4" aria-hidden />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold tracking-tight">Playlists</h3>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {playlists.length === 0
+                        ? 'Group your tracks into named playlists'
+                        : `${playlists.length} playlist${playlists.length === 1 ? '' : 's'} · saved on this device`}
+                    </p>
+                  </div>
+                </div>
+                {openPlaylist && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setOpenPlaylistId(null)}
+                    className="h-10 shrink-0 rounded-xl text-muted-foreground"
+                  >
+                    <ChevronLeft className="h-4 w-4" aria-hidden />
+                    All playlists
+                  </Button>
+                )}
+              </div>
+
+              {!openPlaylist ? (
+                <>
+                  <div className="flex gap-2 px-1">
+                    <input
+                      value={newPlaylistName}
+                      onChange={(e) => setNewPlaylistName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') createPlaylist()
+                      }}
+                      maxLength={60}
+                      placeholder="New playlist name"
+                      aria-label="New playlist name"
+                      className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-muted/40 px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-emerald-500/50"
+                    />
+                    <Button
+                      onClick={createPlaylist}
+                      disabled={!newPlaylistName.trim()}
+                      className="h-11 shrink-0 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25 hover:from-violet-600 hover:to-fuchsia-700"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden />
+                      Create
+                    </Button>
+                  </div>
+
+                  {playlists.length > 0 && (
+                    <div className="space-y-1 px-1">
+                      {playlists.map((pl) => {
+                        const validCount = pl.trackIds.filter((id) => allTrackIdSet.has(id)).length
+                        return renamingId === pl.id ? (
+                          <div key={pl.id} className="flex items-center gap-2 rounded-xl bg-muted/50 px-2 py-1.5">
+                            <input
+                              autoFocus
+                              value={renameDraft}
+                              onChange={(e) => setRenameDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') commitRename()
+                                if (e.key === 'Escape') setRenamingId(null)
+                              }}
+                              maxLength={60}
+                              aria-label="Playlist name"
+                              className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-emerald-500/50"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Save playlist name"
+                              onClick={commitRename}
+                              className="h-10 w-10 shrink-0 rounded-lg text-emerald-600 dark:text-emerald-400"
+                            >
+                              <Check className="h-4 w-4" aria-hidden />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Cancel renaming"
+                              onClick={() => setRenamingId(null)}
+                              className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground"
+                            >
+                              <X className="h-4 w-4" aria-hidden />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div
+                            key={pl.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setOpenPlaylistId(pl.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setOpenPlaylistId(pl.id)
+                              }
+                            }}
+                            aria-label={`Open playlist ${pl.name}`}
+                            className="group flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-muted/60"
+                          >
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-600/20 text-violet-600 dark:text-violet-400">
+                              <ListMusic className="h-4.5 w-4.5" aria-hidden />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">{pl.name}</p>
+                              <p className="text-[11px] tabular-nums text-muted-foreground">
+                                {validCount} track{validCount === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Play all in ${pl.name}`}
+                              disabled={validCount === 0}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                playPlaylist(pl.id)
+                              }}
+                              className="h-10 w-10 shrink-0 rounded-lg text-emerald-600 dark:text-emerald-400"
+                            >
+                              <Play className="h-4 w-4 fill-current" aria-hidden />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Rename ${pl.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                beginRename(pl)
+                              }}
+                              className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Delete ${pl.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                deletePlaylist(pl.id)
+                              }}
+                              className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden />
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-3 px-1">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold tracking-tight">{openPlaylist.name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {openPlaylistValidIds.length} track{openPlaylistValidIds.length === 1 ? '' : 's'}
+                        {activePlaylistId === openPlaylist.id ? ' · playing now' : ''}
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => playPlaylist(openPlaylist.id)}
+                      disabled={openPlaylistValidIds.length === 0}
+                      className="h-11 shrink-0 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-600 hover:to-teal-700"
+                    >
+                      <Play className="h-4 w-4 fill-current" aria-hidden />
+                      Play all
+                    </Button>
+                  </div>
+
+                  <div className={cn('max-h-72 space-y-1 overflow-y-auto pr-1', SCROLLBAR_Y)}>
+                    {openPlaylist.trackIds.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                        This playlist is empty — add tracks from your library below.
+                      </p>
+                    ) : (
+                      openPlaylist.trackIds.map((id, i) => {
+                        const t = allTracks.find((x) => x.id === id) ?? null
+                        const dur = t ? durations[t.id] : undefined
+                        return (
+                          <div
+                            key={id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => t && onPlaylistRowClick(openPlaylist.id, id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                if (t) onPlaylistRowClick(openPlaylist.id, id)
+                              }
+                            }}
+                            aria-label={t ? `Play ${stripExtension(t.name)} from ${openPlaylist.name}` : 'Track no longer in library'}
+                            className="group flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-muted/60"
+                          >
+                            <span
+                              className={cn(
+                                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                                id === currentId
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-muted text-muted-foreground'
+                              )}
+                            >
+                              {id === currentId && playing ? (
+                                <EqualizerBars />
+                              ) : (
+                                <span className="text-xs font-semibold tabular-nums">{i + 1}</span>
+                              )}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={cn(
+                                  'truncate text-sm font-medium',
+                                  id === currentId && 'text-emerald-700 dark:text-emerald-400',
+                                  !t && 'italic text-muted-foreground'
+                                )}
+                              >
+                                {t ? stripExtension(t.name) : 'Removed from library'}
+                              </p>
+                              {t && (
+                                <p className="text-[11px] tabular-nums text-muted-foreground">
+                                  {typeof dur === 'number' ? formatTime(dur) : '—:—'}
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Remove ${t ? stripExtension(t.name) : 'track'} from ${openPlaylist.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeTrackFromPlaylist(openPlaylist.id, id)
+                              }}
+                              className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="h-4 w-4" aria-hidden />
+                            </Button>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Add from library
+                    </p>
+                    <div className={cn('mt-1.5 max-h-48 space-y-1 overflow-y-auto pr-1', SCROLLBAR_Y)}>
+                      {addableTracks.length === 0 ? (
+                        <p className="px-2.5 py-3 text-xs text-muted-foreground">
+                          {allTracks.length === 0
+                            ? 'Add music to your library first, then add tracks here.'
+                            : 'Every track in your library is already in this playlist.'}
+                        </p>
+                      ) : (
+                        addableTracks.map((t) => (
+                          <div key={t.id} className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-muted/40">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                              <Music className="h-4 w-4" aria-hidden />
+                            </span>
+                            <p className="min-w-0 flex-1 truncate text-sm">{stripExtension(t.name)}</p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Add ${stripExtension(t.name)} to ${openPlaylist.name}`}
+                              onClick={() => addTrackToPlaylist(openPlaylist.id, t.id)}
+                              className="h-10 w-10 shrink-0 rounded-lg text-emerald-600 dark:text-emerald-400"
+                            >
+                              <Plus className="h-4 w-4" aria-hidden />
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* All tracks */}
           <Card className="border-border/70 shadow-lg shadow-black/5">
             <CardContent className="p-2 sm:p-3">
               <p className="px-2 pb-1.5 pt-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Playlist · {allTracks.length}
+                All tracks · {allTracks.length}
               </p>
               <div className={cn('max-h-72 overflow-y-auto pr-1', SCROLLBAR_Y)}>
-                {allTracks.map((t, i) => {
-                  const isActive = t.id === currentId
-                  const isDev = t.id.startsWith('dev:')
-                  const dur = durations[t.id]
-                  return (
-                    <div
-                      key={t.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onRowClick(t.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          onRowClick(t.id)
-                        }
-                      }}
-                      aria-label={`Play ${stripExtension(t.name)}`}
-                      className={cn(
-                        'group flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 transition-colors',
-                        isActive ? 'bg-emerald-500/10' : 'hover:bg-muted/60'
-                      )}
-                    >
-                      <span
+                {allTracks.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                    Your library is empty — add music to fill it.
+                  </p>
+                ) : (
+                  allTracks.map((t, i) => {
+                    const isActive = t.id === currentId
+                    const isDev = t.id.startsWith('dev:')
+                    const dur = durations[t.id]
+                    return (
+                      <div
+                        key={t.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onLibraryRowClick(t.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            onLibraryRowClick(t.id)
+                          }
+                        }}
+                        aria-label={`Play ${stripExtension(t.name)}`}
                         className={cn(
-                          'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
-                          isActive ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'
+                          'group flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 transition-colors',
+                          isActive ? 'bg-emerald-500/10' : 'hover:bg-muted/60'
                         )}
                       >
-                        {isActive && playing ? (
-                          <EqualizerBars />
-                        ) : (
-                          <span className="text-xs font-semibold tabular-nums">{i + 1}</span>
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className={cn('truncate text-sm font-medium', isActive && 'text-emerald-700 dark:text-emerald-400')}>
-                          {stripExtension(t.name)}
-                        </p>
-                        <p className="text-[11px] tabular-nums text-muted-foreground">
-                          {isDev
-                            ? 'Live from your device'
-                            : typeof dur === 'number'
-                              ? formatTime(dur)
-                              : '—:—'}
-                        </p>
-                      </div>
-                      {!isDev && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remove ${stripExtension(t.name)}`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void removeTrack(t.id)
-                          }}
-                          className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                        <span
+                          className={cn(
+                            'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+                            isActive ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'
+                          )}
                         >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                        </Button>
-                      )}
-                    </div>
-                  )
-                })}
+                          {isActive && playing ? (
+                            <EqualizerBars />
+                          ) : (
+                            <span className="text-xs font-semibold tabular-nums">{i + 1}</span>
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className={cn('truncate text-sm font-medium', isActive && 'text-emerald-700 dark:text-emerald-400')}>
+                            {stripExtension(t.name)}
+                          </p>
+                          <p className="text-[11px] tabular-nums text-muted-foreground">
+                            {isDev
+                              ? 'Live from your device'
+                              : typeof dur === 'number'
+                                ? formatTime(dur)
+                                : '—:—'}
+                          </p>
+                        </div>
+                        {!isDev && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove ${stripExtension(t.name)}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void removeTrack(t.id)
+                            }}
+                            className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden />
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </CardContent>
           </Card>

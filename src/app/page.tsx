@@ -36,7 +36,7 @@ import { LockGate } from '@/components/os/lock-gate'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useAppStore } from '@/lib/store/app-store'
-import { DEFAULT_WALLPAPER, getWallpaper, type WallpaperId } from '@/lib/theme'
+import { DEFAULT_WALLPAPER, getWallpaper, wallpaperIsDark, type WallpaperId } from '@/lib/theme'
 import {
   addToFolderOp,
   createFolderOp,
@@ -93,6 +93,10 @@ export default function Home() {
   const [hash, navigate] = useHashRoute()
   const hydrated = useHydrated()
   const wallpaper = useAppStore((s) => s.wallpaper)
+  /* D39: active user-designed wallpaper (stable ref; null when none) */
+  const activeCustom = useAppStore(
+    (s) => s.customWallpapers.find((c) => c.id === s.activeCustomId) ?? null
+  )
 
   const appId = useMemo(() => {
     if (hash.startsWith('#/app/')) return decodeURIComponent(hash.replace('#/app/', ''))
@@ -239,7 +243,8 @@ export default function Home() {
   const [spotlightOpen, setSpotlightOpen] = useState(false)
   const [ccOpen, setCcOpen] = useState(false)
   const [editing, setEditing] = useState(false)
-  const wpDark = getWallpaper(wallpaperId).dark
+  const liveCustom = wallpaperId === 'custom' ? activeCustom : null
+  const wpDark = wallpaperIsDark(wallpaperId, liveCustom)
 
   return (
     <MotionConfig reducedMotion="user">
@@ -250,8 +255,11 @@ export default function Home() {
             <div
               aria-hidden
               data-off="true"
-              className={cn('wp-layer', getWallpaper(prevWp).className)}
-              style={{ opacity: 1 }}
+              className={cn(
+                'wp-layer',
+                !(prevWp === 'custom' && activeCustom) && getWallpaper(prevWp).className
+              )}
+              style={{ background: prevWp === 'custom' ? activeCustom?.css : undefined, opacity: 1 }}
             />
           )}
           <div
@@ -259,8 +267,16 @@ export default function Home() {
                an always-on composite of two full-screen layers burned GPU
                on mid-range phones even when the wallpaper was invisible */
             data-off={showApp || !wpOn ? 'true' : 'false'}
-            className={cn('wp-layer', getWallpaper(wallpaperId).className)}
-            style={{ opacity: wpOn ? 1 : 0 }}
+            className={cn(
+              'wp-layer',
+              !liveCustom && getWallpaper(wallpaperId).className
+            )}
+            style={{
+              /* D39: 'custom' renders the composed CSS; with no active def
+                 the preset fallback (DEFAULT_WALLPAPER) is used instead */
+              background: liveCustom?.css,
+              opacity: wpOn ? 1 : 0,
+            }}
           />
           {/* film grain + soft top light + gentle edge vignette */}
           <div className="wp-noise absolute inset-0" />
@@ -369,7 +385,10 @@ function HomeScreen({
 
   const layout = useAppStore((s) => s.layout)
   const installed = useAppStore((s) => s.installed)
-  const onLight = !getWallpaper(useAppStore((s) => s.wallpaper)).dark
+  const onLight = !wallpaperIsDark(
+    useAppStore((s) => s.wallpaper),
+    useAppStore((s) => s.customWallpapers.find((c) => c.id === s.activeCustomId) ?? null)
+  )
   const externalApps = useExternalApps((s) => s.apps)
 
   const installedTools = useMemo(

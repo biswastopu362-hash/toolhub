@@ -7,6 +7,7 @@ import {
   DEFAULT_MODE,
   DEFAULT_WALLPAPER,
   type AccentId,
+  type CustomWallpaper,
   type ModeId,
   type WallpaperId,
 } from '@/lib/theme'
@@ -37,6 +38,10 @@ interface AppState {
    * pinHash is a SHA-256 hex of the 4-digit PIN (never the PIN itself).
    */
   appLock: { enabled: boolean; pinHash: string; lockedApps: string[] } | null
+  /** user-designed wallpapers from Wallpaper Studio (D39) */
+  customWallpapers: CustomWallpaper[]
+  /** id of the custom wallpaper currently applied to the launcher, or null */
+  activeCustomId: string | null
 
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
@@ -53,6 +58,11 @@ interface AppState {
   isInstalled: (id: string) => boolean
   setStoreDeepLink: (id: string | null) => void
   setAppLock: (lock: AppState['appLock']) => void
+  /** upsert a Wallpaper Studio design (pass `id` to update an existing one) */
+  saveCustomWallpaper: (wp: Omit<CustomWallpaper, 'id' | 'createdAt'> & { id?: string }) => void
+  /** remove a custom wallpaper; clears activeCustomId if it was active */
+  deleteCustomWallpaper: (id: string) => void
+  setActiveCustom: (id: string | null) => void
 }
 
 /** v2 → v3: installed apps didn't exist — derive them from the old layout. */
@@ -68,6 +78,10 @@ function deriveInstalled(persisted: Partial<AppState>): string[] {
   return ids.size <= DOCK_IDS.length ? [...new Set([...ids, ...DEFAULT_INSTALLED_IDS])] : [...ids]
 }
 
+function newCustomId(): string {
+  return `cw-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -81,6 +95,8 @@ export const useAppStore = create<AppState>()(
       installed: DEFAULT_INSTALLED_IDS,
       storeDeepLink: null,
       appLock: null,
+      customWallpapers: [],
+      activeCustomId: null,
 
       toggleFavorite: (id) =>
         set((s) => ({
@@ -123,6 +139,32 @@ export const useAppStore = create<AppState>()(
       isInstalled: (id) => get().installed.includes(id),
       setStoreDeepLink: (id) => set({ storeDeepLink: id }),
       setAppLock: (lock) => set({ appLock: lock }),
+
+      saveCustomWallpaper: (wp) =>
+        set((s) => {
+          if (wp.id) {
+            const idx = s.customWallpapers.findIndex((c) => c.id === wp.id)
+            if (idx >= 0) {
+              const next = [...s.customWallpapers]
+              next[idx] = { ...next[idx], name: wp.name, css: wp.css, dark: wp.dark }
+              return { customWallpapers: next }
+            }
+          }
+          const entry: CustomWallpaper = {
+            id: wp.id ?? newCustomId(),
+            name: wp.name,
+            css: wp.css,
+            dark: wp.dark,
+            createdAt: Date.now(),
+          }
+          return { customWallpapers: [...s.customWallpapers, entry] }
+        }),
+      deleteCustomWallpaper: (id) =>
+        set((s) => ({
+          customWallpapers: s.customWallpapers.filter((c) => c.id !== id),
+          activeCustomId: s.activeCustomId === id ? null : s.activeCustomId,
+        })),
+      setActiveCustom: (id) => set({ activeCustomId: id }),
     }),
     {
       name: 'toolhub-store',

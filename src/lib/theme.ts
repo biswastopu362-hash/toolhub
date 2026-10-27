@@ -128,6 +128,8 @@ export type WallpaperId =
   | 'haze'
   | 'sand'
   | 'porcelain'
+  /** D39 Wallpaper Studio — user-designed wallpaper resolved via activeCustomId */
+  | 'custom'
 
 export interface WallpaperDef {
   id: WallpaperId
@@ -158,4 +160,34 @@ export const DEFAULT_WALLPAPER: WallpaperId = 'sunset'
 
 export function getWallpaper(id: string): WallpaperDef {
   return WALLPAPERS.find((w) => w.id === id) ?? WALLPAPERS[0]
+}
+
+/* ---------------------------------------------------------------- */
+/* Custom wallpapers (D39 Wallpaper Studio)                          */
+/* ---------------------------------------------------------------- */
+
+/**
+ * A user-designed wallpaper. `css` is a composed multi-layer CSS
+ * `background` value (linear-gradient base + radial mesh blobs, optional
+ * grain/vignette layers) produced by Wallpaper Studio. `dark` drives
+ * status-bar / launcher-icon contrast the same way `WallpaperDef.dark`
+ * does for presets.
+ */
+export interface CustomWallpaper {
+  id: string
+  name: string
+  css: string
+  /** true → light-on-dark status text; false → dark-on-light */
+  dark: boolean
+  createdAt: number
+}
+
+/**
+ * Effective status-bar contrast for the active wallpaper. Custom
+ * wallpapers carry their own `dark` flag; with `wallpaper === 'custom'`
+ * but no active/known def the default preset is used instead.
+ */
+export function wallpaperIsDark(id: string, custom: CustomWallpaper | null): boolean {
+  if (id === 'custom' && custom) return custom.dark
+  return getWallpaper(id).dark
 }

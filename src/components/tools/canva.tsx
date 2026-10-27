@@ -1,9 +1,12 @@
 'use client'
 
 /**
- * Design Studio v3 — a Canva-style design AND document editor, fully on-device.
- * v3 adds a freehand drawing engine: pen, marker and highlighter strokes plus
+ * Design Studio v3.1 — a Canva-style design AND document editor, fully on-device.
+ * v3 added a freehand drawing engine: pen, marker and highlighter strokes plus
  * drag-arrows — all as regular, editable elements (WYSIWYG in every export).
+ * v3.1 adds template packs: 30+ ready-made designs (event posters, sale banners,
+ * YouTube thumbnails, story packs + the original starters) organized in a
+ * pack-tabbed browser. Templates instantiate as real, editable elements.
  *
  * Pages model: the design is a stack of Pages, each with its own elements,
  * background and size (so imported PDF pages keep their real proportions).
@@ -22,13 +25,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { motion } from 'framer-motion'
 import {
   AlignCenter,
   AlignLeft,
   AlignRight,
   ArrowUpRight,
+  BadgePercent,
   Bold,
   Brush,
+  Camera,
   Check,
   ChevronDown,
   ChevronUp,
@@ -44,6 +50,7 @@ import {
   Italic,
   LayoutTemplate,
   Loader2,
+  MonitorPlay,
   Palette,
   PenTool,
   Pipette,
@@ -52,6 +59,7 @@ import {
   RotateCw,
   Shapes,
   Sparkles,
+  Ticket,
   Trash2,
   Type,
   Undo2,
@@ -206,9 +214,27 @@ const SIZE_PRESETS = [
   { id: 'letter', label: 'US Letter', w: 1275, h: 1650 },
 ]
 
-/* --- Templates: instant, premium starting points --- */
+/* --- Template packs (v3.1): 33 premium starting points, tabbed by pack --- */
+type TemplatePackId = 'starters' | 'posters' | 'banners' | 'thumbs' | 'stories'
+
+interface TemplatePack {
+  id: TemplatePackId
+  name: string
+  blurb: string
+  icon: typeof LayoutTemplate
+}
+
+const TEMPLATE_PACKS: TemplatePack[] = [
+  { id: 'starters', name: 'Starters', blurb: 'Fresh blanks for any idea', icon: Sparkles },
+  { id: 'posters', name: 'Event posters', blurb: 'Portrait promos that fill a wall', icon: Ticket },
+  { id: 'banners', name: 'Sale banners', blurb: 'Wide deal banners that pop', icon: BadgePercent },
+  { id: 'thumbs', name: 'YouTube thumbs', blurb: '1280×720 click magnets', icon: MonitorPlay },
+  { id: 'stories', name: 'Story packs', blurb: '9:16 vertical moments', icon: Camera },
+]
+
 interface Template {
   id: string
+  pack: TemplatePackId
   name: string
   bg: string
   w: number
@@ -217,8 +243,10 @@ interface Template {
 }
 
 const TEMPLATES: Template[] = [
+  /* ---------- starters (the original 9) ---------- */
   {
     id: 'quote',
+    pack: 'starters',
     name: 'Quote',
     bg: GRADIENTS[4].css,
     w: 1080,
@@ -231,6 +259,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'sale',
+    pack: 'starters',
     name: 'Mega Sale',
     bg: GRADIENTS[5].css,
     w: 1080,
@@ -245,6 +274,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'invite',
+    pack: 'starters',
     name: 'Invite',
     bg: GRADIENTS[3].css,
     w: 1080,
@@ -259,6 +289,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'minimal',
+    pack: 'starters',
     name: 'Minimal',
     bg: '#fafaf9',
     w: 1080,
@@ -271,6 +302,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'thumb',
+    pack: 'starters',
     name: 'Thumbnail',
     bg: GRADIENTS[8].css,
     w: 1920,
@@ -283,6 +315,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'story',
+    pack: 'starters',
     name: 'Story',
     bg: GRADIENTS[1].css,
     w: 1080,
@@ -296,6 +329,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'resume',
+    pack: 'starters',
     name: 'Resume',
     bg: '#ffffff',
     w: DOC_W,
@@ -315,6 +349,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'letter',
+    pack: 'starters',
     name: 'Document',
     bg: '#ffffff',
     w: DOC_W,
@@ -329,6 +364,7 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'slide',
+    pack: 'starters',
     name: 'Presentation',
     bg: GRADIENTS[8].css,
     w: 1920,
@@ -337,6 +373,398 @@ const TEMPLATES: Template[] = [
       { type: 'shape', shape: 'line', fill: '#facc15', x: 150, y: 310, w: 170, h: 14 },
       { type: 'text', text: 'Q3 REVIEW', x: 145, y: 380, w: 1200, h: 190, fontSize: 130, font: FONTS[3].css, color: '#ffffff', align: 'left', weight: 400 },
       { type: 'text', text: 'Team Atlas · October 2025', x: 150, y: 600, w: 1000, h: 70, fontSize: 44, font: FONTS[0].css, color: '#a5b4fc', align: 'left', weight: 600 },
+    ],
+  },
+
+  /* ---------- event posters (1080×1350 portrait) ---------- */
+  {
+    id: 'p-concert',
+    pack: 'posters',
+    name: 'Concert night',
+    bg: GRADIENTS[4].css,
+    w: 1080,
+    h: 1350,
+    els: [
+      { type: 'emoji', char: '🎤', x: 460, y: 120, w: 160, h: 160, fontSize: 160 },
+      { type: 'text', text: 'BAND NAME', x: 90, y: 320, w: 900, h: 70, fontSize: 34, font: FONTS[0].css, color: '#e9d5ff', align: 'center', weight: 800 },
+      { type: 'text', text: 'LIVE IN CONCERT', x: 60, y: 420, w: 960, h: 200, fontSize: 112, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'shape', shape: 'line', fill: '#a78bfa', x: 440, y: 660, w: 200, h: 10 },
+      { type: 'text', text: 'FRI · JUN 21 · 8 PM', x: 140, y: 720, w: 800, h: 70, fontSize: 40, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+      { type: 'text', text: 'Riverside Arena · Doors 7 PM', x: 190, y: 820, w: 700, h: 60, fontSize: 30, font: FONTS[0].css, color: '#c4b5fd', align: 'center', weight: 500 },
+      { type: 'shape', shape: 'circle', fill: '#f43f5e', x: 800, y: 1120, w: 200, h: 200 },
+      { type: 'text', text: 'GET\nTICKETS', x: 800, y: 1165, w: 200, h: 112, fontSize: 26, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+    ],
+  },
+  {
+    id: 'p-workshop',
+    pack: 'posters',
+    name: 'Workshop',
+    bg: GRADIENTS[7].css,
+    w: 1080,
+    h: 1350,
+    els: [
+      { type: 'shape', shape: 'circle', fill: '#0f172a', x: 90, y: 110, w: 110, h: 110 },
+      { type: 'text', text: 'HANDS-ON WORKSHOP', x: 90, y: 290, w: 900, h: 60, fontSize: 32, font: FONTS[0].css, color: '#047857', align: 'center', weight: 800 },
+      { type: 'text', text: 'COLOR & TYPE', x: 60, y: 380, w: 960, h: 150, fontSize: 96, font: FONTS[2].css, color: '#0f172a', align: 'center', weight: 700 },
+      { type: 'shape', shape: 'line', fill: '#0f172a', x: 440, y: 570, w: 200, h: 8 },
+      { type: 'text', text: 'SATURDAY · 10 AM – 2 PM · STUDIO 2', x: 90, y: 630, w: 900, h: 60, fontSize: 30, font: FONTS[0].css, color: '#065f46', align: 'center', weight: 700 },
+      { type: 'text', text: 'Bring a laptop — all materials provided', x: 140, y: 720, w: 800, h: 60, fontSize: 28, font: FONTS[0].css, color: '#059669', align: 'center', weight: 500 },
+      { type: 'shape', shape: 'rect', fill: '#ffffff', x: 340, y: 980, w: 400, h: 120 },
+      { type: 'text', text: 'SAVE MY SEAT', x: 340, y: 1005, w: 400, h: 70, fontSize: 34, font: FONTS[0].css, color: '#0f172a', align: 'center', weight: 800 },
+    ],
+  },
+  {
+    id: 'p-run',
+    pack: 'posters',
+    name: 'Charity run',
+    bg: GRADIENTS[0].css,
+    w: 1080,
+    h: 1350,
+    els: [
+      { type: 'shape', shape: 'heart', fill: '#ffffff', x: 445, y: 130, w: 190, h: 190 },
+      { type: 'text', text: 'CHARITY RUN 5K', x: 60, y: 400, w: 960, h: 180, fontSize: 104, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'text', text: 'RUN FOR A CAUSE', x: 190, y: 610, w: 700, h: 80, fontSize: 44, font: FONTS[0].css, color: '#7c2d12', align: 'center', weight: 800 },
+      { type: 'text', text: 'SUN · SEP 14 · 7 AM · CITY PARK', x: 140, y: 720, w: 800, h: 60, fontSize: 30, font: FONTS[0].css, color: '#9a3412', align: 'center', weight: 700 },
+      { type: 'shape', shape: 'rect', fill: '#7c2d12', x: 340, y: 850, w: 400, h: 110 },
+      { type: 'text', text: 'REGISTER TODAY', x: 340, y: 875, w: 400, h: 60, fontSize: 32, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+    ],
+  },
+  {
+    id: 'p-meetup',
+    pack: 'posters',
+    name: 'Tech meetup',
+    bg: GRADIENTS[1].css,
+    w: 1080,
+    h: 1350,
+    els: [
+      { type: 'text', text: 'DEV MEETUP #12', x: 90, y: 200, w: 900, h: 60, fontSize: 32, font: FONTS[0].css, color: '#e0f2fe', align: 'center', weight: 800 },
+      { type: 'text', text: 'BUILDING FOR THE WEB', x: 60, y: 290, w: 960, h: 190, fontSize: 96, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'text', text: 'Talks · Demos · Pizza', x: 240, y: 520, w: 600, h: 70, fontSize: 40, font: FONTS[2].css, color: '#bae6fd', align: 'center', weight: 600 },
+      { type: 'shape', shape: 'circle', fill: '#0c4a6e', x: 390, y: 680, w: 300, h: 300 },
+      { type: 'emoji', char: '💻', x: 465, y: 755, w: 150, h: 150, fontSize: 150 },
+      { type: 'text', text: 'THU · OCT 9 · 6:30 PM · HUB 24', x: 140, y: 1050, w: 800, h: 60, fontSize: 30, font: FONTS[0].css, color: '#e0f2fe', align: 'center', weight: 700 },
+    ],
+  },
+  {
+    id: 'p-food',
+    pack: 'posters',
+    name: 'Food festival',
+    bg: GRADIENTS[6].css,
+    w: 1080,
+    h: 1350,
+    els: [
+      { type: 'emoji', char: '🍜', x: 455, y: 140, w: 170, h: 170, fontSize: 170 },
+      { type: 'text', text: 'FOOD FESTIVAL', x: 60, y: 380, w: 960, h: 180, fontSize: 108, font: FONTS[3].css, color: '#9a3412', align: 'center', weight: 400 },
+      { type: 'text', text: 'TASTE THE CITY', x: 240, y: 600, w: 600, h: 70, fontSize: 40, font: FONTS[0].css, color: '#c2410c', align: 'center', weight: 800 },
+      { type: 'text', text: '40+ stalls · live music · family fun', x: 140, y: 700, w: 800, h: 60, fontSize: 28, font: FONTS[0].css, color: '#9a3412', align: 'center', weight: 500 },
+      { type: 'text', text: 'SAT–SUN · MAY 3 & 4 · OLD TOWN SQUARE', x: 90, y: 800, w: 900, h: 60, fontSize: 28, font: FONTS[0].css, color: '#c2410c', align: 'center', weight: 700 },
+      { type: 'shape', shape: 'circle', fill: '#fdba74', x: 90, y: 1100, w: 130, h: 130 },
+      { type: 'shape', shape: 'circle', fill: '#fdba74', x: 860, y: 1100, w: 130, h: 130 },
+    ],
+  },
+  {
+    id: 'p-art',
+    pack: 'posters',
+    name: 'Art exhibit',
+    bg: GRADIENTS[9].css,
+    w: 1080,
+    h: 1350,
+    els: [
+      { type: 'shape', shape: 'rect', fill: '#0f172a', x: 90, y: 130, w: 90, h: 90 },
+      { type: 'text', text: 'ART EXHIBIT', x: 90, y: 330, w: 900, h: 150, fontSize: 92, font: FONTS[6].css, color: '#0f172a', align: 'center', weight: 800 },
+      { type: 'text', text: 'New paintings by M. Rahman', x: 140, y: 510, w: 800, h: 70, fontSize: 34, font: FONTS[7].css, color: '#44403c', align: 'center', weight: 500 },
+      { type: 'shape', shape: 'line', fill: '#0f172a', x: 440, y: 640, w: 200, h: 8 },
+      { type: 'text', text: 'GALLERY NORTH · OCT 2 – NOV 15', x: 140, y: 700, w: 800, h: 60, fontSize: 28, font: FONTS[0].css, color: '#57534e', align: 'center', weight: 700 },
+      { type: 'text', text: 'Opening night FRI 6 PM — RSVP free', x: 190, y: 790, w: 700, h: 60, fontSize: 26, font: FONTS[0].css, color: '#78716c', align: 'center', weight: 500 },
+      { type: 'shape', shape: 'circle', fill: '#e7e5e4', x: 430, y: 1000, w: 220, h: 220 },
+      { type: 'emoji', char: '🎨', x: 485, y: 1050, w: 110, h: 110, fontSize: 110 },
+    ],
+  },
+
+  /* ---------- sale banners (1920×1080 wide) ---------- */
+  {
+    id: 'b-flash',
+    pack: 'banners',
+    name: 'Flash sale',
+    bg: GRADIENTS[5].css,
+    w: 1920,
+    h: 1080,
+    els: [
+      { type: 'emoji', char: '⚡', x: 180, y: 240, w: 220, h: 220, fontSize: 220 },
+      { type: 'text', text: 'FLASH SALE', x: 500, y: 240, w: 1300, h: 240, fontSize: 190, font: FONTS[3].css, color: '#7c2d12', align: 'left', weight: 400 },
+      { type: 'text', text: 'TODAY ONLY · UP TO 70% OFF', x: 505, y: 530, w: 1150, h: 90, fontSize: 56, font: FONTS[0].css, color: '#7c2d12', align: 'left', weight: 800 },
+      { type: 'shape', shape: 'rect', fill: '#7c2d12', x: 505, y: 680, w: 520, h: 110 },
+      { type: 'text', text: 'SHOP NOW', x: 505, y: 705, w: 520, h: 60, fontSize: 40, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+    ],
+  },
+  {
+    id: 'b-half',
+    pack: 'banners',
+    name: '50% off',
+    bg: GRADIENTS[0].css,
+    w: 1920,
+    h: 1080,
+    els: [
+      { type: 'shape', shape: 'star', fill: '#ffffff', x: 120, y: 130, w: 240, h: 240 },
+      { type: 'shape', shape: 'star', fill: '#ffffff', x: 1560, y: 710, w: 240, h: 240 },
+      { type: 'text', text: '50% OFF', x: 260, y: 300, w: 1400, h: 320, fontSize: 260, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'text', text: 'EVERYTHING MUST GO', x: 460, y: 690, w: 1000, h: 80, fontSize: 52, font: FONTS[0].css, color: '#7c2d12', align: 'center', weight: 800 },
+      { type: 'text', text: 'THIS WEEKEND ONLY', x: 610, y: 800, w: 700, h: 60, fontSize: 32, font: FONTS[0].css, color: '#9a3412', align: 'center', weight: 700 },
+    ],
+  },
+  {
+    id: 'b-new',
+    pack: 'banners',
+    name: 'New arrival',
+    bg: GRADIENTS[1].css,
+    w: 1920,
+    h: 1080,
+    els: [
+      { type: 'shape', shape: 'circle', fill: '#ffffff', x: 1490, y: 210, w: 300, h: 300 },
+      { type: 'emoji', char: '🛍️', x: 1565, y: 285, w: 150, h: 150, fontSize: 150 },
+      { type: 'text', text: 'NEW ARRIVALS', x: 120, y: 340, w: 1300, h: 210, fontSize: 150, font: FONTS[3].css, color: '#ffffff', align: 'left', weight: 400 },
+      { type: 'text', text: 'Fresh styles just dropped', x: 130, y: 600, w: 1000, h: 80, fontSize: 48, font: FONTS[0].css, color: '#e0f2fe', align: 'left', weight: 600 },
+      { type: 'shape', shape: 'rect', fill: '#0c4a6e', x: 130, y: 740, w: 460, h: 110 },
+      { type: 'text', text: 'EXPLORE THE DROP', x: 130, y: 768, w: 460, h: 56, fontSize: 30, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+    ],
+  },
+  {
+    id: 'b-weekend',
+    pack: 'banners',
+    name: 'Weekend deal',
+    bg: GRADIENTS[2].css,
+    w: 1920,
+    h: 1080,
+    els: [
+      { type: 'text', text: 'WEEKEND DEAL', x: 120, y: 260, w: 1250, h: 220, fontSize: 150, font: FONTS[3].css, color: '#ffffff', align: 'left', weight: 400 },
+      { type: 'text', text: 'SAT & SUN ONLY', x: 130, y: 530, w: 900, h: 80, fontSize: 54, font: FONTS[0].css, color: '#d1fae5', align: 'left', weight: 800 },
+      { type: 'text', text: 'Up to 40% off selected lines', x: 130, y: 640, w: 900, h: 70, fontSize: 36, font: FONTS[0].css, color: '#a7f3d0', align: 'left', weight: 500 },
+      { type: 'shape', shape: 'rect', fill: '#065f46', x: 1340, y: 380, w: 420, h: 320 },
+      { type: 'text', text: '2 DAYS ONLY', x: 1340, y: 480, w: 420, h: 70, fontSize: 44, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+      { type: 'text', text: 'in-store & online', x: 1340, y: 570, w: 420, h: 50, fontSize: 26, font: FONTS[0].css, color: '#d1fae5', align: 'center', weight: 500 },
+    ],
+  },
+  {
+    id: 'b-opening',
+    pack: 'banners',
+    name: 'Grand opening',
+    bg: GRADIENTS[3].css,
+    w: 1920,
+    h: 1080,
+    els: [
+      { type: 'emoji', char: '🎉', x: 170, y: 240, w: 200, h: 200, fontSize: 200 },
+      { type: 'text', text: 'GRAND OPENING', x: 420, y: 240, w: 1400, h: 220, fontSize: 140, font: FONTS[3].css, color: '#831843', align: 'left', weight: 400 },
+      { type: 'text', text: 'JOIN US SATURDAY · 10 AM', x: 430, y: 520, w: 1150, h: 80, fontSize: 50, font: FONTS[0].css, color: '#9d174d', align: 'left', weight: 700 },
+      { type: 'text', text: 'Ribbon cutting · giveaways · live DJ', x: 430, y: 630, w: 1150, h: 70, fontSize: 34, font: FONTS[0].css, color: '#9f1239', align: 'left', weight: 500 },
+      { type: 'shape', shape: 'line', fill: '#831843', x: 430, y: 780, w: 700, h: 10 },
+    ],
+  },
+  {
+    id: 'b-clear',
+    pack: 'banners',
+    name: 'Clearance',
+    bg: GRADIENTS[8].css,
+    w: 1920,
+    h: 1080,
+    els: [
+      { type: 'text', text: 'CLEARANCE', x: 120, y: 280, w: 1250, h: 220, fontSize: 160, font: FONTS[3].css, color: '#facc15', align: 'left', weight: 400 },
+      { type: 'text', text: 'FINAL PRICES — WHILE STOCK LASTS', x: 130, y: 560, w: 1350, h: 80, fontSize: 46, font: FONTS[0].css, color: '#e2e8f0', align: 'left', weight: 700 },
+      { type: 'text', text: 'Everything must go', x: 130, y: 680, w: 900, h: 60, fontSize: 34, font: FONTS[0].css, color: '#94a3b8', align: 'left', weight: 500 },
+      { type: 'shape', shape: 'circle', fill: '#f43f5e', x: 1530, y: 330, w: 260, h: 260 },
+      { type: 'text', text: 'UP TO 80%', x: 1530, y: 405, w: 260, h: 60, fontSize: 34, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+      { type: 'text', text: 'OFF', x: 1530, y: 465, w: 260, h: 50, fontSize: 26, font: FONTS[0].css, color: '#fecdd3', align: 'center', weight: 700 },
+    ],
+  },
+
+  /* ---------- YouTube thumbnails (1280×720) ---------- */
+  {
+    id: 't-tutorial',
+    pack: 'thumbs',
+    name: 'Tutorial thumb',
+    bg: GRADIENTS[8].css,
+    w: 1280,
+    h: 720,
+    els: [
+      { type: 'shape', shape: 'rect', fill: '#facc15', x: 70, y: 90, w: 14, h: 540 },
+      { type: 'text', text: 'STEP-BY-STEP', x: 110, y: 130, w: 800, h: 170, fontSize: 96, font: FONTS[3].css, color: '#facc15', align: 'left', weight: 400 },
+      { type: 'text', text: 'COMPLETE GUIDE', x: 112, y: 330, w: 760, h: 130, fontSize: 72, font: FONTS[3].css, color: '#ffffff', align: 'left', weight: 400 },
+      { type: 'text', text: 'in under 10 minutes', x: 114, y: 500, w: 640, h: 60, fontSize: 36, font: FONTS[0].css, color: '#cbd5e1', align: 'left', weight: 600 },
+      { type: 'shape', shape: 'circle', fill: '#0ea5e9', x: 950, y: 180, w: 240, h: 240 },
+      { type: 'emoji', char: '🛠️', x: 1010, y: 240, w: 120, h: 120, fontSize: 120 },
+    ],
+  },
+  {
+    id: 't-gaming',
+    pack: 'thumbs',
+    name: 'Gaming thumb',
+    bg: GRADIENTS[4].css,
+    w: 1280,
+    h: 720,
+    els: [
+      { type: 'text', text: 'EPIC WIN?!', x: 70, y: 120, w: 840, h: 200, fontSize: 120, font: FONTS[3].css, color: '#facc15', align: 'left', weight: 400 },
+      { type: 'text', text: 'NEW WORLD RECORD', x: 74, y: 350, w: 820, h: 110, fontSize: 62, font: FONTS[3].css, color: '#ffffff', align: 'left', weight: 400 },
+      { type: 'shape', shape: 'rect', fill: '#ffffff', x: 74, y: 510, w: 430, h: 110 },
+      { type: 'text', text: 'FULL RUN', x: 74, y: 535, w: 430, h: 60, fontSize: 40, font: FONTS[0].css, color: '#7c3aed', align: 'center', weight: 800 },
+      { type: 'emoji', char: '🎮', x: 960, y: 210, w: 260, h: 260, fontSize: 260 },
+    ],
+  },
+  {
+    id: 't-vlog',
+    pack: 'thumbs',
+    name: 'Vlog thumb',
+    bg: GRADIENTS[6].css,
+    w: 1280,
+    h: 720,
+    els: [
+      { type: 'text', text: 'A DAY IN MY LIFE', x: 70, y: 150, w: 880, h: 180, fontSize: 84, font: FONTS[3].css, color: '#9a3412', align: 'left', weight: 400 },
+      { type: 'text', text: 'city edition', x: 74, y: 360, w: 640, h: 80, fontSize: 48, font: FONTS[2].css, color: '#7c2d12', align: 'left', weight: 500, italic: true },
+      { type: 'shape', shape: 'circle', fill: '#ffffff', x: 930, y: 140, w: 280, h: 280 },
+      { type: 'emoji', char: '📸', x: 1000, y: 210, w: 140, h: 140, fontSize: 140 },
+      { type: 'shape', shape: 'rect', fill: '#f43f5e', x: 74, y: 530, w: 340, h: 100 },
+      { type: 'text', text: 'WATCH NOW', x: 74, y: 556, w: 340, h: 50, fontSize: 32, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+    ],
+  },
+  {
+    id: 't-podcast',
+    pack: 'thumbs',
+    name: 'Podcast thumb',
+    bg: GRADIENTS[2].css,
+    w: 1280,
+    h: 720,
+    els: [
+      { type: 'shape', shape: 'rect', fill: '#facc15', x: 70, y: 100, w: 220, h: 90 },
+      { type: 'text', text: 'EP. 42', x: 70, y: 112, w: 220, h: 66, fontSize: 44, font: FONTS[3].css, color: '#1c1917', align: 'center', weight: 400 },
+      { type: 'text', text: 'DEEP DIVE:', x: 70, y: 260, w: 720, h: 140, fontSize: 90, font: FONTS[3].css, color: '#ffffff', align: 'left', weight: 400 },
+      { type: 'text', text: 'FOCUS & FLOW', x: 72, y: 430, w: 780, h: 140, fontSize: 90, font: FONTS[3].css, color: '#a7f3d0', align: 'left', weight: 400 },
+      { type: 'text', text: 'with Dr. Maya Chen', x: 74, y: 600, w: 640, h: 56, fontSize: 34, font: FONTS[0].css, color: '#d1fae5', align: 'left', weight: 500 },
+      { type: 'emoji', char: '🎙️', x: 980, y: 250, w: 220, h: 220, fontSize: 220 },
+    ],
+  },
+  {
+    id: 't-review',
+    pack: 'thumbs',
+    name: 'Review thumb',
+    bg: GRADIENTS[5].css,
+    w: 1280,
+    h: 720,
+    els: [
+      { type: 'text', text: 'IS IT WORTH IT?', x: 70, y: 130, w: 920, h: 180, fontSize: 96, font: FONTS[3].css, color: '#7c2d12', align: 'left', weight: 400 },
+      { type: 'text', text: 'honest review after 30 days', x: 74, y: 340, w: 820, h: 70, fontSize: 40, font: FONTS[0].css, color: '#9a3412', align: 'left', weight: 600 },
+      { type: 'shape', shape: 'star', fill: '#ffffff', x: 830, y: 440, w: 120, h: 120 },
+      { type: 'shape', shape: 'star', fill: '#ffffff', x: 990, y: 440, w: 120, h: 120 },
+      { type: 'shape', shape: 'star', fill: '#ffffff', x: 1150, y: 440, w: 120, h: 120 },
+      { type: 'shape', shape: 'rect', fill: '#7c2d12', x: 74, y: 520, w: 380, h: 100 },
+      { type: 'text', text: 'FULL TEST', x: 74, y: 546, w: 380, h: 50, fontSize: 32, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+    ],
+  },
+  {
+    id: 't-news',
+    pack: 'thumbs',
+    name: 'News thumb',
+    bg: '#0f172a',
+    w: 1280,
+    h: 720,
+    els: [
+      { type: 'shape', shape: 'rect', fill: '#f43f5e', x: 70, y: 90, w: 330, h: 100 },
+      { type: 'text', text: 'BREAKING', x: 70, y: 106, w: 330, h: 66, fontSize: 46, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'text', text: 'BIG UPDATE TODAY', x: 72, y: 240, w: 940, h: 150, fontSize: 88, font: FONTS[3].css, color: '#ffffff', align: 'left', weight: 400 },
+      { type: 'text', text: 'What changed — and why it matters', x: 74, y: 420, w: 820, h: 60, fontSize: 36, font: FONTS[0].css, color: '#cbd5e1', align: 'left', weight: 500 },
+      { type: 'shape', shape: 'line', fill: '#f43f5e', x: 74, y: 540, w: 520, h: 12 },
+      { type: 'text', text: 'LIVE · 9:41 AM', x: 74, y: 580, w: 420, h: 50, fontSize: 28, font: FONTS[0].css, color: '#f8fafc', align: 'left', weight: 700 },
+    ],
+  },
+
+  /* ---------- story packs (1080×1920, 9:16) ---------- */
+  {
+    id: 's-quote',
+    pack: 'stories',
+    name: 'Quote story',
+    bg: GRADIENTS[4].css,
+    w: 1080,
+    h: 1920,
+    els: [
+      { type: 'emoji', char: '✨', x: 465, y: 420, w: 150, h: 150, fontSize: 150 },
+      { type: 'text', text: 'Big ideas start small.', x: 120, y: 640, w: 840, h: 320, fontSize: 84, font: FONTS[2].css, color: '#ffffff', align: 'center', weight: 500 },
+      { type: 'text', text: '— TAP TO EDIT QUOTE', x: 240, y: 1020, w: 600, h: 60, fontSize: 30, font: FONTS[0].css, color: '#e9d5ff', align: 'center', weight: 700 },
+      { type: 'shape', shape: 'circle', fill: '#ffffff', x: 440, y: 1350, w: 200, h: 200 },
+      { type: 'text', text: 'SHARE', x: 440, y: 1415, w: 200, h: 70, fontSize: 30, font: FONTS[0].css, color: '#7c3aed', align: 'center', weight: 800 },
+    ],
+  },
+  {
+    id: 's-teaser',
+    pack: 'stories',
+    name: 'Sale teaser',
+    bg: GRADIENTS[0].css,
+    w: 1080,
+    h: 1920,
+    els: [
+      { type: 'shape', shape: 'star', fill: '#ffffff', x: 90, y: 380, w: 170, h: 170 },
+      { type: 'shape', shape: 'star', fill: '#ffffff', x: 820, y: 380, w: 170, h: 170 },
+      { type: 'text', text: '48H ONLY', x: 90, y: 560, w: 900, h: 200, fontSize: 140, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'text', text: 'Something big is coming', x: 140, y: 800, w: 800, h: 80, fontSize: 44, font: FONTS[0].css, color: '#ffedd5', align: 'center', weight: 600 },
+      { type: 'text', text: 'Tap the link to get early access', x: 190, y: 940, w: 700, h: 60, fontSize: 28, font: FONTS[0].css, color: '#fed7aa', align: 'center', weight: 500 },
+    ],
+  },
+  {
+    id: 's-announce',
+    pack: 'stories',
+    name: 'Announcement',
+    bg: GRADIENTS[1].css,
+    w: 1080,
+    h: 1920,
+    els: [
+      { type: 'shape', shape: 'circle', fill: '#0c4a6e', x: 390, y: 480, w: 300, h: 300 },
+      { type: 'emoji', char: '📣', x: 465, y: 555, w: 150, h: 150, fontSize: 150 },
+      { type: 'text', text: 'BIG NEWS', x: 90, y: 860, w: 900, h: 170, fontSize: 120, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'text', text: "We're launching something new", x: 140, y: 1070, w: 800, h: 70, fontSize: 40, font: FONTS[0].css, color: '#e0f2fe', align: 'center', weight: 600 },
+      { type: 'text', text: 'Full reveal Friday', x: 290, y: 1170, w: 500, h: 60, fontSize: 30, font: FONTS[0].css, color: '#bae6fd', align: 'center', weight: 500 },
+    ],
+  },
+  {
+    id: 's-poll',
+    pack: 'stories',
+    name: 'Poll frame',
+    bg: GRADIENTS[8].css,
+    w: 1080,
+    h: 1920,
+    els: [
+      { type: 'text', text: 'THIS OR THAT?', x: 90, y: 420, w: 900, h: 140, fontSize: 96, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'shape', shape: 'rect', fill: '#0ea5e9', x: 110, y: 660, w: 380, h: 380 },
+      { type: 'text', text: 'OPTION A', x: 110, y: 815, w: 380, h: 70, fontSize: 44, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+      { type: 'shape', shape: 'rect', fill: '#f43f5e', x: 590, y: 660, w: 380, h: 380 },
+      { type: 'text', text: 'OPTION B', x: 590, y: 815, w: 380, h: 70, fontSize: 44, font: FONTS[0].css, color: '#ffffff', align: 'center', weight: 800 },
+      { type: 'text', text: 'Tap a sticker to vote', x: 290, y: 1150, w: 500, h: 60, fontSize: 30, font: FONTS[0].css, color: '#cbd5e1', align: 'center', weight: 500 },
+    ],
+  },
+  {
+    id: 's-travel',
+    pack: 'stories',
+    name: 'Travel memory',
+    bg: GRADIENTS[2].css,
+    w: 1080,
+    h: 1920,
+    els: [
+      { type: 'emoji', char: '✈️', x: 445, y: 430, w: 190, h: 190, fontSize: 190 },
+      { type: 'text', text: 'WANDERLUST', x: 90, y: 700, w: 900, h: 150, fontSize: 100, font: FONTS[3].css, color: '#ffffff', align: 'center', weight: 400 },
+      { type: 'text', text: 'Santorini, Greece · Summer 2025', x: 140, y: 890, w: 800, h: 60, fontSize: 32, font: FONTS[0].css, color: '#d1fae5', align: 'center', weight: 600 },
+      { type: 'shape', shape: 'line', fill: '#ffffff', x: 440, y: 1000, w: 200, h: 8 },
+      { type: 'text', text: 'Tap to add your photo', x: 240, y: 1060, w: 600, h: 60, fontSize: 28, font: FONTS[0].css, color: '#a7f3d0', align: 'center', weight: 500 },
+    ],
+  },
+  {
+    id: 's-bts',
+    pack: 'stories',
+    name: 'Behind the scenes',
+    bg: GRADIENTS[3].css,
+    w: 1080,
+    h: 1920,
+    els: [
+      { type: 'emoji', char: '🎬', x: 455, y: 470, w: 170, h: 170, fontSize: 170 },
+      { type: 'text', text: 'BEHIND THE SCENES', x: 60, y: 720, w: 960, h: 170, fontSize: 80, font: FONTS[3].css, color: '#831843', align: 'center', weight: 400 },
+      { type: 'text', text: 'Come along for the ride', x: 140, y: 930, w: 800, h: 70, fontSize: 40, font: FONTS[2].css, color: '#9d174d', align: 'center', weight: 500 },
+      { type: 'shape', shape: 'rect', fill: '#ffffff', x: 340, y: 1120, w: 400, h: 120 },
+      { type: 'text', text: 'NEW POSTS WEEKLY', x: 340, y: 1150, w: 400, h: 60, fontSize: 28, font: FONTS[0].css, color: '#831843', align: 'center', weight: 800 },
+      { type: 'text', text: 'follow for part 2', x: 290, y: 1300, w: 500, h: 60, fontSize: 28, font: FONTS[0].css, color: '#9f1239', align: 'center', weight: 500 },
     ],
   },
 ]
@@ -856,6 +1284,11 @@ export default function CanvaStudioApp() {
   const [galleryPhotos, setGalleryPhotos] = useState<{ id: string; dataUrl: string; name?: string }[]>([])
   const [photosLoaded, setPhotosLoaded] = useState(false)
 
+  /* ---------- template packs (v3.1) ---------- */
+  const [pack, setPack] = useState<TemplatePackId>('starters')
+  const [armedTpl, setArmedTpl] = useState<string | null>(null)
+  const tplArmTimerRef = useRef(0)
+
   /* ---------- drawing (v3) ---------- */
   const [drawMode, setDrawMode] = useState(false)
   const [drawTool, setDrawTool] = useState<DrawTool>('pen')
@@ -1278,12 +1711,34 @@ export default function CanvaStudioApp() {
   /* ---------- templates / size / background (apply to the current page) ---------- */
   const applyTemplate = useCallback(
     (t: Template) => {
+      /* two-tap confirm (same idiom as Reset) when this page already holds work */
+      const dirty = els.length > 0 || bg.startsWith('data:image')
+      if (dirty && armedTpl !== t.id) {
+        setArmedTpl(t.id)
+        window.clearTimeout(tplArmTimerRef.current)
+        tplArmTimerRef.current = window.setTimeout(() => setArmedTpl(null), 3000)
+        return
+      }
+      window.clearTimeout(tplArmTimerRef.current)
+      setArmedTpl(null)
+      navigator.vibrate?.(12)
       pushHistory(snapshot())
       setPages((prev) => prev.map((p, i) => (i === activeIdx ? { ...p, els: instantiateTemplate(t), bg: t.bg, w: t.w, h: t.h } : p)))
       setSelectedId(null)
       toast({ title: `${t.name} template applied`, description: 'Tap any element to edit it.' })
     },
-    [activeIdx, pushHistory, snapshot, toast]
+    [activeIdx, armedTpl, bg, els.length, pushHistory, snapshot, toast]
+  )
+
+  const switchPack = useCallback(
+    (id: TemplatePackId) => {
+      if (id === pack) return
+      setPack(id)
+      setArmedTpl(null)
+      window.clearTimeout(tplArmTimerRef.current)
+      navigator.vibrate?.(12)
+    },
+    [pack]
   )
 
   const changeSize = useCallback(
@@ -1983,7 +2438,7 @@ export default function CanvaStudioApp() {
           <div className="flex flex-1 gap-1 overflow-x-auto" role="tablist" aria-label="Design panels">
             {(
               [
-                { id: 'templates', label: 'Create', icon: LayoutTemplate },
+                { id: 'templates', label: 'Templates', icon: LayoutTemplate },
                 { id: 'text', label: 'Text', icon: Type },
                 { id: 'elements', label: 'Elements', icon: Shapes },
                 { id: 'draw', label: 'Draw', icon: PenTool },
@@ -2060,25 +2515,48 @@ export default function CanvaStudioApp() {
                 </div>
 
                 <div>
-                  <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-500">Templates</p>
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-                    {TEMPLATES.map((t) => (
-                      <button key={t.id} onClick={() => applyTemplate(t)} className="group text-left" aria-label={`Use the ${t.name} template`}>
-                        <span className="relative block overflow-hidden rounded-xl border border-white/10 shadow-md transition-all group-hover:border-fuchsia-500/50 group-hover:shadow-fuchsia-600/20" style={{ aspectRatio: `${t.w}/${t.h}` }}>
-                          <span className="absolute inset-0" style={{ background: t.bg }} />
-                          <span className="absolute inset-x-[12%] top-[16%] space-y-[7%]">
-                            <span className="block h-[8%] w-4/5 rounded-full bg-white/60" />
-                            <span className="block h-[8%] w-3/5 rounded-full bg-white/35" />
-                            <span className="mx-auto block h-[8%] w-2/5 rounded-full bg-white/25" />
-                          </span>
-                          <span className="absolute inset-x-0 bottom-0 bg-black/45 px-1.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">{t.name}</span>
-                        </span>
-                        <span className="mt-1 block text-center text-[11px] font-semibold text-zinc-400 group-hover:text-zinc-200">
-                          {t.w}×{t.h}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Template packs</p>
+                    <Badge variant="outline" className="border-white/15 text-[10px] font-bold tabular-nums text-zinc-300">
+                      {TEMPLATES.length} designs
+                    </Badge>
                   </div>
+                  <div className="no-scrollbar mb-2.5 flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Template packs">
+                    {TEMPLATE_PACKS.map((p) => {
+                      const n = TEMPLATES.filter((t) => t.pack === p.id).length
+                      return (
+                        <button
+                          key={p.id}
+                          role="tab"
+                          aria-selected={pack === p.id}
+                          onClick={() => switchPack(p.id)}
+                          className={cn(
+                            'flex h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition-all',
+                            pack === p.id ? 'bg-fuchsia-600 text-white shadow-md shadow-fuchsia-600/30' : 'bg-white/5 text-zinc-300 hover:bg-white/10'
+                          )}
+                        >
+                          <p.icon className="size-3.5" aria-hidden /> {p.name}
+                          <span className="text-[10px] tabular-nums opacity-70">{n}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="max-h-96 overflow-y-auto rounded-xl pr-1 [scrollbar-width:thin] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar]:w-1.5">
+                    <motion.div
+                      key={pack}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4"
+                    >
+                      {TEMPLATES.filter((t) => t.pack === pack).map((t) => (
+                        <TemplateCard key={t.id} t={t} armed={armedTpl === t.id} onUse={() => applyTemplate(t)} />
+                      ))}
+                    </motion.div>
+                  </div>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
+                    {TEMPLATE_PACKS.find((p) => p.id === pack)?.blurb} — every template lands as real, editable elements.
+                  </p>
                 </div>
               </div>
             )}
@@ -2443,6 +2921,82 @@ export default function CanvaStudioApp() {
 /* ================================================================== */
 /* Small shared pieces                                                */
 /* ================================================================== */
+
+/** Mini CSS/SVG preview that mirrors a template's real layout (container-query scaled). */
+function TemplatePreview({ t }: { t: Template }) {
+  const pw = (v: number) => `${((v / t.w) * 100).toFixed(2)}%`
+  const ph = (v: number) => `${((v / t.h) * 100).toFixed(2)}%`
+  const cq = (v: number) => `${((v / t.w) * 100).toFixed(2)}cqw`
+  return (
+    <span className="absolute inset-0 block overflow-hidden" style={{ background: t.bg, containerType: 'inline-size' }}>
+      {t.els.map((e, i) => {
+        const box = { position: 'absolute', left: pw(e.x), top: ph(e.y), width: pw(e.w), height: ph(e.h) } as const
+        if (e.type === 'text')
+          return (
+            <span
+              key={i}
+              style={{
+                ...box,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: e.font ?? FONTS[0].css,
+                fontSize: cq(e.fontSize ?? 48),
+                fontWeight: e.weight ?? 500,
+                fontStyle: e.italic ? 'italic' : undefined,
+                color: e.color ?? '#0f172a',
+                textAlign: e.align ?? 'center',
+                lineHeight: 1.18,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {e.text}
+            </span>
+          )
+        if (e.type === 'emoji')
+          return (
+            <span key={i} style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: cq(Math.min(e.w, e.h)), lineHeight: 1 }}>
+              {e.char}
+            </span>
+          )
+        return (
+          <span key={i} style={{ ...box, display: 'block' }}>
+            <ShapeSvg shape={e.shape ?? 'rect'} fill={e.fill ?? '#f43f5e'} />
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+/** One template card in the pack browser — first tap arms the replace-confirm on dirty pages. */
+function TemplateCard({ t, armed, onUse }: { t: Template; armed: boolean; onUse: () => void }) {
+  return (
+    <button onClick={onUse} className="group text-left" aria-label={armed ? `Tap again to replace this page with the ${t.name} template` : `Use the ${t.name} template`}>
+      <span
+        className={cn(
+          'relative block overflow-hidden rounded-xl border shadow-md transition-all group-hover:border-fuchsia-500/50 group-hover:shadow-fuchsia-600/20',
+          armed ? 'border-fuchsia-500/70' : 'border-white/10'
+        )}
+        style={{ aspectRatio: `${t.w}/${t.h}` }}
+      >
+        <TemplatePreview t={t} />
+        {armed && (
+          <span className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 bg-zinc-950/80 px-2 text-center backdrop-blur-[2px]">
+            <Check className="size-4 text-fuchsia-300" aria-hidden />
+            <span className="text-[11px] font-bold leading-tight text-white">Tap again to replace</span>
+            <span className="text-[10px] leading-tight text-zinc-400">Undo stays available</span>
+          </span>
+        )}
+        <span className="absolute inset-x-0 bottom-0 bg-black/45 px-1.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">{t.name}</span>
+      </span>
+      <span className="mt-1 block text-center text-[11px] font-semibold text-zinc-400 group-hover:text-zinc-200">
+        {t.w}×{t.h}
+      </span>
+    </button>
+  )
+}
 
 function ColorRow({ label, value, onPick }: { label: string; value: string; onPick: (c: string) => void }) {
   return (

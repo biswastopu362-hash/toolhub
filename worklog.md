@@ -1331,3 +1331,326 @@ Stage Summary:
 - New IndexedDB namespaces: toolhub-snippets, toolhub-taskboard, toolhub-businesscard, toolhub-qr
 - Developer category now 7 apps (json-formatter, diff-checker, regex-tester, hash-uuid, jwt-decoder, cron-timestamp, code-editor)
 - Next: ROADMAP D31 — Screen Recorder (media, Phase 3 opens)
+---
+Task ID: D31-a
+Agent: general-purpose subagent
+Task: ROADMAP D31 — Screen Recorder (media)
+
+Work Log:
+- Read worklog tail, ROADMAP D31 entry, and reference apps (expense-tracker IndexedDB write-through pattern, audio-studio media look/toast/mic APIs, hash-uuid/cron TAB_TRIGGER_CLS + SCROLLBAR_CLS house conventions)
+- Wrote src/components/tools/screen-recorder.tsx (1094 lines) — new file, nothing else touched
+- Capture: getDisplayMedia({video:{frameRate:{ideal:30}}, audio:<sys toggle>}); optional mic mix via getUserMedia + AudioContext createMediaStreamDestination (display audio + mic merged into one track); graceful degradation toasts (mic unavailable → continue video-only; sys audio not shared by picker → warning)
+- Mime negotiation: vp9,opus → vp8,opus → webm → mp4 via MediaRecorder.isTypeSupported; chosen codec shown as chip (Record tab live + result card); download filename screenrec-<timestamp>.<webm|mp4>
+- Live preview <video muted autoPlay playsInline>, mm:ss timer via 1s interval with pausedRef gate, REC pulse badge in header + status chip, Pause/Resume (recorder.pause/resume), Stop; auto-stop on display video track 'ended' (AbortController-registered listener)
+- On stop: blob → object URL → result card (preview player, duration, size, codec, format, Download <a download>, Discard w/ revokeObjectURL); blob.size===0 → "Nothing was recorded" toast
+- Feature-detect: getDisplayMedia/MediaRecorder missing → amber "Needs a desktop browser" card with per-capability Available/Not exposed rows; start wrapped in try/catch, NotAllowedError → "Permission denied" toast; navigator.vibrate?.(12) on start/stop/pause
+- History tab: IndexedDB toolhub-screenrec v1, store 'recordings' {id,name,durationSec,sizeBytes,codec,createdAt} — metadata ONLY, no blobs; list max-h-96 thin custom scrollbar, per-row delete, two-tap armed clear-all, empty state
+- Design contract honored: 'use client', root bg-gradient-to-b from-zinc-900 via-zinc-950 to-black min-h-full, rounded-2xl from-red-500 via-rose-600 to-purple-700 header w/ MonitorUp, content cards border-white/10 bg-white/5, all buttons ≥44px (h-11/h-12), framer-motion springs, useToast exactly like audio-studio, grid-cols-1→sm:grid-cols-2, English UI, zero uploads, no new deps
+- React-hooks hygiene: setState in effects deferred (queueMicrotask w/ alive flag for support detect, async hydration w/ alive flag), all timers/streams/AudioContext/object-URLs cleaned in unmount effect, idempotent teardownCapture, write-through mutations (setState first → void idbPut().catch(toast))
+
+Stage Summary:
+- D31 deliverable shipped: screen-recorder.tsx 1094 lines, default export ScreenRecorderApp; registry entry NOT touched (left to main agent)
+- IndexedDB namespace: toolhub-screenrec v1 / store 'recordings'
+- Gates: bunx tsc --noEmit clean; bun run lint clean
+- Caveats: real capture only testable on desktop browsers (getDisplayMedia); Firefox may ignore the audio flag in the share picker (handled with a warning toast); mp4 candidate only reached in Safari-class browsers; video blob intentionally memory-only until download/discard
+---
+Task ID: D43-f
+Agent: general-purpose subagent
+Task: ROADMAP D43 — Sticker Studio (media)
+
+Work Log:
+- Investigated prior work (worklog tail), ROADMAP line 143, expense-tracker design language/IDB wrappers, audio-studio toast pattern, code-editor ShareFilesNavigator pattern
+- Gallery integration: gallery.tsx is backed by shared lib @/lib/media-db (DB toolhub-media v1, store photos, PhotoRecord {id,dataUrl,createdAt,fav,source,name?}); schema compatible → imported putPhoto/newPhotoId/PhotoRecord and save exported sticker PNGs with source:'design' (union lacks 'sticker'; media-db header forbids schema edits, and ROADMAP D43 explicitly targets design-studio flow). Gallery shows it as "· Design"
+- Wrote src/components/tools/sticker-studio.tsx (1255 lines, default export StickerStudioApp)
+- Canvas composer: 720px backing preview square (fits 360px via w-full), CSS conic-gradient checkerboard behind canvas signals transparency; optional lime→emerald→teal gradient BG toggle baked into exports only when on (WYSIWYG preview)
+- Emoji picker: 6 packs (Smileys/Animals/Food/Hearts/Hands/Symbols, exact curated sets), horizontally scrollable pack tabs + max-h-56 grid of 44px tiles, tap → item spawns at canvas center with jitter + selection
+- Items: pointer-events drag with setPointerCapture (normalized x/y, clamped), topmost-first hit testing via measured per-item hit boxes (ref sink filled during draw); selection ring dashed rounded rect drawn on preview only; per-item scale 0.4–2.5× + rotate ±180° sliders + delete; layering = array order; framer-motion spring panel
+- Text stickers: input (40 char), 8 preset swatches + native color input, bold toggle; controls edit the selected text item live ("editing selected" badge) else feed the next add
+- Export: size 512/1024 segmented; offscreen canvas scales normalized coords proportionally; transparent PNG unless BG toggled; Download sticker-<ts>.png, Web Share via navigator.canShare({files}) guard → download+toast fallback, Save to Gallery (toolhub-media)
+- Sheet mode: 2×2/3×3 presets; drawSheet distributes items round-robin across cells and bounding-box-fits each cell group (measured footprints, fit cap 2.6) on one transparent PNG; Export sheet → sticker-sheet-<ts>.png
+- Saved stickers: IndexedDB toolhub-stickers v1 store 'stickers' {id, imageDataUrl (2M-char cap else skip+destructive toast), itemsJson (re-edit JSON), bgGradient, itemCount, createdAt}; write-through (setState first then void idbPut().catch(toast)); hydrate with alive flag; thumbnail grid max-h-96 overflow-y-auto w/ thin scrollbar; tap → parse+restore items into editor; Remove per tile; two-tap-arm Clear all (auto-disarm 2.6s, timer cleaned on unmount)
+- Design contract: dark-glass root, gradient identity header (SmilePlus, lime→emerald→teal), rounded-2xl white/5 cards, all buttons/tiles/sliders ≥44px, English UI, zero uploads, no new deps
+- Gates: bunx tsc --noEmit clean; bun run lint clean; registry.tsx/gallery.tsx/media-db untouched
+
+Stage Summary:
+- D43 deliverable shipped: sticker-studio.tsx 1255 lines, default export StickerStudioApp
+- DB namespaces: toolhub-stickers v1/store 'stickers' (own) + toolhub-media v1/store 'photos' via @/lib/media-db (Gallery save)
+- Gallery integration: YES (source:'design' cast — PhotoSource union has no 'sticker' member; a future v2 could add it in media-db.ts)
+- Caveats: emoji packs ship the 10-11 emojis explicitly listed in the task (spec said "~20"); sheet with fewer items than cells leaves trailing cells transparent; dev-server/browser smoke test not run per task rules
+---
+Task ID: D36-d
+Agent: general-purpose subagent
+Task: ROADMAP D36 — Meme Maker (media)
+
+Work Log:
+- Read worklog tail, ROADMAP D36 line, expense-tracker.tsx (IndexedDB write-through + dark-glass design language), gallery.tsx + src/lib/media-db.ts (Gallery schema), audio-studio/code-editor (useToast + guarded Web Share pattern)
+- Gallery integration investigated: Gallery is backed by shared lib toolhub-media v1, store 'photos', PhotoRecord {id, dataUrl, createdAt, fav, source, name?} — shape compatible → wrote "Save to Gallery" from within meme-maker.tsx via import { putPhoto, newPhotoId } from '@/lib/media-db' with source: 'design' (no schema change, gallery.tsx untouched)
+- Created src/components/tools/meme-maker.tsx (default export MemeMakerApp, ~1090 lines): file picker (accept=image/*) + generated sample background; shared drawMeme renderer for display canvas (DPR-capped, fit-to-container) and true-resolution export (8192px safety cap); auto-wrap word wrap with hard char break
+- TOP+BOTTOM text blocks: Impact stack, white fill + black stroke, per-block text input, Y-position slider (anchor semantics: top of first line / bottom of last line), font-size % of width, stroke %, glow %, uppercase toggle, fill+stroke color pickers, reset-position; drag on canvas via pointer events + setPointerCapture with y-proximity hit-test (layout centerYFrac from renderer), touch-none canvas, per-block sliders for a11y
+- Style presets row: Classic Impact / Chalk (cursive stack) / Clean (system-ui + soft shadow) / Neon (cyan+magenta shadowBlur glow) — each sets both block styles + watermark default, spring whileTap chips
+- Export: true-res PNG + JPEG download (meme-<ts>.png/jpg), Web Share API guarded by ShareFilesNavigator canShare({files}) → toast + download fallback; adaptive encoder (PNG→JPEG q0.9→q0.75) keeps saved copies under 2.5MB
+- Saved memes: IndexedDB toolhub-memes v1 store 'memes' {id, imageDataUrl≤2.5MB skip+toast, topText, bottomText, createdAt, style?} via dbPromise singleton + idbGetAll/IdbPut/idbDelete/idbClear; horizontal thumbnail strip max-h-40 overflow-x-auto with house scrollbar, tap→full restore (image+texts+style), per-item delete, Clear-all AlertDialog; hydrate with alive flag, setState-first-then-void-idbPut write-through
+- Watermark toggle stamps "made with ToolHub"; framer-motion springs on shell/strip/presets; navigator.vibrate?.(12) haptics; h-11 (44px) buttons; English UI; zero uploads, zero new deps
+
+Stage Summary:
+- D36 deliverable shipped: meme-maker.tsx 1091 lines (1352 with formatting), default export MemeMakerApp; registry entry NOT added (main agent to register: id meme-maker, category media, Laugh icon, yellow→orange→red gradient)
+- IndexedDB namespaces: toolhub-memes v1 (store memes) + writes into shared toolhub-media v1 (store photos, source 'design')
+- Gallery integration: YES — same DB/store/item schema via @/lib/media-db helpers, appears in Gallery app
+- Gates: bunx tsc --noEmit clean; bun run lint clean (no output)
+- Caveats: exports cap at 8192px max dimension (true-res for all realistic photos); saved-meme style snapshot is an optional non-breaking extension of the specified record shape; ShareData files typing mirrors code-editor's ShareFilesNavigator pattern
+---
+Task ID: D37-e
+Agent: general-purpose subagent
+Task: ROADMAP D37 — Collage Maker (media)
+
+Work Log:
+- Read worklog tail + ROADMAP D31-D45 Phase 3 entry; skimmed expense-tracker.tsx (IndexedDB write-through + dark-glass design language) and audio-studio.tsx (useToast pattern)
+- Gallery integration investigated: gallery.tsx has no private IDB — it uses the shared `@/lib/media-db` store (DB toolhub-media v1, store photos, PhotoRecord {id,dataUrl,createdAt,fav,source,name}, source union camera|upload|paint|video|design). Schema is compatible → integrated "To Gallery" via putPhoto (source 'design', no schema change, media-db untouched)
+- Wrote src/components/tools/collage-maker.tsx (~1391 ln), default export CollageMakerApp
+- 8 layouts as normalized [x,y,w,h] rect arrays: Grid 2×2, Big Left, Big Right, Big Top, Filmstrip, Column, Grid 3×2, Center Frame; picker = 8 mini-preview tiles drawn from the same rect arrays (grid-cols-4 → sm:grid-cols-8)
+- Photos: multi input accept="image/*" (cap 12), fileToDataUrl from media-db (≤2048px JPEG) + Image decode for natural dims; photos fill cells in order (cover-fit object-position center); filled cell tap → bottom action sheet (Replace/Remove); empty cell tap → picker with "+" placeholder; thumbnail strip with index badges; hint when photos exceed cells
+- One shared geometry fn (cellRectsInStage: padding + normalized rect, cells shrunk gap/2 per side) drives BOTH the live preview (absolutely-positioned motion.button cells, framer layout springs) and the canvas export → pixel-true mirror
+- Controls: gap 0–24, outer padding 0–24, radius 0–32 (native range sliders, accent-fuchsia), 7 background swatches (white/black/zinc-900/cream + sunset/mint/orchid gradients), aspect chips 1:1 / 4:5 / 3:4 / 16:9 / 9:16; preview box fit via ResizeObserver + queueMicrotask (max-h ~60vh, never overflows 360px)
+- Export: canvas at 2× (long edge 2160px), bg painted first (solid or createLinearGradient), per-cell ctx.clip(Path2D.roundRect) + drawImage center cover-crop (sx/sy/sw/sh from aspect math) → PNG download collage-<ts>.png (object URL, revoked after 2s + on unmount) + Web Share via canShare({files}) guard with download fallback toast
+- Saved collages: IndexedDB toolhub-collage v1 store 'collages' {id, imageDataUrl (2.5MB cap else skip+destructive toast), layout, aspect, createdAt}; write-through (setState first then void idbPut), hydrate with alive flag; thumbnail grid max-h-96 overflow-y-auto, tap → preview dialog with re-download + delete, armed two-tap Clear all (idbClear)
+- Design contract: 'use client', root from-zinc-900 via-zinc-950 to-black, fuchsia→purple→rose gradient header with Grid2x2Plus icon, rounded-2xl border-white/10 bg-white/5 cards, ≥44px targets, navigator.vibrate(12), framer springs, toast via useToast, custom-scrollbar region, 360→1280 responsive, English UI, zero uploads, no new deps
+- ESLint-trap hygiene: no setState in effect bodies (async-IIFE hydration + queueMicrotask measure), object URLs tracked in ref + revoked on unmount, pick mode kept in a ref for the file input, zero `any`
+
+Stage Summary:
+- D37 deliverable shipped: collage-maker.tsx 1391 lines, export default CollageMakerApp (not yet in registry.tsx — main agent to wire)
+- DB namespaces: toolhub-collage v1 (collages) new; writes to shared toolhub-media v1 (photos) for Gallery save — media-db.ts untouched
+- Gallery integration: YES (compatible via @/lib/media-db putPhoto, source 'design')
+- Gates at task end: bunx tsc --noEmit clean (exit 0), bun run lint clean
+- Caveats: saved-copy cap 2.5MB skips persistence (download still works); Gallery save falls back to JPEG q0.92 when PNG exceeds 2.5MB to keep the media store lean; gradient background angle approximated by diagonal canvas linear gradient; registry entry + Phase 3 QA sweep still pending
+---
+Task ID: D32-b
+Agent: general-purpose subagent
+Task: ROADMAP D32 — GIF Maker (media)
+
+Work Log:
+- Read worklog tail, ROADMAP D32 entry, and reference apps (expense-tracker IndexedDB write-through, video-studio video/canvas patterns, audio-studio toast/haptics, hash-uuid tab override, qr-generator history DB)
+- Verified gifenc@1.0.3 ships NO bundled types (no types field, no .d.ts) → created minimal ambient declaration src/types/gifenc.d.ts (84 ln: GIFEncoder/quantize/applyPalette/writeFrame opts)
+- Wrote src/components/tools/gif-maker.tsx (1527 ln, default export GifMakerApp)
+- Sources: video/* file picker → object URL into <video>; Camera tab: getUserMedia({video:{facingMode}}) preview, front/back switch, MediaRecorder segment (webm vp9/vp8→mp4 fallback, Chrome Infinity-duration poke via 1e101 seek + durationchange/2.5s watchdog) → blob becomes source
+- Trim: start/end Radix sliders (end ≥ start+0.5s, duration-bounded, scrub preview), mm:ss readouts, span+frame estimate badge
+- Controls: fps Select 5/10/15/24, width Select 160/240/320/480 (height keeps aspect), 300-frame cap with amber near-cap + rose over-cap chips (render disabled when over)
+- Pipeline: async loop → seekTo with seeked-once + 4s watchdog + same-time shortcut → drawImage to offscreen canvas (willReadFrequently) at target W → getImageData → quantize(…,256,'rgb565') → applyPalette → writeFrame({palette,delay:1000/fps}) → per-frame progress (done/total) + nextTick paint yield → gif.finish() → Blob(image/gif); abort ref cancels between frames
+- Result card: GIF <img> preview, W×H, frames, size, Download gif-maker-<ts>.gif, dismiss
+- History: IndexedDB toolhub-gifmaker v1 store 'history' {id,sourceName,fps,width,frames,sizeBytes,gifBlob?(≤6MB),createdAt}; dbPromise singleton + idbGetAll/Put/Delete/Clear; write-through setState-then-void-idbPut().catch(toast); hydrate with alive flag; rows w/ blob thumbnails (self-managed object URLs revoked on unmount), tap-to-preview card, two-tap delete/clear-all, max-h-96 thin-scrollbar list
+- Cleanup: source/result/thumb URLs revoked, camera tracks stopped, recorder+timers cleared, abort ref set on unmount/new-source; setState never synchronous in effect bodies (queueMicrotask in camera-tab cleanup); fixed TS 5.9 Uint8Array<ArrayBufferLike> BlobPart rejection via new Uint8Array(bytes) copy
+- Gates: bunx tsc --noEmit clean; bun run lint clean (zero contributions)
+
+Stage Summary:
+- D32 deliverable shipped: gif-maker.tsx 1527 ln + src/types/gifenc.d.ts 84 ln (required — gifenc is JS-only); registry entry NOT touched (main agent to add: load(() => import('@/components/tools/gif-maker')), GifMakerApp default export)
+- IndexedDB namespace: toolhub-gifmaker (v1, store 'history', GIF blobs ≤ 6 MB persisted)
+- Caveats: 360-frame math clamps to 300-frame cap; detached-video edge (tab switch mid-render) still completes via captured element ref; camera recordings need Chrome-style duration poke (handled with 2.5s watchdog fallback → duration 0 disables render with hint)
+---
+Task ID: D33-c
+Agent: general-purpose subagent
+Task: ROADMAP D33 — Video Converter & Compressor (media)
+
+Work Log:
+- Read worklog tail, ROADMAP D33 entry (line 127), skimmed expense-tracker (IndexedDB write-through pattern), video-studio (element event handlers) and audio-studio (toast + MediaRecorder/cancel patterns) before writing
+- Created src/components/tools/video-converter.tsx (1472 lines), export default VideoConverterApp; only this one file touched (registry left to main agent)
+- Real client-side transcode, zero deps, zero uploads: hidden <video> decodes source → rAF loop paints each frame to hidden <canvas> at target res (aspect kept, never upscales, dims evenized) → canvas.captureStream(30) + audio via AudioContext createMediaElementSource → MediaStreamDestination (never ctx.destination → silent local playback; source node cached across runs, disconnect/reconnect per run) → MediaRecorder { mimeType, videoBitsPerSecond, audioBitsPerSecond:128k }, playbackRate 1, rec.start(500) timeslice for live chunk size, stop on video 'ended' + 280ms tail
+- Settings: resolution Original/1080p/720p/480p/360p with clamp note when preset > source; bitrate High 8 / Standard 4 / Compact 2.5 / Tiny 1.2 Mbps + Auto (height-based heuristic 600k–6M) with estimated output size; mute-audio toggle; mime negotiation vp9+opus → vp8+opus → vp9 → vp8 → webm shown as codec chip with "MP4 is not guaranteed" note
+- Progress UI: % (currentTime/duration, aria-live), elapsed, live output bytes, spring-animated bar, Cancel (stops recorder+video, rec.onstop finalizes chunks as partial-<ts>.webm with optional download); keep-screen-open hint
+- Result card: partial/complete badge, before→after sizes + saved % (emerald/rose/neutral), dims·codec·elapsed, preview <video controls>, Download (slug-name-<preset>.webm), Convert another (full reset, revokes URLs)
+- Edge cases: audio-less/throwing MediaElementSource → catch → video-only toast; duration<=0 or metadata odd → toast + Start disabled; >5 min videos → amber real-time warn; MediaRecorder unsupported → destructive toast + graceful "Recorder unsupported" state + Start blocked; decode error mid-convert → keeps partial
+- History tab: IndexedDB toolhub-videoconv v1 store 'history', metadata only { id, sourceName, preset, bitrate, srcSize, outSize, savedPct, codec, createdAt } — write-through (setState first, then void idbPut().catch(toast)), hydrate with alive flag, per-row delete (idbDelete), armed clear-all (idbClear); video blobs never persisted
+- Design contract: 'use client', root zinc-900→black gradient min-h-full, teal-400→emerald-500→green-600 identity header with FileVideo + "Shrink & convert, zero upload", rounded-2xl white/5 cards, ≥44px targets, framer-motion springs, navigator.vibrate(12), useToast, max-h-96 scroll lists, 360px-safe (truncate/min-w-0/flex-wrap), English UI
+- ESLint traps handled: codec negotiation setState deferred via queueMicrotask+alive, hydrate async, full cleanup effect (recorder stop, rAF/endTimer cancel, node disconnect, audioCtx.close, object-URL revokes), no any, no unused vars
+
+Stage Summary:
+- D33 deliverable shipped: video-converter.tsx 1472 lines, default export VideoConverterApp
+- New IndexedDB namespace: toolhub-videoconv v1 (store: history, metadata-only)
+- Gates: bunx tsc --noEmit clean; bun run lint clean
+- Caveats: real-time encode (1 min video ≈ 1 min, rAF pauses in background tabs — UI hints to keep screen open); output always .webm (MP4 not guaranteed, Safari may lack WebM recording → graceful unsupported state); audio graph cached per element so mute toggle works across runs on same file; registry entry for D33 still needs to be added by main agent
+---
+Task ID: D38-d
+Agent: general-purpose subagent
+Task: ROADMAP D38 — Design Studio template packs (24+)
+
+Work Log:
+- Read worklog tail, then canva.tsx end-to-end (data model → rasterize → panels). Found an EXISTING template system: Template interface + TEMPLATES[9] + instantiateTemplate() + applyTemplate() + a flat template grid under the "Create" panel tab — extended it to pack scale instead of duplicating anything
+- Extended Template with required `pack: TemplatePackId`; added TemplatePack/TEMPLATE_PACKS (5 packs: starters, posters, banners, thumbs, stories). The original 9 templates all moved into 'starters' unchanged (resume/letter/slide docs still reachable) → 33 templates total
+- Added 24 new templates as REAL editable element sets (text blocks with copy hints like "BAND NAME"/"OPTION A", ShapeSvg shapes, emoji, gradient/solid backgrounds from the existing GRADIENTS list): Event Posters 6 (concert, workshop, charity run, tech meetup, food festival, art exhibit — 1080×1350), Sale Banners 6 (flash, 50% off, new arrival, weekend deal, grand opening, clearance — 1920×1080), YouTube Thumbs 6 (tutorial, gaming, vlog, podcast, review, news — 1280×720 with bold text zones + accent bars/badges/stars), Story Packs 6 (quote, sale teaser, announcement, poll frame w/ A-B rects, travel memory, behind-the-scenes — 1080×1920)
+- UI: renamed panel tab "Create" → "Templates"; inside it added a pack-tabbed browser — horizontally scrollable role=tablist pack chips (icon + name + count, h-11 targets) + card grid in a `max-h-96 overflow-y-auto` thin-scrollbar container (grid-cols-2 → sm:3 → lg:4), framer-motion spring fade/slide on pack switch (key={pack}), "N designs" badge, per-pack blurb line
+- New TemplatePreview component: mini CSS/SVG preview mirroring the true layout — elements positioned by % of canvas, text/emoji sized via container queries (cqw), shapes rendered through the real ShapeSvg; wrapped in TemplateCard (aspect-ratio box, name strip, size label, armed state ring + "Tap again to replace" overlay)
+- Apply flow: applyTemplate now implements the file's existing two-tap arm/confirm idiom (like Reset) when the current page is non-empty (els>0 or imported data-URL bg): first tap arms (3s timer, tplArmTimerRef), second tap replaces; empty pages apply instantly; navigator.vibrate?.(12) + toast on apply; undo (pushHistory) always preserved; switchPack also vibrates + clears armed state
+- Version bump: file header docblock "Design Studio v3" → "v3.1" with template-pack notes (registry untouched)
+- Gates: bunx tsc --noEmit clean; bun run lint clean (zero contributions); no new deps (framer-motion already in project)
+
+Stage Summary:
+- D38 deliverable: template packs shipped inside canva.tsx (now 3049 lines, was 2495) — 33 templates: Starters 9 · Event Posters 6 · Sale Banners 6 · YouTube Thumbs 6 · Story Packs 6
+- Templates instantiate as real DesignElements via the pre-existing instantiateTemplate() → fully editable, WYSIWYG in every export
+- Caveats: thumb pack uses true 1280×720 so the size select shows "Custom · 1280×720" after applying (graceful, existing customSize handling); card preview text sizing uses CSS container queries (cqw — baseline-supported in all current browsers, degrades to unreadable-small text only on very old engines); two-tap confirm is per-card with a 3s auto-disarm timer, consistent with the file's existing arm/reset pattern
+---
+Task ID: D39-b
+Agent: general-purpose subagent
+Task: ROADMAP D39 — Wallpaper Studio (platform) + theme engine integration
+
+Work Log:
+- Read worklog tail, ROADMAP D39 entry (~line 133), theme.ts + app-store.ts in full, page.tsx wallpaper section (wp-layer / getWallpaper / crossfade block, lines ~92–290 + HomeScreen onLight ~line 388), skimmed expense-tracker/audio-studio/meme-maker/qr-generator for design language, toast pattern, Slider/Switch usage
+- theme.ts (161→193 ln, strictly additive): WallpaperId union += 'custom'; added CustomWallpaper interface { id, name, css, dark, createdAt }; added wallpaperIsDark(id, custom) helper (custom dark flag, else preset fallback). WALLPAPERS array untouched (custom resolves separately)
+- app-store.ts (160→202 ln, additive): AppState += customWallpapers: CustomWallpaper[], activeCustomId: string | null; actions saveCustomWallpaper (upsert — updates in place when id exists, else appends with generated cw-<ts>-<rand> id), deleteCustomWallpaper (also clears activeCustomId if it was active), setActiveCustom; newCustomId() helper. Persist version stays 5 (additive fields hydrate via zustand default merge; partialize keeps persisting everything incl. new fields)
+- page.tsx (surgical, wallpaper layer only, 1601→1619 ln): added activeCustom selector (customWallpapers.find(id===activeCustomId) ?? null); liveCustom = wallpaperId==='custom' ? activeCustom : null; wpDark now via wallpaperIsDark(wallpaperId, liveCustom); live wp-layer renders style.background = liveCustom?.css with NO preset className when active, else preset path unchanged (custom w/o active def falls back to wp-sunset = DEFAULT_WALLPAPER via getWallpaper's fallback); outgoing crossfade layer gets same custom branch (background: prevWp==='custom' ? activeCustom?.css : undefined); HomeScreen onLight also derived through wallpaperIsDark so launcher icon labels follow custom light/dark. Crossfade logic (prevWp/wpOn/rAF double-buffer) untouched
+- Created src/components/tools/wallpaper-studio.tsx (1112 ln, export default WallpaperStudioApp, 'use client'): composable CSS model — base linear-gradient(angle, 2–3 stops) + 0–6 mesh blobs (radial-gradient circle at x% y% with 3-stop falloff) + optional SVG feTurbulence grain data-URL layer + optional radial vignette, all composed into one background value (composeCss); live full-bleed preview card + mini phone-frame launcher preview (fake status bar, 3×3 icon grid, dock, contrast-aware labels); 8 curated presets (Aurora Dusk, Deep Space, Mint Cream, Rose Quartz, Forest Fog, Golden Hour, Ink Wash, Neon Tide); angle slider, per-stop color pickers (add/remove 3rd stop), blob editor (add/remove, per-blob color/X/Y/Size/Alpha sliders, max-h-64 scroll), grain/vignette/dark switches; Randomize from 8 curated analogous hue triads (75% dark-biased, never muddy); Export PNG renders same math on 1080×1920 canvas (CSS-angle linear gradient, farthest-corner-ray blob radials, circular vignette, 30k random alpha dots for grain) → wallpaper-<ts>.png download; Save (upsert via saveCustomWallpaper, keeps editingId so re-taps update) / Apply (save + setActiveCustom + setWallpaper('custom') + toast + vibrate) / Save-as-copy detach chip; Saved list (thumb, name, Dark/Light chip, created date, Active badge) with Apply / Edit (parseCss parses our own composeCss output back into the designer, paren-aware layer splitter) / two-tap armed Delete; design contract matched (zinc-900→black glass, violet→fuchsia→rose identity header + Wallpaper icon, rounded-2xl white/5 cards, ≥44px rows, framer-motion springs, useToast, navigator.vibrate?.(12), 360px-safe truncation, English, zero uploads, no new deps)
+- Gates: bunx tsc --noEmit clean (whole project); bunx eslint on all 4 touched files → 0 problems. bun run lint project-wide has exactly ONE pre-existing error in font-playground.tsx (D44, another agent's file — off-limits per task rules, not caused by my edits)
+
+Stage Summary:
+- D39 shipped: wallpaper-studio.tsx 1112 ln + additive theme-engine hooks; registry entry NOT added (main agent: load(() => import('@/components/tools/wallpaper-studio')), default export WallpaperStudioApp)
+- Store API added: customWallpapers: CustomWallpaper[], activeCustomId: string | null, saveCustomWallpaper(wp) upsert, deleteCustomWallpaper(id), setActiveCustom(id); persisted automatically in toolhub-store v5
+- page.tsx renders custom wallpapers via style={{ background: cw.css }} on the live wp-layer (className suppressed) when wallpaper==='custom' && activeCustom exists; wpDark/onLight contrast flows from cw.dark; fallback to DEFAULT_WALLPAPER preset (sunset) when custom active but def missing
+- Caveats: control-center.tsx wallpaper name chip shows blank while a custom wallpaper is active (find returns undefined — files off-limits per task); switching between two different customs without leaving 'custom' swaps background instantly (crossfade is keyed on wallpaperId change, by design); Export grain is a dot-pattern approximation of the SVG turbulence tile
+---
+Task ID: D44-c
+Agent: general-purpose subagent
+Task: ROADMAP D44 — Font Playground (text)
+
+Work Log:
+- Read worklog tail, ROADMAP D44 entry (line 139), skimmed expense-tracker (IndexedDB write-through + design language), audio-studio (toast/vibrate patterns), gif-maker imports (Select/Slider/Tabs), task-board (thin-scrollbar class) before writing
+- Created src/components/tools/font-playground.tsx (1718 lines), export default FontPlaygroundApp; only this one file touched (registry left to main agent)
+- Tab 1 "Type Tester": 14 curated system-only font stacks (System UI, Geometric, Humanist, Rounded, Serif, Editorial, Mono, Typewriter, Impact Display, Cursive Hand, Fantasy, Bengali, Slab, Condensed) each with display stack + parse-safe canvas stack; controls = sample input + বাংলা pangram toggle, size 12–72, weight select 300–800, line-height 0.9–2.2, letter-spacing −2..10px, align L/C/R, italic toggle, text + backdrop color pickers; card list (name chip + note + live sample) in max-h-96 thin-scrollbar scroller, tap → spring-expand full specimen (A–Z/0–9/punct + 1.5× sample)
+- Tab 2 "Quote Cards": WYSIWYG preview = 1080-wide LOGICAL design space rendered as scaled div (ResizeObserver-measured stage, aspect-capped maxWidth) — the exact mirror of the export; 8 gradient presets (CSS 135deg ↔ canvas (0,0)→(W,H) linear), 8 solids, photo upload via object URL (revoked on replace/unmount, decoded to HTMLImageElement, cover-drawn); sizes 1:1/4:5/9:16 (1080/1350/1920 logical)
+- Export: offscreen canvas at 2× (2160×2160/2700/3840); ctx.font assembled per stack from first real families + weight ("600/500"), textBaseline middle line-center math shared with the div layout via one useMemo "layout" source (wrap via measureText incl. oversized-word hard-break, vertical position clamp, scrim band height); PNG download quote-<ts>.png, Web Share via navigator.canShare({files}) guard with download+toast fallback, Save → dataURL ≈bytes > 2.5MB skip+toast else persist
+- Saved cards: IndexedDB toolhub-fontplay v1 store 'cards' {id, imageDataUrl(≤2.5MB), quote, author, stackId, createdAt}; dbPromise singleton + idbGetAll/Put/Delete/Clear; write-through setState-then-void-idbPut().catch(toast); hydrate with alive flag sorted desc; thumbnail grid max-h-96 (3/4-col), armed two-tap delete, armed clear-all, tap → Dialog with re-download, Edit-in-editor (quote/author/stackId restored), direct delete
+- Design contract: 'use client', zinc-900→black gradient min-h-full, rose-400→pink-500→fuchsia-600 identity header with CaseSensitive icon + tagline "Find your voice, style your words", rounded-2xl white/5 cards, ≥44px targets, framer-motion springs, navigator.vibrate(12), useToast, English UI, 360px-safe (truncation/min-w-0/flex-wrap)
+- ESLint traps handled: setImgReady in image-decode effect's empty branch deferred via queueMicrotask; hydration async with alive; object URL revoked; armed states auto-expire via timed effect; 3 unused eslint-disable directives removed; no any, no unused vars
+
+Stage Summary:
+- D44 deliverable shipped: font-playground.tsx 1718 lines, default export FontPlaygroundApp; registry entry NOT touched (main agent to add: load(() => import('@/components/tools/font-playground')), FontPlaygroundApp default export)
+- IndexedDB namespace: toolhub-fontplay (v1, store 'cards', PNG dataURLs ≤ 2.5 MB persisted)
+- Gates: bunx tsc --noEmit clean; bun run lint clean (zero errors, zero warnings)
+- Caveats: canvas word-wrap approximates browser shaping (Bengali complex scripts may break a line differently by a word); Playfair Display/Quicksand etc. only render if locally installed (system stacks by design); saved cards restore text+font but not background/ratio (not in DB schema per spec); "Measuring…" placeholder flashes one frame before ResizeObserver fires
+---
+Task ID: D35-a
+Agent: general-purpose subagent
+Task: ROADMAP D35 — Subtitle Studio (media)
+
+Work Log:
+- Read worklog tail, ROADMAP D35 entry (line 129), skimmed expense-tracker.tsx (IndexedDB write-through + idb wrappers), video-player.tsx (video events/object-URL hygiene), audio-studio.tsx (toast/haptic/armed-delete patterns) and gif-maker.tsx (root gradient, Tabs, THIN_SCROLLBAR constants)
+- Created src/components/tools/subtitle-studio.tsx (1646 lines), export default SubtitleStudioApp; only this one file touched (registry left for main agent)
+- Parser: tolerant SRT+VTT — WEBVTT header, NOTE/STYLE/REGION blocks, numeric/textual cue ids, cue settings after `-->` dropped, `HH:MM:SS,mmm` + `HH:MM:SS.mmm` + hours-optional `MM:SS.mmm`, >3-digit fractions truncated, multi-line text, CRLF/BOM, malformed blocks counted + reported in toast; cues sorted by startMs after import
+- Player: file picker video/* → object URL (revoked on replace/unmount), controls off, custom transport (56px gradient play/pause, ±5 s hops, styled range seek bar with --pct cyan fill, mm:ss.mmm readout), decode-error overlay panel, live-sync pulse chip
+- Timeline sync: timeupdate + rAF loop (40 ms emit throttle ≈25 fps) → active cue (start ≤ t ≤ end) highlighted in list, smooth scrollIntoView (block:nearest, only while playing), subtitle overlay bottom-center (semi-black pill, white text, text-shadow, pre-wrap, AnimatePresence spring per cue, inline tags stripped for display)
+- Editor: memoised CueRow (index, mono start→end, preview, rose "end ≤ start" / amber "overlap N ms" chips); tap row = seek to cue start + select; start/end ms number inputs with ±100 ms nudges + "Set" stamps playhead time; multi-line textarea; Split at playhead (50 ms guard, text split across lines), Duplicate, armed Delete, up/down reorder; live validation chip on selected cue; add cue = playhead → +2 s, sorted insert
+- Export: serializeSrt (comma ms) / serializeVtt (WEBVTT header, dot ms) → subtitle-<ts>.srt/.vtt download buttons (disabled at 0 cues), Blob URL revoked after 1.5 s
+- Persistence: IndexedDB toolhub-subtitles v1 store 'projects' {id,name,cues,videoName,updatedAt}; dbPromise singleton + idbGetAll/Put/Delete/Clear; autosave debounced 800 ms (setState first, void idbPut().catch), saved-chip with time; hydrate with alive flag + loading skeleton; Projects tab: open/delete (armed)/clear-all (armed), max-h-96 thin-scrollbar list; videos never persisted — reopening shows re-pick card + toast
+- Design contract: 'use client', zinc-900→black gradient min-h-full root, cyan-400→teal-500→emerald-600 identity header with Subtitles icon + "Perfect sync, zero upload", rounded-2xl white/5 cards, ≥44 px targets, framer-motion springs, navigator.vibrate(12), useToast, max-w-3xl, list+editor side-by-side ≥lg (5/7 cols), 360 px-safe (flex-wrap/min-w-0/truncate), English UI, zero new deps
+- ESLint traps: no synchronous setState in effect bodies (hydrate async w/ alive, autosave + armed timers in setTimeout, rAF loop sets state from callbacks); full cleanup (rAF, object URL, timers); MsField uses focus/blur draft editing instead of sync-effect syncing; memo(CueRow) keeps 25 fps sync cheap; no any, no unused vars
+
+Stage Summary:
+- D35 deliverable shipped: subtitle-studio.tsx 1646 lines, default export SubtitleStudioApp; registry entry NOT touched (main agent to add: load(() => import('@/components/tools/subtitle-studio')), SubtitleStudioApp)
+- IndexedDB namespace: toolhub-subtitles (v1, store 'projects', subtitle text only — never video blobs)
+- Gates: bunx tsc --noEmit clean; bun run lint clean (one transient repo-wide lint blip came from a concurrent agent's file mid-write; targeted eslint on this file = 0 problems)
+- Caveats: video decode depends on browser codec support (error overlay guides re-pick); active-cue scan is O(n) per tick (fine for realistic subtitle sizes); overlapping cues intentionally allowed (warned, not auto-fixed) since reorder is a feature
+---
+Task ID: D42-d
+Agent: general-purpose subagent
+Task: ROADMAP D42 — Camera v2 (document scan mode: edge detect + flatten; timer ring; grid; mirror)
+
+Work Log:
+- Read worklog tail + camera.tsx v1.4.0 in full (529 lines). Inventory: getUserMedia viewfinder w/ status machine (starting/ready/denied/nodevice/error/unsupported), 6 live filters (CSS preview + ctx.filter on capture), 0/3/10s timer (plain number countdown), thirds-grid overlay, front-cam mirror (preview -scale-x-100 + mirrored capture canvas — already consistent), flip camera, film strip (10) + preview dialog (download/delete), save via putPhoto source 'camera' into toolhub-media/photos. ALL PRESERVED.
+- Confirmed media-db.ts contract: PhotoRecord {id,dataUrl,createdAt,fav,source,name}, putPhoto/listPhotos/deletePhoto — scan saves reuse it verbatim (source 'camera', name "Scan HH:MM:SS").
+- Rewrote src/components/tools/camera.tsx (only file touched): 1422 lines, still default export CameraApp.
+- MODE SWITCHER: Photo|Scan segmented tabs (role=tablist, framer-motion layoutId white pill, h-11 targets); shutter turns indigo in Scan mode; switching modes cancels countdown + resets any scan.
+- SCAN CAPTURE FLOW: shutter (or new ≥44px ImagePlus picker w/ hidden input, object URL revoked on replace/reset/unmount) → grabFrame (filters+mirror applied, same as photo) → loadImage → auto edge-detect → corner editor.
+- CORNER EDITOR: img shrink-wrapped box + SVG quad overlay (non-scaling-stroke) + 4 pointer-draggable handles (44px hit zone size-11, setPointerCapture, touch-none, clamp01 to image box, vibrate + rose highlight while dragging); Retake / Auto / Flatten toolbar (h-12).
+- EDGE DETECT (best-effort, never blocks): downscale to 240px → grayscale → Sobel |gx|+|gy| magnitude → threshold mean+1.6σ → extreme-point quad (min(x+y)=TL, max(x+y)=BR, max(x−y)=TR, min(x−y)=BL) → plausibility gate (shoelace area ≥0.12, min side ≥0.1, convex cross-sign check) → pre-places handles + emerald "Auto-detected" chip (auto-dismiss 5s, cleared on manual drag); failure → default 7%-inset quad + manual flow; re-runnable via Auto button.
+- FLATTEN WARP (pure canvas, no deps): quad → 2 triangles → each subdivided 60×60 (≈7200 sub-triangles) → per sub-tri solve 3-point affine (adjugate/det) → identity-transform clip of slightly centroid-bled (0.6px) dst triangle → setTransform → drawImage; output size = avg quad edge lengths capped 1600px, white base fill; runs behind double-rAF "Flattening…" overlay with try/catch toast.
+- ENHANCE: Original / Grayscale / Boosted (contrast(1.3) brightness(1.04) saturate(1.12) — canvas filters have no sharpen primitive, high contrast reads sharp-ish) / Magic Color (brightness(1.1) saturate(1.5) contrast(1.06)); same filter string used for CSS preview AND ctx.filter at save → exact preview/output parity.
+- TIMER RING UPGRADE: countdown overlay now 176px SVG ring — track circle + motion.circle (pathLength=100, dashoffset 0→100 per-second via key remount) around the existing spring-pop number; 3s/10s cycle + tap-shutter-to-cancel unchanged.
+- GRID/MIRROR: kept as-is (both work in Photo & Scan viewfinder). Viewfinder unmounts while editor open → new reattach effect rebinds the still-running stream on return. Scan buttons appear in control bar only in Scan mode.
+- ESLint traps handled: beginScan/nextPaintFrames async in callbacks not effects; reattach effect sets srcObject only (no setState); chip timers in refs cleared on unmount/reset; pointer capture released; zero any/unused vars; new controls all ≥44px.
+
+Stage Summary:
+- D42 Camera v2 shipped: camera.tsx 1422 lines (was 529), default export CameraApp; registry.tsx NOT touched (main agent may bump version to v2).
+- Scan pipeline: Sobel-extreme auto-detect → draggable 4-corner editor → 60×60 triangle-subdivision affine warp (setTransform+clip, 0.6px seam bleed) → 4 enhance presets → putPhoto 'camera' gallery flow. Timer got the animated depleting ring; grid & mirror already existed and were preserved.
+- Gates: bunx tsc --noEmit clean; bun run lint clean (zero errors, zero warnings).
+- Caveats: extreme-point heuristic assumes doc edges dominate gradients (busy backgrounds can mis-place corners — always user-adjustable, Auto chip signals it's a hint); warp is one-shot ~7200 drawImage calls (~100-400ms, spinner covers it); picked files >2048px are warped at native size capped to 1600px output; Boosted "sharp-ish" is contrast-based (no sharpen primitive in canvas filters); front-cam scan capture mirrors like photo mode (consistency preserved).
+---
+Task ID: D40-b
+Agent: general-purpose subagent
+Task: ROADMAP D40 — Music Player v2 (playlists, shuffle/repeat, EQ presets, sleep timer)
+
+Work Log:
+- Read worklog tail, then music-player.tsx (1032 lines) end-to-end and inventoried v1.2.0: IndexedDB tracks ('toolhub-audio'/'tracks'), device-audio streaming (dev:* ids, object-URL hygiene, toolhub:device-indexed listener), single persistent <audio>, persisted shuffle/repeat/volume/position via localStorage 'toolhub.music-player.state', duration pre-probes, canvas visualizer (AudioContext + MediaElementSource created once in ensureAnalyser), repeat off/all/one, error/degraded-audio handling; skimmed audio-studio.tsx for AudioContext patterns
+- PLAYLISTS: IndexedDB 'toolhub-audio' bumped to v2 with new 'playlists' store (v1 data upgrades in place, tracks untouched); PlaylistRecord {id,name,trackIds,createdAt}; create (inline input + Enter), inline rename (Check/X), delete (clears open/active refs), add/remove tracks (detail view "Add from library" list + X per row), Play-all per row and in detail (sets queue source + autoplays), valid-track counts (stale dev:* ids counted out, stale rows shown as "Removed from library"), track removal from library cascades into every playlist record; playlists survive reload, IDB failures toast
+- QUEUE: activePlaylistId queue source (library vs playlist) with reconciled queueIds memo; tapping a library row returns to full-library queue, tapping a playlist row queues that playlist; "Queue: <name> ✕" indicator chip exits back to library
+- SHUFFLE & REPEAT: real Fisher–Yates shuffle order (current track kept first), reconciled on library changes (removed dropped, appended new), unshuffle restores natural order; repeat off/all/one persisted; advance() rewrite — manual next/prev wrap, auto-advance wraps only on repeat-all else stops cleanly at queue end (position reset + snapshot); shuffle/repeat indicator chips in Now Playing
+- EQUALIZER: Web Audio chain source → 5× BiquadFilter (peaking, 60/230/910/3600/14000 Hz, Q 1.1, ±12 dB) → analyser → destination (visualizer now hears the EQ); context still created lazily on first play, MediaElementSource still created exactly once (srcRef guard); gains read from settingsRef at chain build and live-applied via setTargetAtTime on slider change; presets Flat/Bass Boost/Vocal/Treble/Electronic/Acoustic + Custom (auto-set when a band is touched); collapsible EQ card with dB readouts; eqGains+eqPreset persisted in localStorage (sanitized on load, old data defaults flat)
+- SLEEP TIMER: 5/10/15/30/45/60 min + end-of-track chips; wall-clock countdown chip (250 ms tick, tabular mm:ss) in sleep card + Now Playing chip; linear fade over the last 10 s applied via fadeFactor into the volume-mirror effect (base volume never mutated); pause at zero (and at track end for end-of-track mode via sleepModeRef in handleEnded) with toast; Off chip / completion restores volume; timers cleaned up on mode change/unmount
+- Preserved everything: device-audio streaming + URL revocation, restore-last-session paused with seek, duration probes, EqualizerBars, error toasts, empty/loading states, single <audio>, unmount ctx.close()
+- Design contract kept: dark-glass cards, emerald/teal identity + new violet (playlists), sky/cyan (EQ), amber (sleep) gradient icons, useToast, framer-motion springs, navigator.vibrate?.(12) on toggles, ≥44px primary targets (chips h-10 like row buttons), max-h-72/48 + thin custom scrollbar, 360px-safe (flex-wrap/truncate/min-w-0), English UI, zero uploads, zero new deps
+- ESLint traps: no setState in effect bodies (sleep first tick deferred via setTimeout in cleanup, hydrate effects async w/ cancelled flags, refs-only sync effects); sleep interval/kick + rAF + object URLs + AudioContext all cleaned; no any, no unused vars
+
+Stage Summary:
+- D40-b deliverable shipped: music-player.tsx 1927 lines (was 1032), default export MusicPlayer; registry NOT touched (entry already exists for main agent to keep)
+- Storage: 'toolhub-audio' v2 (stores 'tracks' + 'playlists'); localStorage key unchanged, shape extended with eqGains/eqPreset (graceful fallback for old JSON)
+- Gates: bunx tsc --noEmit clean; bun run lint clean (one transient repo-wide blip from a concurrent agent's file mid-write; re-ran clean, targeted eslint on this file = 0 problems)
+- Caveats: shuffle is queue-order (not infinite random) so repeat-off stops at shuffled-queue end — intentional per spec; EQ/sleep only affect playback while audioOk (Web Audio unavailable → card shows "Web Audio unavailable"); sleep timer is session-only (not persisted); renaming device-track ids across re-index would orphan playlist entries (shown as "Removed from library", one-tap clean)
+---
+Task ID: D41-c
+Agent: general-purpose subagent
+Task: ROADMAP D41 — Voice Recorder v2 (trim, rename, speed playback, notes)
+
+Work Log:
+- Read worklog tail + voice-recorder.tsx v1 (~430 lines: record w/ timer, pause/resume, download, delete, clear-all; session-only, NO persistence existed). Skimmed audio-studio.tsx for house patterns (encodeWav 16-bit PCM, sliceBuffer, ensureCtx, min/max peaks, canvas painting with dpr + veil + edge handles, pointer drag selection) and expense-tracker.tsx for the idbGetAll/Put/Delete/Clear write-through pattern; reused subtitle-studio's THIN_SCROLLBAR constant
+- Rewrote voice-recorder.tsx as v2 (single file touched; registry NOT touched). New red-gradient identity header (matches registry from-red-400 via-red-500 to-rose-700) in a zinc-950 rounded-3xl shell with Mic icon, tagline and v2 badge; body keeps v1's Card-based dark-glass language, springs, haptics, ≥44px targets
+- RENAME: tap name (pencil) → inline input; Enter/blur commits (trim 80 chars), Esc cancels; persisted via write-through idbPut
+- TRIM: per-recording expandable panel — blob decoded via shared AudioContext.decodeAudioData (LRU cache of 4 AudioBuffers module-level), min/max peaks computed at fixed 720 buckets and cached per id (survives re-expand); DPR-sharp canvas (ResizeObserver width) draws red gradient peaks, veil outside selection, draggable edge handles; pointer events copied from audio-studio (new-drag selects, 22px handle grab, min 50ms selection); Preview plays selection through the row's native <audio> (auto-pause guard via timeupdate, cleared on pause/ended); "Save trimmed copy" slices [start,end) samples → encodeWav → new list item "<name> (trimmed)" ext wav — original always kept
+- SPEED: 0.5×/0.75×/1×/1.25×/1.5×/2× segmented control per row; applySpeed sets playbackRate + preservesPitch=true (feature-checked); playhead synced to waveform via rAF loop while playing + timeupdate
+- NOTES: expandable textarea per row (4,000 chars), state updates instantly, persist debounced 700ms per recording id with pending-flush on tool unmount; amber "Note" badge on rows that have one
+- Persistence: NEW IndexedDB namespace toolhub-voice-recorder v1 store 'recordings' {id, blob, mimeType, ext, duration, size, createdAt, name?, note?} — v1 had no DB at all (session-only), so nothing could be lost; hydrate on mount with alive flag + object URLs + desc sort; graceful migration defaults for missing name/note/mimeType/ext/size (name → "Recording HH:MM", note → ''); damaged rows skipped + counted in toast; delete/clear-all forget decoded caches; write-through put on add/rename/duration-fix, debounced for notes
+- Keep/upgrades from v1: full record flow (mic button, ping, pause/resume/stop, timer), denied + unsupported alerts, download (now slug(name).ext), NEW share (navigator.canShare files w/ download fallback), two-tap armed delete + armed clear-all (auto-expire 2.6s), framer-motion list layout animations, max-h-96 list + thin custom scrollbar, empty state, NEW live level meter (AnalyserNode RMS, rAF throttled ~12fps, dims when paused)
+- ESLint traps handled: react-hooks/refs error fixed by moving decoded duration from bufferRef.current read-at-render into state; no sync setState in effect bodies (hydrate async w/ alive, armed/note timers in setTimeout, level + playhead set from rAF callbacks); full cleanup (rAF, timers, ResizeObserver, object URLs incl. per-row revoke, mic tracks, analyser disconnect, note-write flush); memo(RecordingRow) so the 60fps level/playhead ticks don't re-render the list; no any, no unused vars
+
+Stage Summary:
+- D41 deliverable shipped: voice-recorder.tsx 1,711 lines, default export VoiceRecorderTool; registry entry NOT touched (main agent may bump version)
+- IndexedDB namespace: toolhub-voice-recorder (v1, store 'recordings') — blobs persisted locally, zero uploads
+- Gates: bunx tsc --noEmit clean; bun run lint clean repo-wide (0 errors/warnings)
+- Caveats: trim requires the browser to decode the stored codec (webm/opus fine in Chrome/FF; Safari m4a ok); wall-clock recorded duration is replaced by decoded duration (±0.25s threshold) when a trim panel first opens; decoded AudioBuffer cache capped at 4 (LRU) so long memos re-decode on re-expand; WAV trimmed copies are ~5MB/min (16-bit PCM) — fine for IDB but larger than source opus; speed preference is per-session (not persisted) by design
+---
+Task ID: D34-a
+Agent: general-purpose subagent
+Task: ROADMAP D34 — Video Studio v2 (multi-clip timeline, reorder, per-clip trim, combined export)
+
+Work Log:
+- Read worklog tail, then read video-studio.tsx (v2, 1396 lines) end-to-end and inventoried every feature; skimmed video-converter.tsx for its proven canvas+MediaRecorder sequencer (captureStream(30), MediaElementSource→MediaStreamDestination, real-time encode, partial-on-cancel) and video-db.ts API (putClip/getClipBlob/probeVideo)
+- Rewrote src/components/tools/video-studio.tsx (single file, v3 header) around a ProjectClip model {id, name, mime, size, blob, url, duration, w, h, thumb, trimStart, trimEnd, filterId, rotation, flip, libraryId, origin}; only this file touched (registry left to main agent)
+- Multi-clip import: file picker now `multiple` (+Add-clips button + dashed add-chip in the strip); each file → object URL → probeClip() (detached video: duration, dims, JPEG thumb grabbed at 1s via canvas, 9s/3s guards, graceful fallback) → appended + auto-selected
+- Timeline strip: horizontal no-scrollbar rail of chips — thumbnail (or Clapperboard fallback), amber #index badge, duration badge (rose when trimmed), name overlay, selected amber ring; armed two-tap Remove per chip; armed Clear in header; "Clip N of M" reorder row with Move left/right buttons (≥44px, disabled at ends; @dnd-kit skipped intentionally — buttons are cleaner on mobile touch inside a scrollable strip)
+- Per-clip trim/look: existing trim card now binds the selected clip (sliders patch {trimStart, trimEnd} with the same 0.2s gap rule), "clip N" badge, preview-trim loop unchanged; filters + rotate/flip also per-clip (patchSel)
+- Combined export: plan = clips with trimEnd-trimStart>0.05; canvas = biggest source dims capped at 1280 long edge (evenized), frames contain-fitted/letterboxed via shared paintFrame (ctx.filter + rotate/flip — same math as frame capture, so the whole filter pipeline IS applied to the combined export); clips played sequentially at 1x into the hidden canvas, seeked per clip (loadAndSeek with loadedmetadata/seeked waits + error fail-fast), rAF paint loop with 220ms-throttled progress = exportedSecs/totalSecs; audio via one AudioContext MediaElementSource on the hidden element → MediaStreamDestination (audio-less clips contribute silence; WebAudio failure → silent video-only + toast); MediaRecorder vp9/vp8+opus negotiation; overall % + "Rendering clip i of N" + rendered/total readout; Cancel stops and keeps the partial (result card marked Partial, no auto-download); natural completion auto-downloads combined-video-<ts>.webm and shows a re-download card; total runtime shown before export
+- Persistence: video-db library untouched (old records fine — save now reuses the project clip id so records match); NEW arrangement persistence in localStorage toolhub-videostudio-project-v2 {v:2, clips:[{id,trimStart,trimEnd,filterId,rotation,flip,libraryId}]} debounced 500ms; on load, arrangement entries restore only for clips still in the library (blobs refetched, re-probed, trims/looks sanitized with clamp) — unsaved/unknown/old records are skipped gracefully
+- Library rail preserved: open-into-timeline (adds if absent, else selects), save-selected (posterFromElement→makePoster fallback), armed delete (timeline clip just loses its libraryId), QR share + receive + BarcodeDetector scan + /?transfer auto-open all intact; receive now lands the clip in the timeline via openLibraryClip
+- ESLint traps handled: codec negotiation via queueMicrotask effect; hydration async with alive flag; arrangement persist debounced in effect (no setState); rAF/recorder/stream/timeout cleanup incl. per-clip URL revocation (timelineUrlsRef) and AudioContext close on unmount; export guards mutation while running; no any, no unused vars; haptic() (navigator.vibrate?.(12)) on select/move/add/remove/export/capture
+- Gates: bunx tsc --noEmit clean; bun run lint clean repo-wide (a concurrent agent's transient voice-recorder errors cleared by the time of final check; targeted eslint on this file was 0 problems throughout)
+
+Stage Summary:
+- D34 deliverable shipped: video-studio.tsx 2576 lines, default export VideoStudioApp; registry entry NOT touched (main agent may bump version to v3)
+- Features added: multi-file import → ordered timeline strip (1s canvas thumbs, index/duration badges, selected highlight), move left/right reorder, per-clip trim + per-clip filter/rotate/flip, combined WebM export (sequential realtime canvas+MediaRecorder, per-clip trims+looks, audio graph, overall progress, cancel-keeps-partial, runtime preview), localStorage arrangement persistence (library-backed clips), in-library badge on active library card
+- Features preserved: 7 live filters, rotate/flip, play/pause/seek/loop/volume/mute/speed, trim + looping preview, frame capture (PNG + Gallery), clip library (IndexedDB video-db), QR share (upload→QR→copy, TTL countdown, cache), receive (paste/scan/auto ?transfer), dark-glass amber/orange/rose identity, framer-motion springs, 360px-safe responsive layout, zero uploads
+- Caveats: combined export is real-time (runtime ≈ trimmed duration; progress bar reflects this); clips whose probe fails get trim marks only after their metadata loads in the editor, and can't be exported until then; mixed-orientation timelines letterbox onto the largest capped canvas (1280 long edge); exported container is always WebM (browser MediaRecorder limitation); timeline thumbnails/trims for imported-but-unsaved clips do not survive reload (bytes never persisted)
+---
+Task ID: D31-D45 (Phase 3 close)
+Agent: main (Z.ai Code) + 13 subagents (D31-a..D44-c waves)
+Task: ROADMAP Days 31-45 — Phase 3 "Media & Creative Powerhouse": 9 new apps, 4 major upgrades, Design Studio template packs, QA Day v1.3
+
+Work Log:
+- Wave 1 (parallel subagents, all tsc/lint clean individually): D31 screen-recorder.tsx (1094 ln — getDisplayMedia + mic mix via AudioContext, vp9→vp8→webm→mp4 negotiation, pause/resume, auto-stop on track ended, unsupported-state card, toolhub-screenrec metadata history); D32 gif-maker.tsx (1527 ln + src/types/gifenc.d.ts — gifenc quantize/applyPalette pipeline, seek-driven frame extraction, fps/width presets, 300-frame guard, camera-clip recording tab, toolhub-gifmaker history with ≤6MB blob persistence); D33 video-converter.tsx (1472 ln — canvas+MediaRecorder real-time transcode, resolution/bitrate presets with no-upscale clamp, silent audio pipe via MediaStreamDestination, progress/ETA/cancel-with-partial, toolhub-videoconv history); D36 meme-maker.tsx (1091 ln — pointer-drag top/bottom text, 4 style presets, Impact stroke rendering, Web Share, saves to Gallery via media-db putPhoto, toolhub-memes); D37 collage-maker.tsx (1391 ln — 8 normalized-rect layouts, gap/padding/radius/backgrounds/aspects, 2× canvas export with roundRect clip, toolhub-collage); D43 sticker-studio.tsx (1255 ln — emoji packs, drag/scale/rotate items, transparent PNG + 2×2/3×3 sheets, toolhub-stickers with itemsJson re-edit)
+- Wave 2: D35 subtitle-studio.tsx (1646 ln — SRT+VTT parser/serializer, rAF live-sync overlay, playhead stamping, split, projects autosave in toolhub-subtitles); D39 wallpaper-studio.tsx (1112 ln — linear+mesh-blob CSS composer, grain/vignette, 8 presets, PNG export) + theme engine integration: theme.ts WallpaperId+'custom' + CustomWallpaper type, app-store.ts customWallpapers/activeCustomId/upsert-delete-activate actions, page.tsx wp-layer custom branch with crossfade-safe dark-flag derivation; D44 font-playground.tsx (1718 ln — 14 system stacks type tester + quote cards 2× canvas export, toolhub-fontplay); D38 canva.tsx 2495→3049 ln — TemplatePack system (5 packs × ~6-9 = 33 templates: 6 event posters, 6 sale banners, 6 YouTube thumbs, 6 story packs + 9 starters), pack-tab browser with CSS mini-previews, two-tap replace confirm
+- Wave 3: D34 video-studio.tsx 1396→2576 ln v3 (multi-clip ProjectClip model, thumbnail timeline strip, reorder, per-clip trim/filters, sequential canvas+MediaRecorder combined export with overall % + partial keep, v2 project persistence); D40 music-player.tsx 1032→1927 ln v2 (IndexedDB v2 playlists store, Fisher-Yates shuffle queue, repeat off/all/one, 5-band BiquadFilter EQ with 6 presets + Custom, sleep timer with 10s fade, visualizer tapped post-EQ); D41 voice-recorder.tsx 430→1711 ln v2 (now persists to toolhub-voice-recorder, waveform trim with draggable handles + WAV copy, rename, 0.5-2× speed with preservesPitch, per-recording notes, level meter); D42 camera.tsx 529→1422 ln v2 (Scan mode: Sobel edge auto-detect best-effort, 4-corner drag editor, 60×60 triangle-subdivision perspective warp, 4 enhance presets, upgraded timer ring; grid + mirror in both modes)
+- Main agent: 9 registry entries (catalog 65 built-in apps), version bumps camera 2.0.0 / video-studio 3.0.0 / music-player 2.0.0 / voice-recorder 2.0.0 / design-studio 3.1.0, refreshed descriptions+keywords
+- D45 QA Day (agent-browser): 14 apps opened at 390×844 — zero page/console errors; golden paths verified: wallpaper-studio Deep Space save→apply→launcher LIVE with custom CSS mesh (verified again after hard reload from persisted store), sticker emoji add + item controls, meme sample-background editor + enabled exports, font-playground both tabs, collage 8-layout switcher, subtitle/gif/converter/recorder graceful states, video-studio Timeline strip, design-studio pack tabs (33 templates); store catalog lists new apps; 1280×800 spot checks premium; 360×740 subtitle-studio no overflow
+- QA fixes: control-center.tsx wallpaper chip now shows active custom name + custom swatch with ring when wallpaper==='custom' (was blank) — verified in browser
+- Environmental: dev server OOM-killed twice during heavy compilation (restart OK); dev-only stale-chunk race worked around with agent-browser close + hard reload — production unaffected
+- Gates: bunx tsc --noEmit clean; bun run lint clean; mode-drift chmod 644 sweep
+
+Stage Summary:
+- Phase 3 closed, tagged v1.3: catalog 65 built-in apps (media now 16, text 5, utilities 8)
+- New IndexedDB namespaces: toolhub-screenrec, toolhub-gifmaker, toolhub-videoconv, toolhub-memes, toolhub-collage, toolhub-stickers, toolhub-subtitles, toolhub-fontplay, toolhub-voice-recorder (+toolhub-audio v2 playlists)
+- Theme engine now supports user-designed custom wallpapers (CustomWallpaper in zustand persist, rendered by page.tsx wp-layer, surfaced in Control Center)
+- Design Studio ships 33-template pack system (posters/banners/thumbs/stories)
+- Next: ROADMAP D46 — Weather v2 (Phase 4 opens)

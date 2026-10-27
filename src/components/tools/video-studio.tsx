@@ -1,21 +1,36 @@
 'use client'
 
 /**
- * Video Studio — the device's video tool.
+ * Video Studio — the device's video tool. (v3 — multi-clip timeline)
  *
- * Edit:   import a clip, watch it with live CSS filters, rotate/flip, scrub,
- *         change speed/volume/loop, trim with a looping preview, and capture
- *         the current frame (PNG download + saved into the shared media library).
- * Library: imported clips persist in IndexedDB — every clip gets a one-tap
- *         QR code that ships it to any other device running ToolHub.
- * Receive: paste a transfer link, scan the QR in-app, or just open a
- *         /?transfer=<id> link — the clip lands here automatically.
+ * Timeline: import MULTIPLE clips into one ordered project. Every clip gets a
+ *           canvas-grabbed thumbnail (frame at 1s), a per-clip trim, its own
+ *           live filter, rotation and flip — and can be moved left/right.
+ * Editor:   watch the selected clip with live CSS filters, scrub, change
+ *           speed/volume/loop, trim with a looping preview, and capture the
+ *           current frame (PNG download + saved into the shared media library).
+ * Export:   render the whole timeline into ONE WebM — clips play sequentially
+ *           into a hidden canvas + MediaRecorder, every frame respecting its
+ *           clip's trim and look; audio is tapped per clip through an
+ *           AudioContext MediaElementSource → MediaStreamDestination (clips
+ *           without audio simply contribute silence). Real-time encode with
+ *           live progress; cancelling keeps the partial recording.
+ * Library:  imported clips persist in IndexedDB — every clip gets a one-tap
+ *           QR code that ships it to any other device running ToolHub.
+ * Receive:  paste a transfer link, scan the QR in-app, or just open a
+ *           /?transfer=<id> link — the clip lands here automatically.
+ *
+ * The timeline arrangement (order, trims, looks) persists to localStorage for
+ * clips that live in the library; imported-but-unsaved clips cannot survive a
+ * reload (their bytes are never uploaded anywhere).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import QRCode from 'qrcode'
 import {
+  ArrowLeft,
+  ArrowRight,
   Camera,
   Check,
   Clapperboard,
@@ -23,15 +38,19 @@ import {
   Download,
   Film,
   FlipHorizontal2,
+  ListVideo,
   Loader2,
   Pause,
   Play,
+  Plus,
   QrCode,
   Repeat,
   RotateCw,
   ScanLine,
   Scissors,
   Save,
+  Square,
+  Timer,
   Trash2,
   Upload,
   Volume2,
@@ -82,6 +101,23 @@ const SPEEDS: { value: number; label: string }[] = [
 
 const SHARE_TTL_MS = 30 * 60_000
 
+/** Where inside a clip the timeline thumbnail is grabbed. */
+const THUMB_AT_SEC = 1
+/** Long edge cap for the combined-export canvas (keeps encode cheap). */
+const EXPORT_LONG_EDGE = 1280
+const EXPORT_VIDEO_BPS = 5_000_000
+const EXPORT_AUDIO_BPS = 128_000
+const EXPORT_MIMES: { mime: string; label: string }[] = [
+  { mime: 'video/webm;codecs=vp9,opus', label: 'VP9 + Opus' },
+  { mime: 'video/webm;codecs=vp8,opus', label: 'VP8 + Opus' },
+  { mime: 'video/webm;codecs=vp9', label: 'VP9' },
+  { mime: 'video/webm;codecs=vp8', label: 'VP8' },
+  { mime: 'video/webm', label: 'WebM' },
+]
+
+/** Versioned persistence for the timeline arrangement (library-backed clips only). */
+const PROJECT_LS_KEY = 'toolhub-videostudio-project-v2'
+
 const fmtTime = (t: number) => {
   const safe = isFinite(t) && t > 0 ? t : 0
   const m = Math.floor(safe / 60)
@@ -106,19 +142,292 @@ type ReceiveState =
   | { phase: 'error'; message: string }
 
 /* ================================================================== */
+/* Model                                                               */
+/* ================================================================== */
+
+/** One clip on the multi-clip timeline — owns its bytes via a blob object URL. */
+interface ProjectClip {
+  id: string
+  name: string
+  mime: string
+  size: number
+  /** Raw bytes (File on import, Blob from the library) — used for library saves. */
+  blob: Blob
+  /** Object URL for playback + export. Revoked when the clip leaves the project. */
+  url: string
+  /** seconds — 0 when unreadable */
+  duration: number
+  width: number
+  height: number
+  /** JPEG data URL of the frame at ~1s — timeline thumbnail. */
+  thumb: string | null
+  trimStart: number
+  trimEnd: number
+  filterId: string
+  rotation: number
+  flip: boolean
+  /** Set once the clip has been saved into the shared library. */
+  libraryId: string | null
+  origin: 'import' | 'received'
+}
+
+/** The persisted slice of a project clip (library-backed only). */
+interface PersistedClip {
+  id: string
+  trimStart: number
+  trimEnd: number
+  filterId: string
+  rotation: number
+  flip: boolean
+  libraryId: string | null
+}
+
+interface ExportRun {
+  pct: number
+  exported: number
+  total: number
+  clipIndex: number
+  clipCount: number
+}
+
+interface ExportResult {
+  url: string
+  blob: Blob
+  fileName: string
+  size: number
+  seconds: number
+  partial: boolean
+}
+
+/* ================================================================== */
+/* Helpers                                                             */
+/* ================================================================== */
+
+function haptic() {
+  try {
+    navigator.vibrate?.(12)
+  } catch {
+    /* haptics unsupported */
+  }
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v
+}
+
+function evenize(n: number): number {
+  return Math.max(2, Math.round(n / 2) * 2)
+}
+
+function filterCssOf(clip: ProjectClip): string {
+  return FILTERS.find((f) => f.id === clip.filterId)?.css ?? 'none'
+}
+
+function negotiateExportMime(): { mime: string; label: string } | null {
+  if (typeof MediaRecorder === 'undefined') return null
+  for (const c of EXPORT_MIMES) {
+    try {
+      if (MediaRecorder.isTypeSupported(c.mime)) return c
+    } catch {
+      /* keep looking */
+    }
+  }
+  return null
+}
+
+/**
+ * Paint one video frame onto a canvas with the clip's look applied —
+ * contain-fitted and centered (letterboxed) inside cw×ch.
+ */
+function paintFrame(
+  ctx: CanvasRenderingContext2D,
+  v: HTMLVideoElement,
+  look: { filter: string; rotation: number; flip: boolean },
+  cw: number,
+  ch: number
+) {
+  const vw = v.videoWidth
+  const vh = v.videoHeight
+  if (!vw || !vh) return
+  const swap = look.rotation % 180 === 90
+  const rw = swap ? vh : vw
+  const rh = swap ? vw : vh
+  const scale = Math.min(cw / rw, ch / rh)
+  ctx.save()
+  try {
+    ctx.filter = look.filter
+  } catch {
+    /* filter unsupported in this browser — draw plain */
+  }
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, cw, ch)
+  ctx.translate(cw / 2, ch / 2)
+  ctx.rotate((look.rotation * Math.PI) / 180)
+  ctx.scale(look.flip ? -1 : 1, 1)
+  ctx.drawImage(v, (-vw * scale) / 2, (-vh * scale) / 2, vw * scale, vh * scale)
+  ctx.restore()
+}
+
+/** Await a video element event with a timeout; fails fast on decode errors. */
+function waitVideoEvent(v: HTMLVideoElement, ev: 'loadedmetadata' | 'seeked', timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (ok: boolean) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timer)
+      v.removeEventListener(ev, onEvent)
+      v.removeEventListener('error', onError)
+      resolve(ok)
+    }
+    const onEvent = () => finish(true)
+    const onError = () => finish(false)
+    const timer = window.setTimeout(() => finish(false), timeoutMs)
+    v.addEventListener(ev, onEvent, { once: true })
+    v.addEventListener('error', onError, { once: true })
+  })
+}
+
+/** Load a clip into the hidden export element and seek to its trim start. */
+async function loadAndSeek(v: HTMLVideoElement, url: string, at: number): Promise<boolean> {
+  v.src = url
+  v.load()
+  if (!(await waitVideoEvent(v, 'loadedmetadata', 10000))) return false
+  if (Math.abs(v.currentTime - at) < 0.01) return true
+  try {
+    v.currentTime = at
+  } catch {
+    return false
+  }
+  return waitVideoEvent(v, 'seeked', 8000)
+}
+
+/**
+ * Probe a clip: duration, dimensions and a thumbnail frame grabbed at ~1s.
+ * Best-effort — everything resolves gracefully so a weird container never
+ * blocks the timeline.
+ */
+function probeClip(url: string): Promise<{ duration: number; width: number; height: number; thumb: string | null }> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video')
+    v.muted = true
+    v.preload = 'auto'
+    let duration = 0
+    let width = 0
+    let height = 0
+    let settled = false
+    const finish = (thumb: string | null) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(guard)
+      window.clearTimeout(seekGuard)
+      v.onloadedmetadata = null
+      v.onseeked = null
+      v.onerror = null
+      v.removeAttribute('src')
+      v.load()
+      resolve({ duration, width, height, thumb })
+    }
+    const guard = window.setTimeout(() => finish(null), 9000)
+    let seekGuard = 0
+    v.onerror = () => finish(null)
+    v.onloadedmetadata = () => {
+      duration = isFinite(v.duration) && v.duration > 0 ? v.duration : 0
+      width = v.videoWidth
+      height = v.videoHeight
+      if (duration <= 0 || width === 0) {
+        finish(null)
+        return
+      }
+      try {
+        v.currentTime = Math.min(THUMB_AT_SEC, Math.max(0.05, duration - 0.1))
+      } catch {
+        finish(null)
+        return
+      }
+      seekGuard = window.setTimeout(() => finish(null), 3000)
+    }
+    v.onseeked = () => {
+      try {
+        const scale = Math.min(1, 320 / Math.max(width, height))
+        const cv = document.createElement('canvas')
+        cv.width = Math.max(2, Math.round(width * scale))
+        cv.height = Math.max(2, Math.round(height * scale))
+        const ctx = cv.getContext('2d')
+        if (!ctx) throw new Error('no 2d context')
+        ctx.drawImage(v, 0, 0, cv.width, cv.height)
+        finish(cv.toDataURL('image/jpeg', 0.72))
+      } catch {
+        finish(null)
+      }
+    }
+    v.src = url
+  })
+}
+
+function isPersistedClip(x: unknown): x is PersistedClip {
+  if (!x || typeof x !== 'object') return false
+  const c = x as Record<string, unknown>
+  return (
+    typeof c.id === 'string' &&
+    typeof c.trimStart === 'number' &&
+    typeof c.trimEnd === 'number' &&
+    typeof c.filterId === 'string' &&
+    typeof c.rotation === 'number' &&
+    typeof c.flip === 'boolean' &&
+    (c.libraryId === null || typeof c.libraryId === 'string')
+  )
+}
+
+/** Read the persisted arrangement — old/corrupt/foreign records are ignored. */
+function readArrangement(): PersistedClip[] {
+  try {
+    const raw = window.localStorage.getItem(PROJECT_LS_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return []
+    const obj = parsed as { v?: unknown; clips?: unknown }
+    if (obj.v !== 2 || !Array.isArray(obj.clips)) return []
+    return obj.clips.filter(isPersistedClip)
+  } catch {
+    return []
+  }
+}
+
+/* ================================================================== */
 /* Component                                                           */
 /* ================================================================== */
 
 export default function VideoStudioApp() {
   const { toast } = useToast()
   const videoRef = useRef<HTMLVideoElement>(null)
-  const urlRef = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const fileRef = useRef<File | null>(null)
 
-  const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const [videoName, setVideoName] = useState('')
-  const [currentClipId, setCurrentClipId] = useState<string | null>(null)
+  /* hidden media for the combined export */
+  const expVideoRef = useRef<HTMLVideoElement>(null)
+  const expCanvasRef = useRef<HTMLCanvasElement>(null)
+  const recRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const rafRef = useRef(0)
+  const cancelRef = useRef(false)
+  const runningRef = useRef(false)
+  const exportErrorRef = useRef('')
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const exportSrcNodeRef = useRef<MediaElementAudioSourceNode | null>(null)
+  const resultUrlRef = useRef<string | null>(null)
+
+  /* every object URL the timeline owns — revoked on removal/unmount */
+  const timelineUrlsRef = useRef<string[]>([])
+
+  /* -------- timeline (the multi-clip project) -------- */
+  const [timeline, setTimeline] = useState<ProjectClip[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
+  const [armedClear, setArmedClear] = useState(false)
+  const removeTimerRef = useRef<number | null>(null)
+  const clearTimerRef = useRef<number | null>(null)
+
+  /* -------- player (plays the selected clip) -------- */
   const [duration, setDuration] = useState(0)
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null)
   const [metaReady, setMetaReady] = useState(false)
@@ -128,15 +437,15 @@ export default function VideoStudioApp() {
   const [muted, setMuted] = useState(false)
   const [rate, setRate] = useState(1)
   const [loop, setLoop] = useState(false)
-  const [filterId, setFilterId] = useState('normal')
-  const [rotation, setRotation] = useState(0)
-  const [flip, setFlip] = useState(false)
-  const [trimStart, setTrimStart] = useState(0)
-  const [trimEnd, setTrimEnd] = useState(0)
   const [trimPreview, setTrimPreview] = useState(false)
 
+  /* -------- combined export -------- */
+  const [exportRun, setExportRun] = useState<ExportRun | null>(null)
+  const [exportResult, setExportResult] = useState<ExportResult | null>(null)
+  const [exportCodec, setExportCodec] = useState<{ mime: string; label: string } | null>(null)
+
   /* -------- clip library -------- */
-  const [clips, setClips] = useState<ClipRecord[]>([])
+  const [library, setLibrary] = useState<ClipRecord[]>([])
   const [saving, setSaving] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const confirmTimerRef = useRef<number | null>(null)
@@ -158,21 +467,48 @@ export default function VideoStudioApp() {
   const scanStreamRef = useRef<MediaStream | null>(null)
   const scanTimerRef = useRef<number | null>(null)
 
-  const activeFilter = FILTERS.find((f) => f.id === filterId) ?? FILTERS[0]
-  const rotated = rotation % 180 === 90
+  const sel = selectedId ? (timeline.find((c) => c.id === selectedId) ?? null) : null
+  const selIndex = timeline.findIndex((c) => c.id === selectedId)
+  const activeFilter = FILTERS.find((f) => f.id === sel?.filterId) ?? FILTERS[0]
+  const rotated = (sel?.rotation ?? 0) % 180 === 90
+  const trimmedDuration = sel ? Math.max(0, sel.trimEnd - sel.trimStart) : 0
+  const totalRuntime = timeline.reduce((s, c) => s + Math.max(0, c.trimEnd - c.trimStart), 0)
+  const shareExpIn = share.phase === 'ready' ? Math.max(0, share.exp - now) : 0
+  const shareCountdown =
+    share.phase === 'ready'
+      ? `${Math.floor(shareExpIn / 60000)}:${String(Math.floor((shareExpIn % 60000) / 1000)).padStart(2, '0')}`
+      : ''
 
-  /* Revoke the current object URL when the app unmounts */
+  /* Revoke every object URL + stop every stream when the app unmounts */
   useEffect(() => {
     return () => {
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current)
-      urlRef.current = null
+      for (const u of timelineUrlsRef.current) URL.revokeObjectURL(u)
+      timelineUrlsRef.current = []
+      if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current)
+      resultUrlRef.current = null
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      try {
+        if (recRef.current && recRef.current.state !== 'inactive') recRef.current.stop()
+      } catch {
+        /* recorder already idle */
+      }
+      try {
+        exportSrcNodeRef.current?.disconnect()
+      } catch {
+        /* never created */
+      }
+      const actx = audioCtxRef.current
+      if (actx) void actx.close().catch(() => {})
+      runningRef.current = false
       shareAbortRef.current?.abort()
       receiveAbortRef.current?.abort()
       if (scanStreamRef.current) scanStreamRef.current.getTracks().forEach((t) => t.stop())
       if (scanTimerRef.current) window.clearTimeout(scanTimerRef.current)
+      if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current)
+      if (removeTimerRef.current) window.clearTimeout(removeTimerRef.current)
+      if (clearTimerRef.current) window.clearTimeout(clearTimerRef.current)
     }
   }, [])
-
 
   /* countdown ticker while a share modal is open */
   useEffect(() => {
@@ -181,108 +517,317 @@ export default function VideoStudioApp() {
     return () => window.clearInterval(t)
   }, [shareClip])
 
-  const loadClips = useCallback(async () => {
-    setClips(await listClips())
+  /* negotiate the combined-export codec once, off the render path */
+  useEffect(() => {
+    let alive = true
+    queueMicrotask(() => {
+      if (alive) setExportCodec(negotiateExportMime())
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
+  /* initial load: library + restore the persisted timeline arrangement */
   useEffect(() => {
-    void loadClips()
-  }, [loadClips])
+    let alive = true
+    void (async () => {
+      let recs: ClipRecord[] = []
+      try {
+        recs = await listClips()
+      } catch {
+        return
+      }
+      if (!alive) return
+      setLibrary(recs)
+      const saved = readArrangement()
+      if (saved.length === 0) return
+      const byLibId = new Map(recs.map((r) => [r.id, r]))
+      const built: ProjectClip[] = []
+      for (const p of saved) {
+        const rec = p.libraryId ? byLibId.get(p.libraryId) : undefined
+        if (!rec) continue // unknown / deleted / unsaved clip — skipped gracefully
+        const blob = await getClipBlob(rec.id)
+        if (!alive) return
+        if (!blob) continue
+        const url = URL.createObjectURL(blob)
+        timelineUrlsRef.current.push(url)
+        const probed = await probeClip(url)
+        if (!alive) {
+          URL.revokeObjectURL(url)
+          return
+        }
+        const duration = probed.duration > 0 ? probed.duration : (rec.duration ?? 0)
+        const tStart = duration > 0 ? clamp(p.trimStart, 0, duration) : 0
+        const tEnd =
+          duration > 0 ? clamp(p.trimEnd, Math.min(duration, tStart + 0.2), duration) : 0
+        built.push({
+          id: p.id,
+          name: rec.name,
+          mime: rec.mime,
+          size: rec.size,
+          blob,
+          url,
+          duration,
+          width: probed.width,
+          height: probed.height,
+          thumb: probed.thumb ?? rec.poster ?? null,
+          trimStart: tStart,
+          trimEnd: tEnd,
+          filterId: FILTERS.some((f) => f.id === p.filterId) ? p.filterId : 'normal',
+          rotation: ((Math.round(p.rotation) % 360) + 360) % 360,
+          flip: p.flip,
+          libraryId: rec.id,
+          origin: rec.origin,
+        })
+      }
+      if (!alive || built.length === 0) return
+      setTimeline(built)
+      setSelectedId(built[0]?.id ?? null)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
 
-  /* -------- Import & reset -------- */
+  /* persist the timeline arrangement (debounced) — library-backed clips restore on reload */
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        if (timeline.length === 0) {
+          window.localStorage.removeItem(PROJECT_LS_KEY)
+          return
+        }
+        const payload = JSON.stringify({
+          v: 2,
+          clips: timeline.map((c) => ({
+            id: c.id,
+            trimStart: Math.round(c.trimStart * 100) / 100,
+            trimEnd: Math.round(c.trimEnd * 100) / 100,
+            filterId: c.filterId,
+            rotation: c.rotation,
+            flip: c.flip,
+            libraryId: c.libraryId,
+          })),
+        })
+        window.localStorage.setItem(PROJECT_LS_KEY, payload)
+      } catch {
+        /* storage unavailable — the arrangement just won't persist */
+      }
+    }, 500)
+    return () => window.clearTimeout(t)
+  }, [timeline])
 
-  const resetForNewFile = useCallback(() => {
+  /* -------- timeline ops -------- */
+
+  const patchClip = useCallback((id: string, patch: Partial<ProjectClip>) => {
+    setTimeline((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+  }, [])
+
+  const patchSel = useCallback(
+    (patch: Partial<ProjectClip>) => {
+      if (selectedId) patchClip(selectedId, patch)
+    },
+    [selectedId, patchClip]
+  )
+
+  const resetPlayerState = useCallback(() => {
     setPlaying(false)
     setTime(0)
     setDuration(0)
     setDims(null)
     setMetaReady(false)
-    setTrimStart(0)
-    setTrimEnd(0)
     setTrimPreview(false)
-    setFilterId('normal')
-    setRotation(0)
-    setFlip(false)
-    setRate(1)
-    setLoop(false)
   }, [])
 
-  const importFile = useCallback(
-    (file: File | undefined) => {
-      if (!file) return
-      if (!file.type.startsWith('video/')) {
+  const selectClip = useCallback(
+    (id: string) => {
+      if (id === selectedId) return
+      try {
+        videoRef.current?.pause()
+      } catch {
+        /* already idle */
+      }
+      setSelectedId(id)
+      resetPlayerState()
+      haptic()
+    },
+    [selectedId, resetPlayerState]
+  )
+
+  const moveSelected = useCallback(
+    (dir: -1 | 1) => {
+      setTimeline((prev) => {
+        const i = prev.findIndex((c) => c.id === selectedId)
+        const j = i + dir
+        if (i < 0 || j < 0 || j >= prev.length) return prev
+        const next = [...prev]
+        const tmp = next[i]
+        const other = next[j]
+        if (!tmp || !other) return prev
+        next[i] = other
+        next[j] = tmp
+        return next
+      })
+      haptic()
+    },
+    [selectedId]
+  )
+
+  const armRemove = useCallback((id: string) => {
+    setConfirmRemoveId((prev) => (prev === id ? null : id))
+    if (removeTimerRef.current) window.clearTimeout(removeTimerRef.current)
+    removeTimerRef.current = window.setTimeout(() => setConfirmRemoveId(null), 2600)
+  }, [])
+
+  const removeTimelineClip = useCallback(
+    (id: string) => {
+      const idx = timeline.findIndex((c) => c.id === id)
+      const victim = idx >= 0 ? timeline[idx] : undefined
+      if (!victim) return
+      if (runningRef.current) {
         toast({
-          title: 'Not a video file',
-          description: 'Choose an MP4, WebM or MOV clip.',
+          title: 'Export in progress',
+          description: 'Cancel the export before changing the timeline.',
           variant: 'destructive',
         })
         return
       }
-      const url = URL.createObjectURL(file)
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current)
-      urlRef.current = url
-      fileRef.current = file
-      resetForNewFile()
-      setVideoUrl(url)
-      setVideoName(file.name)
-      setCurrentClipId(null)
-    },
-    [resetForNewFile, toast]
-  )
-
-  const openClipIntoEditor = useCallback(
-    async (rec: ClipRecord) => {
-      const blob = await getClipBlob(rec.id)
-      if (!blob) {
-        toast({ title: 'Clip data missing', description: 'Try re-importing the video.', variant: 'destructive' })
-        return
+      URL.revokeObjectURL(victim.url)
+      timelineUrlsRef.current = timelineUrlsRef.current.filter((u) => u !== victim.url)
+      const remaining = timeline.filter((c) => c.id !== id)
+      setTimeline(remaining)
+      setConfirmRemoveId(null)
+      if (id === selectedId) {
+        // fall over to a neighbour so the editor never dead-ends
+        const next = remaining[idx] ?? remaining[idx - 1] ?? null
+        setSelectedId(next ? next.id : null)
+        resetPlayerState()
       }
-      const url = URL.createObjectURL(blob)
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current)
-      urlRef.current = url
-      fileRef.current = null // already in the library
-      resetForNewFile()
-      setVideoUrl(url)
-      setVideoName(rec.name)
-      setCurrentClipId(rec.id)
+      haptic()
     },
-    [resetForNewFile, toast]
+    [timeline, selectedId, resetPlayerState, toast]
   )
 
-  const changeVideo = useCallback(() => {
-    if (urlRef.current) {
-      URL.revokeObjectURL(urlRef.current)
-      urlRef.current = null
+  const clearTimeline = useCallback(() => {
+    if (runningRef.current) {
+      toast({
+        title: 'Export in progress',
+        description: 'Cancel the export before clearing the timeline.',
+        variant: 'destructive',
+      })
+      return
     }
-    fileRef.current = null
-    resetForNewFile()
-    setVideoUrl(null)
-    setVideoName('')
-    setCurrentClipId(null)
-  }, [resetForNewFile])
+    for (const c of timeline) URL.revokeObjectURL(c.url)
+    timelineUrlsRef.current = []
+    setTimeline([])
+    setSelectedId(null)
+    resetPlayerState()
+    setArmedClear(false)
+    haptic()
+    toast({ title: 'Timeline cleared', description: 'Library clips are safe — only this arrangement was removed.' })
+  }, [timeline, resetPlayerState, toast])
 
-  /* -------- Library: save / delete -------- */
+  const armClear = useCallback(() => {
+    setArmedClear(true)
+    if (clearTimerRef.current) window.clearTimeout(clearTimerRef.current)
+    clearTimerRef.current = window.setTimeout(() => setArmedClear(false), 2600)
+  }, [])
 
-  const saveCurrentToLibrary = useCallback(async () => {
-    const file = fileRef.current
-    if (!file) return
-    setSaving(true)
-    try {
-      const poster = (videoRef.current ? posterFromElement(videoRef.current) : undefined) ?? (await makePoster(file))
-      const rec: ClipRecord = {
+  /* -------- Import (multi-file) -------- */
+
+  const addClipFromFile = useCallback(
+    async (file: File) => {
+      const url = URL.createObjectURL(file)
+      timelineUrlsRef.current.push(url)
+      const probed = await probeClip(url)
+      const clip: ProjectClip = {
         id: newClipId(),
         name: file.name,
         mime: file.type || 'video/mp4',
         size: file.size,
-        duration: duration > 0 ? duration : undefined,
-        poster,
-        createdAt: Date.now(),
+        blob: file,
+        url,
+        duration: probed.duration,
+        width: probed.width,
+        height: probed.height,
+        thumb: probed.thumb,
+        trimStart: 0,
+        trimEnd: probed.duration,
+        filterId: 'normal',
+        rotation: 0,
+        flip: false,
+        libraryId: null,
         origin: 'import',
       }
-      await putClip(rec, file)
-      setCurrentClipId(rec.id)
-      await loadClips()
+      setTimeline((prev) => [...prev, clip])
+      setSelectedId(clip.id)
+      resetPlayerState()
+      haptic()
+      if (probed.duration <= 0) {
+        toast({
+          title: 'Duration unreadable',
+          description: `${file.name} will still play — trim unlocks once its length is known.`,
+        })
+      }
+    },
+    [resetPlayerState, toast]
+  )
+
+  const addFiles = useCallback(
+    (files: FileList | null) => {
+      if (runningRef.current) {
+        toast({
+          title: 'Export in progress',
+          description: 'Cancel the export before adding clips.',
+          variant: 'destructive',
+        })
+        return
+      }
+      const list = Array.from(files ?? [])
+      const vids = list.filter((f) => f.type.startsWith('video/'))
+      if (list.length > 0 && vids.length === 0) {
+        toast({
+          title: 'Not a video file',
+          description: 'Choose MP4, WebM or MOV clips.',
+          variant: 'destructive',
+        })
+        return
+      }
+      for (const f of vids) void addClipFromFile(f)
+    },
+    [addClipFromFile, toast]
+  )
+
+  /* -------- Library: refresh / save / delete / open into timeline -------- */
+
+  const loadLibrary = useCallback(async () => {
+    setLibrary(await listClips())
+  }, [])
+
+  const saveSelectedToLibrary = useCallback(async () => {
+    const clip = sel
+    if (!clip) return
+    setSaving(true)
+    try {
+      const poster =
+        (videoRef.current && selectedId === clip.id ? posterFromElement(videoRef.current) : undefined) ??
+        (await makePoster(clip.blob))
+      const rec: ClipRecord = {
+        id: clip.id, // reuse the project id so the persisted arrangement keeps matching
+        name: clip.name,
+        mime: clip.mime,
+        size: clip.size,
+        duration: clip.duration > 0 ? clip.duration : undefined,
+        poster,
+        createdAt: Date.now(),
+        origin: clip.origin === 'received' ? 'received' : 'import',
+      }
+      await putClip(rec, clip.blob)
+      patchClip(clip.id, { libraryId: rec.id })
+      await loadLibrary()
       toast({ title: 'Saved to your library', description: 'Now shareable with a QR code.' })
+      haptic()
     } catch {
       toast({
         title: 'Could not save',
@@ -292,7 +837,7 @@ export default function VideoStudioApp() {
     } finally {
       setSaving(false)
     }
-  }, [duration, loadClips, toast])
+  }, [sel, selectedId, patchClip, loadLibrary, toast])
 
   const armDelete = useCallback((id: string) => {
     setConfirmDeleteId((prev) => (prev === id ? null : id))
@@ -300,22 +845,63 @@ export default function VideoStudioApp() {
     confirmTimerRef.current = window.setTimeout(() => setConfirmDeleteId(null), 2600)
   }, [])
 
-  const removeClip = useCallback(
+  const removeLibraryClip = useCallback(
     async (rec: ClipRecord) => {
       try {
         await deleteClip(rec.id)
         shareCacheRef.current.delete(rec.id)
-        if (currentClipId === rec.id) {
-          changeVideo()
-        }
-        await loadClips()
+        setTimeline((prev) => prev.map((c) => (c.libraryId === rec.id ? { ...c, libraryId: null } : c)))
+        await loadLibrary()
         setConfirmDeleteId(null)
         toast({ title: 'Clip deleted', description: rec.name })
       } catch {
         toast({ title: 'Could not delete', variant: 'destructive' })
       }
     },
-    [changeVideo, currentClipId, loadClips, toast]
+    [loadLibrary, toast]
+  )
+
+  const openLibraryClip = useCallback(
+    async (rec: ClipRecord) => {
+      const existing = timeline.find((c) => c.libraryId === rec.id)
+      if (existing) {
+        selectClip(existing.id)
+        return
+      }
+      const blob = await getClipBlob(rec.id)
+      if (!blob) {
+        toast({ title: 'Clip data missing', description: 'Try re-importing the video.', variant: 'destructive' })
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      timelineUrlsRef.current.push(url)
+      const probed = await probeClip(url)
+      const duration = probed.duration > 0 ? probed.duration : (rec.duration ?? 0)
+      const clip: ProjectClip = {
+        id: newClipId(),
+        name: rec.name,
+        mime: rec.mime,
+        size: rec.size,
+        blob,
+        url,
+        duration,
+        width: probed.width,
+        height: probed.height,
+        thumb: probed.thumb ?? rec.poster ?? null,
+        trimStart: 0,
+        trimEnd: duration,
+        filterId: 'normal',
+        rotation: 0,
+        flip: false,
+        libraryId: rec.id,
+        origin: rec.origin,
+      }
+      setTimeline((prev) => [...prev, clip])
+      setSelectedId(clip.id)
+      resetPlayerState()
+      haptic()
+    },
+    [timeline, selectClip, resetPlayerState, toast]
   )
 
   /* -------- QR share -------- */
@@ -423,19 +1009,19 @@ export default function VideoStudioApp() {
           origin: 'received',
         }
         await putClip(rec, blob)
-        await loadClips()
+        await loadLibrary()
         if (abort.signal.aborted) return
         setReceiveOpen(false)
         setReceive({ phase: 'input' })
         setReceiveInput('')
         toast({ title: 'Video received', description: `“${name}” is now in your library.` })
-        void openClipIntoEditor(rec)
+        void openLibraryClip(rec)
       } catch (err) {
         if (abort.signal.aborted) return
         setReceive({ phase: 'error', message: (err as Error).message })
       }
     },
-    [loadClips, openClipIntoEditor, toast]
+    [loadLibrary, openLibraryClip, toast]
   )
 
   const closeReceive = useCallback(() => {
@@ -551,23 +1137,28 @@ export default function VideoStudioApp() {
     const dur = isFinite(v.duration) ? v.duration : 0
     setDuration(dur)
     setDims({ w: v.videoWidth, h: v.videoHeight })
-    setTrimStart(0)
-    setTrimEnd(dur)
     setMetaReady(true)
     v.playbackRate = rate
     setTime(v.currentTime)
-  }, [rate])
+    // graceful fallback: a clip whose probe failed gets its trim marks here
+    if (dur > 0 && sel) {
+      if (sel.trimEnd <= 0 || sel.trimEnd > dur) patchClip(sel.id, { trimEnd: dur })
+      if (sel.trimStart >= dur) patchClip(sel.id, { trimStart: 0 })
+    }
+  }, [rate, sel, patchClip])
 
   const handleTimeUpdate = useCallback(() => {
     const v = videoRef.current
-    if (!v) return
-    if (trimPreview && trimEnd > trimStart && v.currentTime >= trimEnd - 0.05) {
-      v.currentTime = trimStart
-      setTime(trimStart)
+    if (!v || !sel) return
+    const s = sel.trimStart
+    const e = sel.trimEnd
+    if (trimPreview && e - s > 0.2 && v.currentTime >= e - 0.05) {
+      v.currentTime = s
+      setTime(s)
       return
     }
     setTime(v.currentTime)
-  }, [trimPreview, trimStart, trimEnd])
+  }, [sel, trimPreview])
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current
@@ -611,42 +1202,40 @@ export default function VideoStudioApp() {
     (pressed: boolean) => {
       setTrimPreview(pressed)
       const v = videoRef.current
-      if (pressed && v && duration > 0 && trimEnd > trimStart) {
-        v.currentTime = trimStart
-        setTime(trimStart)
+      if (pressed && v && sel && sel.trimEnd - sel.trimStart > 0.2) {
+        v.currentTime = sel.trimStart
+        setTime(sel.trimStart)
         void v.play().catch(() => {})
       }
     },
-    [duration, trimStart, trimEnd]
+    [sel]
   )
 
   /* -------- Frame capture: download + save to media library -------- */
 
   const captureFrame = useCallback(async () => {
     const v = videoRef.current
-    if (!v || !v.videoWidth || !metaReady) {
+    if (!v || !v.videoWidth || !metaReady || !sel) {
       toast({ title: 'Nothing to capture yet', description: 'Wait for the video to load.' })
       return
     }
     const vw = v.videoWidth
     const vh = v.videoHeight
-    const swap = rotation % 180 === 90
+    const swap = sel.rotation % 180 === 90
     const canvas = document.createElement('canvas')
     canvas.width = swap ? vh : vw
     canvas.height = swap ? vw : vh
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    try {
-      ctx.filter = activeFilter.css
-    } catch {
-      /* ignore unsupported filters */
-    }
-    ctx.translate(canvas.width / 2, canvas.height / 2)
-    ctx.rotate((rotation * Math.PI) / 180)
-    ctx.scale(flip ? -1 : 1, 1)
-    ctx.drawImage(v, -vw / 2, -vh / 2, vw, vh)
+    paintFrame(
+      ctx,
+      v,
+      { filter: activeFilter.css, rotation: sel.rotation, flip: sel.flip },
+      canvas.width,
+      canvas.height
+    )
     const dataUrl = canvas.toDataURL('image/png')
-    const base = videoName.replace(/\.[^.]+$/, '') || 'video'
+    const base = sel.name.replace(/\.[^.]+$/, '') || 'video'
     const filename = `${base}-frame.png`
 
     const a = document.createElement('a')
@@ -674,14 +1263,306 @@ export default function VideoStudioApp() {
         variant: 'destructive',
       })
     }
-  }, [metaReady, rotation, flip, activeFilter.css, videoName, toast])
+  }, [metaReady, sel, activeFilter.css, toast])
 
-  const trimmedDuration = Math.max(0, trimEnd - trimStart)
-  const shareExpIn = share.phase === 'ready' ? Math.max(0, share.exp - now) : 0
-  const shareCountdown =
-    share.phase === 'ready'
-      ? `${Math.floor(shareExpIn / 60000)}:${String(Math.floor((shareExpIn % 60000) / 1000)).padStart(2, '0')}`
-      : ''
+  /* -------- Combined export: sequential realtime render into one WebM -------- */
+
+  const ensureAudioCtx = useCallback((): AudioContext => {
+    if (!audioCtxRef.current) {
+      const Ctor =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!Ctor) throw new Error('Web Audio not supported')
+      audioCtxRef.current = new Ctor()
+    }
+    return audioCtxRef.current
+  }, [])
+
+  const startCombinedExport = useCallback(async () => {
+    const c = expCanvasRef.current
+    const v = expVideoRef.current
+    if (!c || !v || runningRef.current) return
+    const choice = exportCodec
+    if (!choice) {
+      toast({
+        title: 'Recording not supported',
+        description: 'This browser cannot record WebM video — combined export is disabled here.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const plan = timeline
+      .filter((cl) => cl.trimEnd - cl.trimStart > 0.05)
+      .map((cl) => ({ clip: cl, start: cl.trimStart, end: cl.trimEnd }))
+    if (plan.length === 0) {
+      toast({
+        title: 'Nothing to export',
+        description: 'Give at least one clip a usable trim first.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const totalSecs = plan.reduce((s, p) => s + (p.end - p.start), 0)
+
+    /* canvas = biggest source, capped on the long edge; each frame is
+       contain-fitted so mixed orientations coexist via letterboxing */
+    const maxW = Math.max(2, ...plan.map((p) => p.clip.width || 2))
+    const maxH = Math.max(2, ...plan.map((p) => p.clip.height || 2))
+    const fit = Math.min(1, EXPORT_LONG_EDGE / Math.max(maxW, maxH))
+    const cw = evenize(maxW * fit)
+    const ch = evenize(maxH * fit)
+    const ctx = c.getContext('2d', { alpha: false })
+    if (!ctx) {
+      toast({
+        title: 'Canvas unavailable',
+        description: 'Frame rendering is not possible in this browser.',
+        variant: 'destructive',
+      })
+      return
+    }
+    c.width = cw
+    c.height = ch
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, cw, ch)
+
+    /* the hidden element takes over — silence the editor player */
+    try {
+      videoRef.current?.pause()
+    } catch {
+      /* already idle */
+    }
+
+    /* --- audio graph: one MediaElementSource on the hidden element,
+       reused across clips; audio-less clips contribute silence --- */
+    let audioTracks: MediaStreamTrack[] = []
+    try {
+      const actx = ensureAudioCtx()
+      await actx.resume().catch(() => {})
+      let node = exportSrcNodeRef.current
+      if (!node) {
+        node = actx.createMediaElementSource(v)
+        exportSrcNodeRef.current = node
+      }
+      try {
+        node.disconnect()
+      } catch {
+        /* not connected yet */
+      }
+      const dest = actx.createMediaStreamDestination()
+      node.connect(dest)
+      audioTracks = dest.stream.getAudioTracks()
+      v.muted = false
+      v.volume = 1
+    } catch {
+      v.muted = true
+      audioTracks = []
+      toast({ title: 'Audio track unavailable', description: 'The combined video will be silent.' })
+    }
+
+    /* --- recorder --- */
+    const canvasStream = c.captureStream(30)
+    const stream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks])
+    let rec: MediaRecorder
+    try {
+      rec = new MediaRecorder(stream, {
+        mimeType: choice.mime,
+        videoBitsPerSecond: EXPORT_VIDEO_BPS,
+        audioBitsPerSecond: EXPORT_AUDIO_BPS,
+      })
+    } catch {
+      canvasStream.getTracks().forEach((t) => t.stop())
+      audioTracks.forEach((t) => t.stop())
+      toast({
+        title: 'Recorder failed to start',
+        description: 'This browser rejected the WebM recording setup.',
+        variant: 'destructive',
+      })
+      return
+    }
+    recRef.current = rec
+    chunksRef.current = []
+    cancelRef.current = false
+    exportErrorRef.current = ''
+    runningRef.current = true
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current)
+      resultUrlRef.current = null
+    }
+    setExportResult(null)
+    setExportRun({ pct: 0, exported: 0, total: totalSecs, clipIndex: 0, clipCount: plan.length })
+
+    const stats = { secs: 0 }
+    let lastUi = 0
+
+    rec.ondataavailable = (e: BlobEvent) => {
+      if (e.data && e.data.size > 0) chunksRef.current.push(e.data)
+    }
+
+    rec.onstop = () => {
+      runningRef.current = false
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = 0
+      }
+      canvasStream.getTracks().forEach((t) => t.stop())
+      audioTracks.forEach((t) => t.stop())
+      try {
+        exportSrcNodeRef.current?.disconnect()
+      } catch {
+        /* idle */
+      }
+      try {
+        v.pause()
+        v.removeAttribute('src')
+        v.load()
+      } catch {
+        /* idle */
+      }
+      setExportRun(null)
+      const partial = cancelRef.current || exportErrorRef.current !== ''
+      const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+      chunksRef.current = []
+      if (blob.size <= 0) {
+        toast({
+          title: 'Nothing was recorded',
+          description: exportErrorRef.current || 'The clips could not be read — try re-importing them.',
+          variant: 'destructive',
+        })
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      resultUrlRef.current = url
+      const fileName = `combined-video-${Date.now()}.webm`
+      setExportResult({ url, blob, fileName, size: blob.size, seconds: stats.secs, partial })
+      haptic()
+      if (!partial) {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = fileName
+        a.click()
+        toast({
+          title: 'Combined video ready',
+          description: `${fmtBytes(blob.size)} · ${fmtTime(stats.secs)} — download started.`,
+        })
+      } else {
+        toast({
+          title: cancelRef.current ? 'Cancelled — partial kept' : 'Stopped early — partial kept',
+          description: exportErrorRef.current || 'Tap Download to save what was rendered.',
+        })
+      }
+    }
+
+    rec.start(500)
+
+    /* --- sequential playback: seek each clip, paint frames until its trim end --- */
+    let doneSecs = 0
+    for (let i = 0; i < plan.length; i++) {
+      if (!runningRef.current || cancelRef.current) break
+      const step = plan[i]
+      setExportRun((prev) => (prev ? { ...prev, clipIndex: i } : prev))
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, cw, ch)
+      const ok = await loadAndSeek(v, step.clip.url, step.start)
+      if (!runningRef.current || cancelRef.current) break
+      if (!ok) {
+        exportErrorRef.current = `Clip ${i + 1} (${step.clip.name}) could not be decoded.`
+        break
+      }
+      v.playbackRate = 1 // real-time encode
+      try {
+        await v.play()
+      } catch {
+        exportErrorRef.current = `Clip ${i + 1} (${step.clip.name}) refused to play.`
+        break
+      }
+      const look = { filter: filterCssOf(step.clip), rotation: step.clip.rotation, flip: step.clip.flip }
+      await new Promise<void>((resolve) => {
+        const tick = () => {
+          if (!runningRef.current || cancelRef.current) {
+            resolve()
+            return
+          }
+          try {
+            paintFrame(ctx, v, look, cw, ch)
+          } catch {
+            /* frame not ready — skip */
+          }
+          const t = v.currentTime
+          const exported = doneSecs + clamp(t - step.start, 0, step.end - step.start)
+          stats.secs = exported
+          const nownow = performance.now()
+          if (nownow - lastUi >= 220) {
+            lastUi = nownow
+            setExportRun((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    exported,
+                    pct: totalSecs > 0 ? clamp((exported / totalSecs) * 100, 0, 100) : 0,
+                  }
+                : prev
+            )
+          }
+          if (t >= step.end - 0.03 || v.ended) {
+            resolve()
+            return
+          }
+          rafRef.current = requestAnimationFrame(tick)
+        }
+        rafRef.current = requestAnimationFrame(tick)
+      })
+      try {
+        v.pause()
+      } catch {
+        /* already paused */
+      }
+      if (!runningRef.current || cancelRef.current) break
+      doneSecs += step.end - step.start
+      stats.secs = doneSecs
+    }
+
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
+    }
+    try {
+      if (recRef.current && recRef.current.state !== 'inactive') recRef.current.stop()
+    } catch {
+      /* already stopped */
+    }
+  }, [timeline, exportCodec, ensureAudioCtx, toast])
+
+  const cancelExport = useCallback(() => {
+    if (!runningRef.current) return
+    cancelRef.current = true
+    try {
+      expVideoRef.current?.pause()
+    } catch {
+      /* already paused */
+    }
+    haptic()
+  }, [])
+
+  const downloadExport = useCallback(() => {
+    const r = exportResult
+    if (!r) return
+    const a = document.createElement('a')
+    a.href = r.url
+    a.download = r.fileName
+    a.click()
+    haptic()
+    toast({ title: r.partial ? 'Partial file saved' : 'Download started', description: r.fileName })
+  }, [exportResult, toast])
+
+  const dismissExport = useCallback(() => {
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current)
+      resultUrlRef.current = null
+    }
+    setExportResult(null)
+  }, [])
+
+  const canExport = totalRuntime > 0.2 && !!exportCodec && !exportRun
 
   /* ================================================================== */
   /* Render                                                              */
@@ -693,12 +1574,175 @@ export default function VideoStudioApp() {
         ref={fileInputRef}
         type="file"
         accept="video/*"
+        multiple
         className="hidden"
         onChange={(e) => {
-          importFile(e.target.files?.[0])
+          addFiles(e.target.files)
           e.target.value = ''
         }}
       />
+
+      {/* hidden media that powers the combined export */}
+      <video
+        ref={expVideoRef}
+        playsInline
+        preload="auto"
+        className="pointer-events-none fixed left-0 top-0 -z-50 size-px opacity-0"
+      />
+      <canvas ref={expCanvasRef} className="pointer-events-none fixed left-0 top-0 -z-50 size-px opacity-0" />
+
+      {/* ---------------- Multi-clip timeline ---------------- */}
+      <div className="mb-4">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <ListVideo className="size-4 text-amber-400" aria-hidden />
+          <h2 className="text-sm font-bold tracking-tight text-zinc-100">Timeline</h2>
+          <Badge variant="outline" className="border-white/15 text-[11px] tabular-nums text-zinc-400">
+            {timeline.length}
+          </Badge>
+          {totalRuntime > 0 && (
+            <Badge variant="outline" className="gap-1 border-emerald-400/40 text-[11px] tabular-nums text-emerald-300">
+              <Timer className="size-3" aria-hidden /> {fmtTime(totalRuntime)}
+            </Badge>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            className="ml-auto h-8 gap-1.5 rounded-full border-white/15 bg-white/5 px-3 text-xs font-semibold text-zinc-200 hover:bg-white/10"
+          >
+            <Plus className="size-3.5" aria-hidden /> Add clips
+          </Button>
+          {timeline.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => (armedClear ? clearTimeline() : armClear())}
+              aria-label={armedClear ? 'Confirm clear timeline' : 'Clear timeline'}
+              className={cn(
+                'h-8 gap-1.5 rounded-full border px-3 text-xs font-semibold',
+                armedClear
+                  ? 'border-rose-400/60 bg-rose-500/20 text-rose-200'
+                  : 'border-white/15 bg-white/5 text-zinc-200 hover:bg-white/10'
+              )}
+            >
+              <Trash2 className="size-3.5" aria-hidden /> {armedClear ? 'Sure?' : 'Clear'}
+            </Button>
+          )}
+        </div>
+
+        {timeline.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-zinc-400">
+            Import one or more clips to build a timeline — trim each one, reorder, then export a single
+            combined video. Nothing is uploaded.
+          </p>
+        ) : (
+          <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1" role="list" aria-label="Timeline clips">
+            {timeline.map((c, i) => {
+              const active = c.id === selectedId
+              const confirmingRemove = confirmRemoveId === c.id
+              const kept = Math.max(0, c.trimEnd - c.trimStart)
+              const isTrimmed = c.duration > 0 && kept < c.duration - 0.05
+              return (
+                <motion.div
+                  key={c.id}
+                  layout
+                  role="listitem"
+                  className={cn(
+                    'relative w-32 shrink-0 overflow-hidden rounded-xl border bg-zinc-900/80 text-left',
+                    active ? 'border-amber-400/70 ring-2 ring-amber-400/40' : 'border-white/10'
+                  )}
+                >
+                  <button
+                    onClick={() => selectClip(c.id)}
+                    className="block w-full text-left"
+                    aria-label={`Select clip ${c.name}, position ${i + 1}`}
+                  >
+                    <span className="relative block aspect-video w-full overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-900">
+                      {c.thumb ? (
+                        <img src={c.thumb} alt="" className="size-full object-cover" loading="lazy" />
+                      ) : (
+                        <Clapperboard
+                          className="absolute left-1/2 top-1/2 size-6 -translate-x-1/2 -translate-y-1/2 text-zinc-600"
+                          aria-hidden
+                        />
+                      )}
+                      <span className="absolute left-1 top-1 rounded-md bg-amber-400 px-1 py-0.5 text-[9px] font-bold tabular-nums text-zinc-950">
+                        #{i + 1}
+                      </span>
+                      <span
+                        className={cn(
+                          'absolute right-1 top-1 rounded-md bg-black/60 px-1 py-0.5 text-[9px] font-bold tabular-nums backdrop-blur-sm',
+                          isTrimmed ? 'text-rose-300' : 'text-zinc-200'
+                        )}
+                      >
+                        {fmtTime(kept)}
+                      </span>
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-3">
+                        <span className="block truncate text-[11px] font-semibold text-zinc-100">{c.name}</span>
+                      </span>
+                    </span>
+                  </button>
+                  <div className="px-1.5 py-1.5">
+                    <button
+                      onClick={() => (confirmingRemove ? removeTimelineClip(c.id) : armRemove(c.id))}
+                      aria-label={confirmingRemove ? `Confirm remove ${c.name} from timeline` : `Remove ${c.name} from timeline`}
+                      className={cn(
+                        'flex h-7 w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition-colors',
+                        confirmingRemove
+                          ? 'bg-rose-500/90 text-white'
+                          : 'bg-white/5 text-zinc-400 hover:bg-rose-500/20 hover:text-rose-300'
+                      )}
+                    >
+                      {confirmingRemove ? (
+                        <Check className="size-3.5" aria-hidden />
+                      ) : (
+                        <>
+                          <Trash2 className="size-3.5" aria-hidden /> Remove
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              )
+            })}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex min-h-[104px] w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-white/[0.03] text-zinc-400 transition-colors hover:border-amber-400/50 hover:text-amber-300"
+              aria-label="Add more clips to the timeline"
+            >
+              <Plus className="size-5" aria-hidden />
+              <span className="text-[10px] font-semibold">Add</span>
+            </button>
+          </div>
+        )}
+
+        {/* reorder the selected clip */}
+        {sel && timeline.length > 1 && (
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => moveSelected(-1)}
+              disabled={selIndex <= 0}
+              aria-label="Move clip left"
+              className="h-11 flex-1 gap-1.5 rounded-xl border-white/15 bg-white/5 text-xs font-semibold text-zinc-200 hover:bg-white/10 disabled:opacity-40"
+            >
+              <ArrowLeft className="size-4" aria-hidden /> Move left
+            </Button>
+            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-zinc-500">
+              {selIndex + 1} / {timeline.length}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => moveSelected(1)}
+              disabled={selIndex < 0 || selIndex >= timeline.length - 1}
+              aria-label="Move clip right"
+              className="h-11 flex-1 gap-1.5 rounded-xl border-white/15 bg-white/5 text-xs font-semibold text-zinc-200 hover:bg-white/10 disabled:opacity-40"
+            >
+              Move right <ArrowRight className="size-4" aria-hidden />
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* ---------------- Clip library rail ---------------- */}
       <div className="mb-4">
@@ -706,7 +1750,7 @@ export default function VideoStudioApp() {
           <Film className="size-4 text-amber-400" aria-hidden />
           <h2 className="text-sm font-bold tracking-tight text-zinc-100">My clips</h2>
           <Badge variant="outline" className="border-white/15 text-[11px] tabular-nums text-zinc-400">
-            {clips.length}
+            {library.length}
           </Badge>
           <Button
             size="sm"
@@ -721,14 +1765,15 @@ export default function VideoStudioApp() {
           </Button>
         </div>
 
-        {clips.length === 0 ? (
+        {library.length === 0 ? (
           <p className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-zinc-400">
-            Save an imported clip here — then every clip gets its own QR code to jump to another device.
+            Save a clip here — then every clip gets its own QR code to jump to another device, and your
+            timeline restores after a reload.
           </p>
         ) : (
           <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1" role="list" aria-label="Saved clips">
-            {clips.map((c) => {
-              const active = currentClipId === c.id
+            {library.map((c) => {
+              const active = sel?.libraryId === c.id
               const confirming = confirmDeleteId === c.id
               return (
                 <motion.div
@@ -741,15 +1786,18 @@ export default function VideoStudioApp() {
                   )}
                 >
                   <button
-                    onClick={() => void openClipIntoEditor(c)}
+                    onClick={() => void openLibraryClip(c)}
                     className="block w-full text-left"
-                    aria-label={`Open clip ${c.name}`}
+                    aria-label={`Open clip ${c.name} into the timeline`}
                   >
                     <span className="relative block aspect-video w-full overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-900">
                       {c.poster ? (
                         <img src={c.poster} alt="" className="size-full object-cover" loading="lazy" />
                       ) : (
-                        <Clapperboard className="absolute left-1/2 top-1/2 size-6 -translate-x-1/2 -translate-y-1/2 text-zinc-600" aria-hidden />
+                        <Clapperboard
+                          className="absolute left-1/2 top-1/2 size-6 -translate-x-1/2 -translate-y-1/2 text-zinc-600"
+                          aria-hidden
+                        />
                       )}
                       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-3">
                         <span className="block truncate text-[11px] font-semibold text-zinc-100">{c.name}</span>
@@ -773,7 +1821,7 @@ export default function VideoStudioApp() {
                       <QrCode className="size-3.5" aria-hidden /> QR
                     </button>
                     <button
-                      onClick={() => (confirming ? void removeClip(c) : armDelete(c.id))}
+                      onClick={() => (confirming ? void removeLibraryClip(c) : armDelete(c.id))}
                       aria-label={confirming ? `Confirm delete ${c.name}` : `Delete ${c.name}`}
                       className={cn(
                         'flex h-7 w-7 items-center justify-center rounded-lg text-[11px] transition-colors',
@@ -800,7 +1848,7 @@ export default function VideoStudioApp() {
       >
         <AnimatePresence mode="wait" initial={false}>
           {/* ---------------- Empty state ---------------- */}
-          {!videoUrl && (
+          {!sel && (
             <motion.div
               key="empty"
               initial={{ opacity: 0 }}
@@ -812,24 +1860,26 @@ export default function VideoStudioApp() {
                 <Clapperboard className="size-9" strokeWidth={1.8} aria-hidden />
                 <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" />
               </span>
-              <h2 className="mt-5 text-lg font-bold tracking-tight">Edit your video</h2>
+              <h2 className="mt-5 text-lg font-bold tracking-tight">Edit your videos</h2>
               <p className="mt-1 max-w-sm text-sm text-zinc-400">
-                Import a clip to trim, apply live filters, rotate, and grab perfect frames. Nothing is
-                uploaded — editing happens on this device.
+                Import one or more clips to build a timeline: per-clip trims, live filters, reordering, and
+                one combined export. Nothing is uploaded — editing happens on this device.
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-1.5">
-                {['Trim', '7 live filters', 'Rotate & flip', 'QR transfer'].map((chip) => (
-                  <Badge key={chip} variant="outline" className="border-white/15 text-zinc-300">
-                    {chip}
-                  </Badge>
-                ))}
+                {['Multi-clip timeline', 'Per-clip trim', '7 live filters', 'Combined WebM export', 'QR transfer'].map(
+                  (chip) => (
+                    <Badge key={chip} variant="outline" className="border-white/15 text-zinc-300">
+                      {chip}
+                    </Badge>
+                  )
+                )}
               </div>
               <div className="mt-6 flex flex-wrap justify-center gap-2">
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   className="h-11 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 font-semibold text-zinc-950 shadow-lg hover:from-amber-300 hover:to-orange-400"
                 >
-                  <Upload className="size-4" aria-hidden /> Import a video
+                  <Upload className="size-4" aria-hidden /> Import videos
                 </Button>
                 <Button
                   variant="outline"
@@ -846,7 +1896,7 @@ export default function VideoStudioApp() {
           )}
 
           {/* ---------------- Editor ---------------- */}
-          {videoUrl && (
+          {sel && (
             <motion.div
               key="editor"
               initial={{ opacity: 0 }}
@@ -858,7 +1908,7 @@ export default function VideoStudioApp() {
               <div className="relative flex h-[52vh] items-center justify-center overflow-hidden rounded-2xl bg-black sm:h-[60vh]">
                 <video
                   ref={videoRef}
-                  src={videoUrl}
+                  src={sel.url}
                   preload="metadata"
                   loop={loop}
                   onClick={togglePlay}
@@ -872,7 +1922,7 @@ export default function VideoStudioApp() {
                     rotated ? 'h-full w-auto max-w-full' : 'max-h-full w-full'
                   )}
                   style={{
-                    transform: `rotate(${rotation}deg) scaleX(${flip ? -1 : 1})`,
+                    transform: `rotate(${sel.rotation}deg) scaleX(${sel.flip ? -1 : 1})`,
                     filter: activeFilter.css === 'none' ? undefined : activeFilter.css,
                   }}
                 />
@@ -887,7 +1937,12 @@ export default function VideoStudioApp() {
               {/* File info bar */}
               <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5">
                 <Film className="size-4 shrink-0 text-amber-400" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{videoName}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{sel.name}</span>
+                {sel.libraryId && (
+                  <Badge variant="outline" className="shrink-0 border-amber-400/40 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                    In library
+                  </Badge>
+                )}
                 {metaReady && dims && (
                   <Badge variant="outline" className="shrink-0 border-white/15 text-[11px] tabular-nums text-zinc-300">
                     {fmtTime(duration)} · {dims.w}×{dims.h}
@@ -972,14 +2027,14 @@ export default function VideoStudioApp() {
                 </div>
               </div>
 
-              {/* Filters */}
+              {/* Filters (per clip) */}
               <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Live filters">
                 {FILTERS.map((f) => {
-                  const selected = f.id === filterId
+                  const selected = f.id === sel.filterId
                   return (
                     <button
                       key={f.id}
-                      onClick={() => setFilterId(f.id)}
+                      onClick={() => patchSel({ filterId: f.id })}
                       aria-pressed={selected}
                       className={cn(
                         'flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-all',
@@ -999,31 +2054,31 @@ export default function VideoStudioApp() {
                 })}
               </div>
 
-              {/* Transform */}
+              {/* Transform (per clip) */}
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => setRotation((r) => (r + 90) % 360)}
-                  aria-label={`Rotate 90 degrees. Current rotation ${rotation} degrees.`}
+                  onClick={() => patchSel({ rotation: ((sel.rotation + 90) % 360) })}
+                  aria-label={`Rotate 90 degrees. Current rotation ${sel.rotation} degrees.`}
                   className={cn(
                     'flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors',
-                    rotation !== 0
+                    sel.rotation !== 0
                       ? 'border-amber-400/40 bg-amber-400/15 text-amber-300'
                       : 'border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10'
                   )}
                 >
                   <RotateCw className="size-4" aria-hidden /> Rotate 90°
-                  {rotation !== 0 && (
+                  {sel.rotation !== 0 && (
                     <Badge variant="outline" className="border-amber-400/40 text-[10px] text-amber-300">
-                      {rotation}°
+                      {sel.rotation}°
                     </Badge>
                   )}
                 </button>
                 <button
-                  onClick={() => setFlip((f) => !f)}
-                  aria-pressed={flip}
+                  onClick={() => patchSel({ flip: !sel.flip })}
+                  aria-pressed={sel.flip}
                   className={cn(
                     'flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors',
-                    flip
+                    sel.flip
                       ? 'border-amber-400/40 bg-amber-400/15 text-amber-300'
                       : 'border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10'
                   )}
@@ -1032,13 +2087,19 @@ export default function VideoStudioApp() {
                 </button>
               </div>
 
-              {/* Trim */}
+              {/* Trim (per clip) */}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center gap-2">
                   <Scissors className="size-4 text-rose-400" aria-hidden />
                   <h3 className="text-sm font-bold tracking-tight">Trim</h3>
+                  <Badge variant="outline" className="border-white/15 text-[11px] tabular-nums text-zinc-400">
+                    clip {selIndex + 1}
+                  </Badge>
                   {metaReady && (
-                    <Badge variant="outline" className="ml-auto border-rose-400/40 text-[11px] tabular-nums text-rose-300">
+                    <Badge
+                      variant="outline"
+                      className="ml-auto border-rose-400/40 text-[11px] tabular-nums text-rose-300"
+                    >
                       {trimmedDuration.toFixed(1)}s kept
                     </Badge>
                   )}
@@ -1047,15 +2108,17 @@ export default function VideoStudioApp() {
                   <div>
                     <div className="mb-2 flex items-center justify-between text-xs">
                       <span className="font-semibold text-zinc-300">Start</span>
-                      <span className="font-mono tabular-nums text-zinc-400">{fmtTime(trimStart)}</span>
+                      <span className="font-mono tabular-nums text-zinc-400">{fmtTime(sel.trimStart)}</span>
                     </div>
                     <Slider
-                      value={[trimStart]}
+                      value={[sel.trimStart]}
                       min={0}
                       max={Math.max(0.2, duration - 0.2)}
                       step={0.1}
                       disabled={!metaReady}
-                      onValueChange={(val) => setTrimStart(Math.min(val[0] ?? 0, Math.max(0, trimEnd - 0.2)))}
+                      onValueChange={(val) =>
+                        patchSel({ trimStart: Math.min(val[0] ?? 0, Math.max(0, sel.trimEnd - 0.2)) })
+                      }
                       aria-label="Trim start"
                       className="[&_[data-slot=slider-range]]:bg-rose-500 [&_[data-slot=slider-thumb]]:border-rose-500 [&_[data-slot=slider-track]]:bg-white/15"
                     />
@@ -1063,15 +2126,17 @@ export default function VideoStudioApp() {
                   <div>
                     <div className="mb-2 flex items-center justify-between text-xs">
                       <span className="font-semibold text-zinc-300">End</span>
-                      <span className="font-mono tabular-nums text-zinc-400">{fmtTime(trimEnd)}</span>
+                      <span className="font-mono tabular-nums text-zinc-400">{fmtTime(sel.trimEnd)}</span>
                     </div>
                     <Slider
-                      value={[trimEnd]}
+                      value={[sel.trimEnd]}
                       min={0.2}
                       max={duration || 0.2}
                       step={0.1}
                       disabled={!metaReady}
-                      onValueChange={(val) => setTrimEnd(Math.max(val[0] ?? 0, trimStart + 0.2))}
+                      onValueChange={(val) =>
+                        patchSel({ trimEnd: Math.max(val[0] ?? 0, sel.trimStart + 0.2) })
+                      }
                       aria-label="Trim end"
                       className="[&_[data-slot=slider-range]]:bg-rose-500 [&_[data-slot=slider-thumb]]:border-rose-500 [&_[data-slot=slider-track]]:bg-white/15"
                     />
@@ -1089,6 +2154,120 @@ export default function VideoStudioApp() {
                 </Toggle>
               </div>
 
+              {/* Combined export */}
+              <div className="rounded-2xl border border-emerald-400/20 bg-white/5 p-4">
+                <div className="flex items-center gap-2">
+                  <ListVideo className="size-4 text-emerald-400" aria-hidden />
+                  <h3 className="text-sm font-bold tracking-tight">Combined export</h3>
+                  {exportCodec && (
+                    <Badge
+                      variant="outline"
+                      className="ml-auto border-emerald-400/40 text-[11px] text-emerald-300"
+                    >
+                      {exportCodec.label}
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                  Plays all {timeline.length} clip{timeline.length === 1 ? '' : 's'} back to back into one
+                  WebM — each with its own trim, filter, rotation and flip. Runtime{' '}
+                  <span className="font-bold tabular-nums text-zinc-200">{fmtTime(totalRuntime)}</span>. The
+                  encode runs in real time, so keep this tab open.
+                </p>
+
+                {!exportRun && (
+                  <Button
+                    onClick={() => void startCombinedExport()}
+                    disabled={!canExport}
+                    className="mt-3 h-11 w-full gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 font-semibold text-zinc-950 shadow-lg hover:from-emerald-300 hover:to-teal-400 disabled:opacity-40"
+                  >
+                    <Clapperboard className="size-4" aria-hidden />
+                    Export combined video ({fmtTime(totalRuntime)})
+                  </Button>
+                )}
+
+                {exportRun && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+                    className="mt-3 space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                        <Loader2 className="size-4 shrink-0 animate-spin text-emerald-300" aria-hidden />
+                        <span className="truncate">
+                          Rendering clip {exportRun.clipIndex + 1} of {exportRun.clipCount}…
+                        </span>
+                      </p>
+                      <p className="text-lg font-bold tabular-nums text-emerald-300" aria-live="polite">
+                        {Math.round(exportRun.pct)}%
+                      </p>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-[width] duration-200"
+                        style={{ width: `${exportRun.pct}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="min-w-0 flex-1 text-xs tabular-nums text-zinc-400">
+                        {fmtTime(exportRun.exported)} / {fmtTime(exportRun.total)} rendered
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={cancelExport}
+                        className="h-10 gap-1.5 rounded-xl border-white/15 bg-transparent text-zinc-200 hover:bg-white/10"
+                      >
+                        <Square className="size-3.5" aria-hidden /> Cancel
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {exportResult && !exportRun && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+                    className="mt-3 space-y-2 rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Check className="size-4 shrink-0 text-emerald-300" aria-hidden />
+                      <p className="min-w-0 flex-1 truncate text-sm font-semibold">{exportResult.fileName}</p>
+                      {exportResult.partial && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 border-amber-400/40 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+                        >
+                          Partial
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs tabular-nums text-zinc-400">
+                      {fmtBytes(exportResult.size)} · {fmtTime(exportResult.seconds)} rendered
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={downloadExport}
+                        className="h-10 flex-1 rounded-xl bg-emerald-500 font-semibold text-white hover:bg-emerald-400"
+                      >
+                        <Download className="size-4" aria-hidden />
+                        {exportResult.partial ? 'Download partial' : 'Download again'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={dismissExport}
+                        aria-label="Dismiss export result"
+                        className="h-10 w-10 shrink-0 rounded-xl border-white/15 bg-transparent p-0 text-zinc-400 hover:bg-white/10"
+                      >
+                        <X className="size-4" aria-hidden />
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <Button
@@ -1098,9 +2277,9 @@ export default function VideoStudioApp() {
                 >
                   <Camera className="size-4" aria-hidden /> Frame
                 </Button>
-                {!currentClipId && (
+                {!sel.libraryId && (
                   <Button
-                    onClick={() => void saveCurrentToLibrary()}
+                    onClick={() => void saveSelectedToLibrary()}
                     disabled={saving}
                     className="h-11 rounded-xl bg-white/10 font-semibold text-zinc-100 hover:bg-white/15"
                   >
@@ -1110,15 +2289,15 @@ export default function VideoStudioApp() {
                 )}
                 <Button
                   variant="outline"
-                  onClick={changeVideo}
+                  onClick={() => fileInputRef.current?.click()}
                   className="h-11 rounded-xl border-white/15 bg-transparent text-zinc-200 hover:bg-white/10 hover:text-white"
                 >
-                  <Upload className="size-4" aria-hidden /> Import
+                  <Upload className="size-4" aria-hidden /> Add clips
                 </Button>
-                {currentClipId && (
+                {sel.libraryId && (
                   <Button
                     onClick={() => {
-                      const rec = clips.find((c) => c.id === currentClipId)
+                      const rec = library.find((c) => c.id === sel.libraryId)
                       if (rec) void startShare(rec)
                     }}
                     className="h-11 rounded-xl bg-fuchsia-600 font-semibold text-white shadow-lg hover:bg-fuchsia-500"
