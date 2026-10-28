@@ -12,6 +12,7 @@ import { RotateCcw, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { unlockAchievement } from '@/lib/games/scores'
 
 /* ================================================================== */
 /* 2048 — 4x4 sliding-tile puzzle. Keyboard (arrows/WASD) + touch      */
@@ -296,7 +297,9 @@ export default function Game2048App() {
           /* storage unavailable */
         }
       }
+      if (res.bestMerge >= 512) unlockAchievement('g2048-512')
       if (!keepGoing && res.bestMerge >= WIN_VALUE) {
+        unlockAchievement('g2048-win')
         setStatus('won')
         return
       }
