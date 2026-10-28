@@ -167,7 +167,7 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D66** 2P Arcade (games) — tic-tac-toe + connect-4, pass-and-play
 - [x] **D67** Solitaire (games) — klondike, drag & drop, win animation
 - [x] **D68** Trivia Quiz (games) — category packs, scoring streaks
-- [ ] **D69** Games hub polish — high-score center, achievements badges across all games
+- [x] **D69** Games hub polish — high-score center, achievements badges across all games
 - [ ] **D70** Share Target (platform) — PWA share_target manifest: receive text/files into Tools
 - [ ] **D71** Quick Actions (platform) — home-screen long-press menu, app shortcuts in manifest
 - [ ] **D72** Home Widgets (platform) — clock, weather, notes-sticky widgets on launcher pages

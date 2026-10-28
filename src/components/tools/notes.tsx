@@ -47,6 +47,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { consumePendingShare } from '@/lib/share'
 import { useToast } from '@/hooks/use-toast'
 
 /* ================================================================== */
@@ -262,6 +263,30 @@ export default function NotesTool() {
     }, AUTOSAVE_DELAY)
     return () => clearTimeout(timer)
   }, [notes])
+
+  /* D70/D74: turn a pending Web-Share (or Spotlight "note:" action) into a
+     new note. Deferred so React StrictMode's mount/unmount/mount cycle
+     consumes the payload exactly once (the first timer is cleaned up). */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const share = consumePendingShare()
+      if (!share) return
+      const now = Date.now()
+      const note: Note = {
+        id: makeId(),
+        title: share.title?.trim() || '',
+        body: [share.text?.trim(), share.url?.trim()].filter(Boolean).join('\n\n'),
+        createdAt: now,
+        updatedAt: now,
+        folderId: null,
+        pinned: false,
+        colorId: 'sky',
+      }
+      setNotes((prev) => [note, ...prev])
+      setSelectedId(note.id)
+    }, 0)
+    return () => clearTimeout(t)
+  }, [])
 
   const selected = useMemo(
     () => (selectedId ? (notes.find((n) => n.id === selectedId) ?? null) : null),

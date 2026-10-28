@@ -2059,3 +2059,22 @@ Stage Summary:
 - Games category complete per roadmap: 9 games (2048, sudoku, minesweeper, snake, memory, wordle, 2p-arcade, solitaire, trivia)
 - Shared games store now tracks 10 gameIds — ready for D69 Game Center
 - Next: D69 games-hub polish (Game Center: high scores + achievements UI)
+
+---
+Task ID: P5-D69
+Agent: main (Z.ai Code)
+Task: Game Center — high-score hub + achievements wall across all games
+
+Work Log:
+- src/lib/games/achievements.ts: 37-achievement catalog (id/name/desc/emoji/group) covering sudoku ×5, minesweeper ×7, snake ×4, memory ×5, wordle ×4, arcade ×3, solitaire ×3, trivia ×4, 2048 ×2
+- game-center.tsx (~380 ln): totals strip (rounds/wins/badges), grouped high-score cards for all 9 games incl. per-difficulty time rows (mm:ss formatting via timeMode flag), tap-to-play launches via OS 'toolhub:open-app' CustomEvent (no direct hash writes — lint-clean), live updates via onGamesStoreChange + window focus, badge wall with unlocked (amber) vs locked (grayscale+lock) states, scrollable sections with styled scrollbars
+- game-2048.tsx: now unlocks g2048-512 / g2048-win through the shared store; Game Center reads legacy 'toolhub.2048.best' as a fallback for 2048's pre-store best
+- Registry: +game-center (featured, Trophy icon, fuchsia-pink identity); catalog 82 → 83
+- Lint fix: initial stats via lazy useState initializers (no sync setState in mount effect)
+
+Gates:
+- tsc clean · lint clean · agent-browser 390×844: totals strip, sudoku-hard "06:55" formatting, snake 120, badge wall locked/unlocked states verified with seeded store data; zero errors
+
+Stage Summary:
+- Phase 5 games block fully closed: 9 games + hub, 37 achievements, unified stats store
+- Next: D70 Share Target (PWA manifest + receiving flow)

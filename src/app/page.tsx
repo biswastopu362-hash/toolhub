@@ -9,12 +9,19 @@ import {
   BatteryFull,
   BatteryLow,
   BatteryMedium,
+  Bell,
   Folder,
+  Info,
+  LayoutGrid,
+  ListChecks,
   Palette,
+  PencilLine,
+  Play,
   Plus,
   Search,
   SearchX,
   Star,
+  Trash2,
   WifiOff,
   X,
 } from 'lucide-react'
@@ -33,10 +40,14 @@ import { useToast } from '@/hooks/use-toast'
 import { ControlCenter } from '@/components/control-center'
 import { InstallBanner } from '@/components/pwa/install-banner'
 import { LockGate } from '@/components/os/lock-gate'
+import { WidgetStrip } from '@/components/os/home-widgets'
+import { NotificationShade } from '@/components/os/notification-shade'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useAppStore } from '@/lib/store/app-store'
 import { DEFAULT_WALLPAPER, getWallpaper, wallpaperIsDark, type WallpaperId } from '@/lib/theme'
+import { setPendingShare } from '@/lib/share'
+import { buildLiveFeed } from '@/lib/os/notifications'
 import {
   addToFolderOp,
   createFolderOp,
@@ -214,34 +225,60 @@ export default function Home() {
     return () => window.removeEventListener('toolhub:open-app', handler)
   }, [openApp])
 
-  /* QR transfer deep link: /?transfer=<id> — strip the query, stash the id
-     and open Video Studio, which receives the clip automatically. The
-     navigation is deferred to a microtask so no state is set synchronously
-     inside the effect body. */
+  /* Deep links from queries: /?transfer=<id> (Video Studio relay),
+     /?title=&text=&url= (D70 Web Share Target → Notes) and /?shortcut=<id>
+     (D71 manifest shortcuts). The navigation is deferred to a microtask
+     so no state is set synchronously inside the effect body. */
   useEffect(() => {
     if (!hydrated) return
     const sp = new URLSearchParams(window.location.search)
     const tid = sp.get('transfer')
-    if (!tid) return
-    sp.delete('transfer')
+    const shareTitle = sp.get('title')
+    const shareText = sp.get('text')
+    const shareUrl = sp.get('url')
+    const shortcut = sp.get('shortcut')
+    const hasShare = Boolean(shareTitle || shareText || shareUrl)
+    if (!tid && !hasShare && !shortcut) return
+    for (const k of ['transfer', 'title', 'text', 'url', 'shortcut']) sp.delete(k)
     const qs = sp.toString()
     window.history.replaceState(
       null,
       '',
       `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`
     )
-    setPendingTransfer(tid)
-    queueMicrotask(() => {
-      useAppStore.getState().addRecent('video-studio')
-      if (window.location.hash !== '#/app/video-studio') window.location.hash = '#/app/video-studio'
-      window.dispatchEvent(new CustomEvent('toolhub:transfer'))
-    })
-  }, [hydrated])
+
+    if (tid) {
+      setPendingTransfer(tid)
+      queueMicrotask(() => {
+        useAppStore.getState().addRecent('video-studio')
+        if (window.location.hash !== '#/app/video-studio') window.location.hash = '#/app/video-studio'
+        window.dispatchEvent(new CustomEvent('toolhub:transfer'))
+      })
+    }
+
+    if (hasShare) {
+      setPendingShare({
+        title: shareTitle ?? undefined,
+        text: shareText ?? undefined,
+        url: shareUrl ?? undefined,
+        source: 'share-target',
+      })
+      queueMicrotask(() => {
+        useAppStore.getState().addRecent('notes')
+        if (window.location.hash !== '#/app/notes') window.location.hash = '#/app/notes'
+      })
+    }
+
+    if (shortcut && getToolById(shortcut)) {
+      queueMicrotask(() => openApp(shortcut))
+    }
+  }, [hydrated, openApp])
 
   const goHome = useCallback(() => navigate('#/'), [navigate])
 
   const [spotlightOpen, setSpotlightOpen] = useState(false)
   const [ccOpen, setCcOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const liveCustom = wallpaperId === 'custom' ? activeCustom : null
   const wpDark = wallpaperIsDark(wallpaperId, liveCustom)
@@ -293,6 +330,7 @@ export default function Home() {
             onOpenApp={openApp}
             onOpenSearch={() => setSpotlightOpen(true)}
             onOpenCustomize={() => setCcOpen(true)}
+            onOpenNotifications={() => setNotifOpen(true)}
             onOpenInStore={openInStore}
             editing={editing}
             setEditing={setEditing}
@@ -325,6 +363,20 @@ export default function Home() {
               }}
               onOpenInStore={openInStore}
               onClose={() => setSpotlightOpen(false)}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* D73: notification center shade */}
+        <AnimatePresence>
+          {notifOpen && (
+            <NotificationShade
+              key="notif-shade"
+              onOpenApp={(id, el) => {
+                setNotifOpen(false)
+                openApp(id, el)
+              }}
+              onClose={() => setNotifOpen(false)}
             />
           )}
         </AnimatePresence>
@@ -365,6 +417,7 @@ function HomeScreen({
   onOpenApp,
   onOpenSearch,
   onOpenCustomize,
+  onOpenNotifications,
   onOpenInStore,
   editing,
   setEditing,
@@ -372,6 +425,7 @@ function HomeScreen({
   onOpenApp: (id: string, origin?: HTMLElement | null) => void
   onOpenSearch: () => void
   onOpenCustomize: () => void
+  onOpenNotifications: () => void
   onOpenInStore: (id: string) => void
   editing: boolean
   setEditing: (v: boolean) => void
@@ -454,6 +508,9 @@ function HomeScreen({
     }
   }, [])
 
+  /* D71: suppress the drag engine's edit-mode entry while a quick-actions
+     menu is opening — long-press means "context menu", not jiggle mode */
+  const suppressEditRef = useRef(0)
   const { view, ghostRef, onItemPointerDown, shouldSuppressClick, armedRef } = useHomeDrag({
     scrollerRef: pagesRef,
     gridEls,
@@ -464,7 +521,10 @@ function HomeScreen({
       pageCount,
     }),
     isEditing: () => editing,
-    onEnterEdit: () => setEditing(true),
+    onEnterEdit: () => {
+      if (Date.now() < suppressEditRef.current) return
+      setEditing(true)
+    },
     onMove: handleMove,
     onDrop: handleDrop,
     scrollToPage,
@@ -491,6 +551,7 @@ function HomeScreen({
         onDone={() => setEditing(false)}
         onOpenSearch={onOpenSearch}
         onOpenCustomize={onOpenCustomize}
+        onOpenNotifications={onOpenNotifications}
       />
 
       {/* One-tap PWA install (hidden while rearranging icons) */}
@@ -513,16 +574,21 @@ function HomeScreen({
             }}
             className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-4 sm:px-10"
           >
+            {/* banner clears + D72 widgets + grid share one padding wrapper */}
             <div
-              ref={(el) => {
-                if (el) gridEls.current.set(page, el)
-                else gridEls.current.delete(page)
-              }}
-              className={`mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-2 gap-y-4 transition-[padding] duration-300 ease-out sm:gap-y-5 ${
-                installHint ? 'pt-14' : 'pt-2'
+              className={`transition-[padding] duration-300 ease-out ${
+                installHint ? 'pt-16' : 'pt-2'
               }`}
-              style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
             >
+              {page === 0 && <WidgetStrip onOpenApp={onOpenApp} onLight={onLight} />}
+              <div
+                ref={(el) => {
+                  if (el) gridEls.current.set(page, el)
+                  else gridEls.current.delete(page)
+                }}
+                className="mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-2 gap-y-4 sm:gap-y-5"
+                style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
+              >
               {items.map((item, slot) => (
                 <HomeItemView
                   key={item.id}
@@ -534,6 +600,11 @@ function HomeScreen({
                   onLight={onLight}
                   onPointerDown={onItemPointerDown}
                   armedRef={armedRef}
+                  onOpenInStore={onOpenInStore}
+                  onEnterEditMode={() => setEditing(true)}
+                  onQuickMenuOpen={() => {
+                    suppressEditRef.current = Date.now() + 2000
+                  }}
                   onClick={(e) => {
                     if (editing || shouldSuppressClick()) return
                     if (item.kind === 'app') onOpenApp(item.id, e.currentTarget)
@@ -541,6 +612,7 @@ function HomeScreen({
                   }}
                 />
               ))}
+              </div>
             </div>
           </section>
         ))}
@@ -652,6 +724,9 @@ function HomeItemView({
   onLight,
   onPointerDown,
   armedRef,
+  onOpenInStore,
+  onEnterEditMode,
+  onQuickMenuOpen,
   onClick,
 }: {
   item: HomeItem
@@ -662,10 +737,17 @@ function HomeItemView({
   onLight: boolean
   onPointerDown: (e: React.PointerEvent<HTMLElement>, id: string) => void
   armedRef: React.RefObject<boolean>
+  onOpenInStore: (id: string) => void
+  onEnterEditMode: () => void
+  onQuickMenuOpen: () => void
   onClick: (e: React.MouseEvent<HTMLElement>) => void
 }) {
   const { toast } = useToast()
   const [confirmRemove, setConfirmRemove] = useState(false)
+  /* D71: long-press quick actions (context menu) */
+  const [quickMenu, setQuickMenu] = useState(false)
+  const lpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lpStartRef = useRef<{ x: number; y: number } | null>(null)
   const tool = item.kind === 'app' ? getToolById(item.id) : undefined
   const label =
     item.kind === 'app'
@@ -693,6 +775,42 @@ function HomeItemView({
     return () => el.removeEventListener('touchmove', onTouchMove)
   }, [armedRef])
 
+  /* long-press → quick actions (cancels on move/release/edit mode) */
+  const clearLpTimer = () => {
+    if (lpTimerRef.current) {
+      clearTimeout(lpTimerRef.current)
+      lpTimerRef.current = null
+    }
+  }
+  useEffect(() => clearLpTimer, [])
+
+  const onLpPointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (editing || item.kind !== 'app') return
+    lpStartRef.current = { x: e.clientX, y: e.clientY }
+    clearLpTimer()
+    lpTimerRef.current = setTimeout(() => {
+      lpTimerRef.current = null
+      lpStartRef.current = null
+      onQuickMenuOpen()
+      setQuickMenu(true)
+      try {
+        navigator.vibrate?.(12)
+      } catch {}
+    }, 400)
+  }
+  const onLpPointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    const start = lpStartRef.current
+    if (!start) return
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) {
+      lpStartRef.current = null
+      clearLpTimer()
+    }
+  }
+  const onLpPointerUp = () => {
+    lpStartRef.current = null
+    clearLpTimer()
+  }
+
   return (
     <motion.div
       /* FLIP reflow only matters while rearranging icons — keeping `layout`
@@ -705,7 +823,17 @@ function HomeItemView({
       animate={{ opacity: dragging ? 0.25 : 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.5 }}
       transition={{ type: 'spring', stiffness: 480, damping: 34, mass: 0.9 }}
-      onPointerDown={(e) => onPointerDown(e, item.id)}
+      onPointerDown={(e) => {
+        onLpPointerDown(e)
+        onPointerDown(e, item.id)
+      }}
+      onPointerMove={onLpPointerMove}
+      onPointerUp={onLpPointerUp}
+      onPointerCancel={onLpPointerUp}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        if (item.kind === 'app' && !editing) setQuickMenu(true)
+      }}
       onClick={onClick}
       className={cn('w-full cursor-pointer', editing && 'touch-none')}
       role="button"
@@ -786,6 +914,106 @@ function HomeItemView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* D71: quick actions context menu */}
+      <AnimatePresence>
+        {quickMenu && tool && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-6 backdrop-blur-xl"
+            /* close on pointerdown — the long-press release synthesizes a click
+               on the backdrop that must NOT close the freshly opened menu */
+            onPointerDown={() => setQuickMenu(false)}
+            onClick={(e) => e.preventDefault()}
+            role="dialog"
+            aria-label={`${tool.name} quick actions`}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              className="w-full max-w-xs overflow-hidden rounded-3xl bg-white/[0.14] p-4 ring-1 ring-white/25 backdrop-blur-2xl"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <span className="w-12 shrink-0">
+                  <IconTile tool={tool} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold text-white">{tool.name}</span>
+                  <span className="block truncate text-[11px] text-white/60">{tool.tagline}</span>
+                </span>
+              </div>
+              <div className="space-y-1">
+                <button
+                  onClick={() => {
+                    setQuickMenu(false)
+                    window.dispatchEvent(new CustomEvent<string>('toolhub:open-app', { detail: tool.id }))
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-white transition-colors hover:bg-white/15 active:bg-white/20"
+                >
+                  <Play className="size-4 text-emerald-400" aria-hidden /> Open
+                </button>
+                <button
+                  onClick={() => {
+                    const s = useAppStore.getState()
+                    const wasFav = s.favorites.includes(tool.id)
+                    s.toggleFavorite(tool.id)
+                    toast({
+                      title: wasFav ? `${tool.name} removed from favorites` : `${tool.name} favorited`,
+                    })
+                    setQuickMenu(false)
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-white transition-colors hover:bg-white/15 active:bg-white/20"
+                >
+                  <Star
+                    className={cn(
+                      'size-4 text-amber-400',
+                      useAppStore.getState().favorites.includes(tool.id) && 'fill-amber-400'
+                    )}
+                    aria-hidden
+                  />
+                  {useAppStore.getState().favorites.includes(tool.id) ? 'Remove favorite' : 'Add to favorites'}
+                </button>
+                <button
+                  onClick={() => {
+                    setQuickMenu(false)
+                    onOpenInStore(tool.id)
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-white transition-colors hover:bg-white/15 active:bg-white/20"
+                >
+                  <Info className="size-4 text-sky-400" aria-hidden /> App info
+                </button>
+                <button
+                  onClick={() => {
+                    setQuickMenu(false)
+                    onEnterEditMode()
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-white transition-colors hover:bg-white/15 active:bg-white/20"
+                >
+                  <LayoutGrid className="size-4 text-violet-400" aria-hidden /> Edit Home Screen
+                </button>
+                {!tool.system && (
+                  <button
+                    onClick={() => {
+                      setQuickMenu(false)
+                      setConfirmRemove(true)
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-rose-400 transition-colors hover:bg-rose-500/15 active:bg-rose-500/25"
+                  >
+                    <Trash2 className="size-4" aria-hidden /> Uninstall
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
@@ -893,16 +1121,34 @@ function StatusBar({
   onDone,
   onOpenSearch,
   onOpenCustomize,
+  onOpenNotifications,
 }: {
   onLight: boolean
   editing: boolean
   onDone: () => void
   onOpenSearch: () => void
   onOpenCustomize: () => void
+  onOpenNotifications: () => void
 }) {
   const [time, setTime] = useState<string | null>(null)
   const [online, setOnline] = useState(() => (typeof window !== 'undefined' ? navigator.onLine : true))
   const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null)
+  const [notifDot, setNotifDot] = useState(false)
+
+  /* D73: bell dot while the feed has anything to show */
+  useEffect(() => {
+    if (editing) return
+    const check = () => {
+      try {
+        setNotifDot(buildLiveFeed().length > 0)
+      } catch {
+        setNotifDot(false)
+      }
+    }
+    check()
+    const t = setInterval(check, 30_000)
+    return () => clearInterval(t)
+  }, [editing])
 
   useEffect(() => {
     const update = () =>
@@ -998,6 +1244,23 @@ function StatusBar({
         ) : (
           <>
             <button
+              onClick={onOpenNotifications}
+              aria-label="Open Notification Center"
+              title="Notifications"
+              className={cn(
+                'relative -m-2 rounded-full p-3 transition-colors active:scale-90',
+                onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
+              )}
+            >
+              <Bell className="h-5 w-5" />
+              {notifDot && (
+                <span
+                  aria-hidden
+                  className="absolute right-1.5 top-1.5 size-2 rounded-full bg-rose-500 ring-2 ring-white/80"
+                />
+              )}
+            </button>
+            <button
               onClick={onOpenCustomize}
               aria-label="Customize theme"
               title="Themes & wallpapers"
@@ -1033,6 +1296,126 @@ function BatteryGlyph({ level, charging }: { level: number; charging: boolean })
 }
 
 /* ================================================================== */
+/* Spotlight v2 answers (D74) — inline math, unit conversion and       */
+/* deep app actions, all evaluated locally.                            */
+/* ================================================================== */
+
+const SAFE_MATH = /^[0-9+\-*\/().,%\s^]+$/
+
+function evalMath(raw: string): number | null {
+  if (!/[0-9]/.test(raw) || !/[+\-*\/^%]/.test(raw)) return null
+  if (!SAFE_MATH.test(raw)) return null
+  try {
+    const expr = raw.replace(/\^/g, '**').replace(/%/g, '/100')
+    const v = Function(`"use strict"; return (${expr})`)() as unknown
+    return typeof v === 'number' && Number.isFinite(v) ? v : null
+  } catch {
+    return null
+  }
+}
+
+/* unit table (base = m for length, kg for mass) */
+const UNIT_TABLE: Record<string, { dim: string; f: number }> = {
+  km: { dim: 'len', f: 1000 },
+  m: { dim: 'len', f: 1 },
+  cm: { dim: 'len', f: 0.01 },
+  mm: { dim: 'len', f: 0.001 },
+  mi: { dim: 'len', f: 1609.344 },
+  miles: { dim: 'len', f: 1609.344 },
+  mile: { dim: 'len', f: 1609.344 },
+  ft: { dim: 'len', f: 0.3048 },
+  feet: { dim: 'len', f: 0.3048 },
+  foot: { dim: 'len', f: 0.3048 },
+  in: { dim: 'len', f: 0.0254 },
+  inch: { dim: 'len', f: 0.0254 },
+  inches: { dim: 'len', f: 0.0254 },
+  yd: { dim: 'len', f: 0.9144 },
+  kg: { dim: 'mass', f: 1 },
+  g: { dim: 'mass', f: 0.001 },
+  mg: { dim: 'mass', f: 1e-6 },
+  lb: { dim: 'mass', f: 0.45359237 },
+  lbs: { dim: 'mass', f: 0.45359237 },
+  pound: { dim: 'mass', f: 0.45359237 },
+  pounds: { dim: 'mass', f: 0.45359237 },
+  oz: { dim: 'mass', f: 0.028349523 },
+  ton: { dim: 'mass', f: 1000 },
+}
+
+const UNIT_ALIASES: Record<string, string> = {
+  kilometers: 'km',
+  kilometer: 'km',
+  meters: 'm',
+  meter: 'm',
+  centimeters: 'cm',
+  millimeters: 'mm',
+  inches2: 'in',
+  yards: 'yd',
+  kilograms: 'kg',
+  gram: 'g',
+  grams: 'g',
+  milligrams: 'mg',
+  ounces: 'oz',
+  tons: 'ton',
+}
+
+function tempConvert(v: number, from: string, to: string): number | null {
+  const norm = (u: string) => u.replace('°', '').toLowerCase()
+  const f = norm(from)
+  const t = norm(to)
+  let c: number | null = null
+  if (f === 'c') c = v
+  else if (f === 'f') c = ((v - 32) * 5) / 9
+  else if (f === 'k') c = v - 273.15
+  if (c === null) return null
+  if (t === 'c') return c
+  if (t === 'f') return (c * 9) / 5 + 32
+  if (t === 'k') return c + 273.15
+  return null
+}
+
+function evalUnit(raw: string): { value: number; from: string; to: string; out: number } | null {
+  const m = raw.match(/^\s*(-?[\d.]+)\s*([a-zA-Z°]+)\s*(?:to|in)\s*([a-zA-Z°]+)\s*$/)
+  if (!m) return null
+  const v = Number(m[1])
+  const norm = (u: string) => UNIT_ALIASES[u.toLowerCase()] ?? u.toLowerCase()
+  const from = norm(m[2])
+  const to = norm(m[3])
+  if (Number.isNaN(v)) return null
+  /* temperature special-case */
+  if (['c', 'f', 'k', '°c', '°f'].some((x) => from.replace('°', '') === x.replace('°', ''))) {
+    const out = tempConvert(v, from, to)
+    return out === null ? null : { value: v, from: from, to: to, out }
+  }
+  const a = UNIT_TABLE[from]
+  const b = UNIT_TABLE[to]
+  if (!a || !b || a.dim !== b.dim) return null
+  return { value: v, from: from, to: to, out: (v * a.f) / b.f }
+}
+
+type SpotlightAnswer =
+  | { kind: 'math'; expr: string; value: number }
+  | { kind: 'unit'; text: string; value: number; from: string; to: string; out: number }
+  | { kind: 'action'; verb: 'note' | 'reminder'; arg: string }
+  | null
+
+function computeAnswer(query: string): SpotlightAnswer {
+  const q = query.trim()
+  if (!q) return null
+
+  const action = q.match(/^(note|reminder):\s*([\s\S]+)$/i)
+  if (action) return { kind: 'action', verb: action[1].toLowerCase() as 'note' | 'reminder', arg: action[2].trim() }
+
+  const unit = evalUnit(q)
+  if (unit) return { kind: 'unit', text: q, ...unit }
+
+  if (SAFE_MATH.test(q) && /[0-9]/.test(q) && /[+\-*\/^%]/.test(q)) {
+    const v = evalMath(q)
+    if (v !== null) return { kind: 'math', expr: q, value: v }
+  }
+  return null
+}
+
+/* ================================================================== */
 /* Spotlight search overlay                                            */
 /* ================================================================== */
 
@@ -1047,9 +1430,13 @@ function Spotlight({
 }) {
   const [query, setQuery] = useState('')
   const hydrated = useHydrated()
+  const { toast } = useToast()
   const recents = useAppStore((s) => s.recents)
   const installed = useAppStore((s) => s.installed)
   const externalVersion = useExternalApps((s) => s.version)
+
+  /* D74: inline answers — math, units, deep actions */
+  const answer = useMemo(() => computeAnswer(query), [query])
 
   const results = useMemo(() => searchTools(query, 'all'), [query, externalVersion])
   const installedResults = useMemo(() => results.filter((t) => installed.includes(t.id)), [results, installed])
@@ -1116,6 +1503,88 @@ function Spotlight({
         </motion.div>
 
         <div className="no-scrollbar mt-4 max-h-[62vh] space-y-4 overflow-y-auto pb-8">
+          {/* D74: inline answer card */}
+          {searching && answer && (
+            <section aria-label="Answer">
+              <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
+                Answer
+              </h2>
+              {answer.kind === 'math' && (
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(String(answer.value))
+                    toast({ title: 'Result copied', description: `${answer.expr} = ${answer.value}` })
+                  }}
+                  className="w-full rounded-2xl bg-white/10 p-4 text-left ring-1 ring-white/15 transition hover:bg-white/15"
+                >
+                  <span className="block text-xs text-white/55">{answer.expr} =</span>
+                  <span className="mt-0.5 block text-3xl font-black tabular-nums text-white">
+                    {Number.isInteger(answer.value) ? answer.value : Number(answer.value.toFixed(6))}
+                  </span>
+                  <span className="mt-1 block text-[10px] uppercase tracking-wide text-white/40">
+                    Tap to copy
+                  </span>
+                </button>
+              )}
+              {answer.kind === 'unit' && (
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(`${answer.out}`)
+                    toast({ title: 'Result copied', description: answer.text })
+                  }}
+                  className="w-full rounded-2xl bg-white/10 p-4 text-left ring-1 ring-white/15 transition hover:bg-white/15"
+                >
+                  <span className="block text-xs text-white/55">{answer.text}</span>
+                  <span className="mt-0.5 block text-3xl font-black tabular-nums text-white">
+                    {Number(answer.out.toFixed(4))}
+                    <span className="ml-1.5 text-lg font-bold text-white/70">{answer.to}</span>
+                  </span>
+                  <span className="mt-1 block text-[10px] uppercase tracking-wide text-white/40">
+                    Tap to copy
+                  </span>
+                </button>
+              )}
+              {answer.kind === 'action' && (
+                <button
+                  onClick={() => {
+                    if (answer.verb === 'note') {
+                      setPendingShare({ text: answer.arg, source: 'spotlight' })
+                      onOpenApp('notes')
+                    } else {
+                      onOpenApp('reminders')
+                    }
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white/10 p-4 text-left ring-1 ring-white/15 transition hover:bg-white/15"
+                >
+                  <span
+                    className={cn(
+                      'flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white',
+                      answer.verb === 'note'
+                        ? 'from-amber-400 via-yellow-500 to-amber-600'
+                        : 'from-emerald-400 via-teal-500 to-emerald-600'
+                    )}
+                  >
+                    {answer.verb === 'note' ? (
+                      <PencilLine className="size-5" aria-hidden />
+                    ) : (
+                      <ListChecks className="size-5" aria-hidden />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold text-white">
+                      {answer.verb === 'note' ? `Create note “${answer.arg}”` : 'Open Reminders'}
+                    </span>
+                    <span className="block text-[11px] text-white/55">
+                      {answer.verb === 'note'
+                        ? 'Opens Notes with your text ready'
+                        : 'Jump straight to your checklist'}
+                    </span>
+                  </span>
+                </button>
+              )}
+            </section>
+          )}
+
           {/* Recents (only when not searching) */}
           {!searching && recentTools.length > 0 && (
             <section aria-label="Recent apps">

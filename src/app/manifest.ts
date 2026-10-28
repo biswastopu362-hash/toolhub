@@ -21,5 +21,22 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
       { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
+    /* D70: receive shared text/links from other apps straight into Notes */
+    share_target: {
+      action: '/',
+      method: 'GET',
+      params: {
+        title: 'title',
+        text: 'text',
+        url: 'url',
+      },
+    },
+    /* D71: home-screen long-press app shortcuts */
+    shortcuts: [
+      { name: 'App Store', short_name: 'Store', url: '/?shortcut=store' },
+      { name: 'New Note', short_name: 'Note', url: '/?shortcut=notes' },
+      { name: 'Weather', short_name: 'Weather', url: '/?shortcut=weather' },
+      { name: 'Scan QR', short_name: 'QR', url: '/?shortcut=qr-generator' },
+    ],
   }
 }

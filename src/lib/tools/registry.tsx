@@ -88,6 +88,7 @@ import {
   Swords,
   Spade,
   CircleHelp,
+  Trophy,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -203,6 +204,7 @@ const BanglaWordleApp = load(() => import('@/components/tools/bangla-wordle'))
 const TwoPlayerArcadeApp = load(() => import('@/components/tools/2p-arcade'))
 const SolitaireApp = load(() => import('@/components/tools/solitaire'))
 const TriviaQuizApp = load(() => import('@/components/tools/trivia-quiz'))
+const GameCenterApp = load(() => import('@/components/tools/game-center'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -684,6 +686,20 @@ export const tools: Tool[] = [
     featured: true,
     version: '1.0.0',
     Component: TriviaQuizApp,
+  },
+  {
+    id: 'game-center',
+    name: 'Game Center',
+    description: 'Every high score, play count and achievement badge across all games',
+    tagline: 'Your gaming hall of fame',
+    category: 'games',
+    icon: Trophy,
+    gradient: 'from-fuchsia-500 via-pink-500 to-rose-500',
+    glow: '#ec4899',
+    keywords: ['game center', 'scores', 'achievements', 'badges', 'records', 'stats', 'high score'],
+    featured: true,
+    version: '1.0.0',
+    Component: GameCenterApp,
   },
   {
     id: 'calculator',
