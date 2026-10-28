@@ -2078,3 +2078,43 @@ Gates:
 Stage Summary:
 - Phase 5 games block fully closed: 9 games + hub, 37 achievements, unified stats store
 - Next: D70 Share Target (PWA manifest + receiving flow)
+
+---
+Task ID: P5-D70-74
+Agent: main (Z.ai Code)
+Task: Phase 5 platform wave verification — Share Target, Quick Actions, Home Widgets, Notification Center, Spotlight v2 (code shipped in 8453bff; this session closed verification, worklog + roadmap)
+
+Work Log:
+- Verified all five platform features end-to-end in agent-browser (390×844):
+  · D70 Share Target: /?title=Cat%20pic&text=…&url=… → URL params consumed + stripped, Notes opens with new note (title/body/url joined via lib/share.ts pendingShare → notes.tsx consume-once effect)
+  · D71: manifest shortcuts /?shortcut=weather → deep-opens Weather (#/app/weather); long-press/contextmenu on home tile → "quick actions" glass dialog (Open / Add to favorites / App info / Edit Home Screen / Uninstall)
+  · D72 WidgetStrip: Clock/Weather/Notes cards render on page 1 (360/390/1280), tap targets deep-open their apps; Notes card live-updates from localStorage notes
+  · D73 NotificationShade: opens from StatusBar bell, premium empty state; with seeded data shows "Team sync — open Calendar" (today label) + "2 open reminders — open Reminders" live feed from toolhub.calendar.events + toolhub-reminders
+  · D74 Spotlight v2: "12*8+4" → inline math answer card (tap-to-copy); "5km to mi" → 3.1069mi unit answer; "note: buy milk" → Create-note action card → opens Notes with payload consumed (localStorage receipt = null)
+- D75 QA Day executed (see next entry)
+
+Gates:
+- tsc clean · lint clean · zero page errors / zero console errors across all flows
+
+Stage Summary:
+- Phase 5 platform block fully verified; only QA + release tag remained
+- Next: D75 QA Day sweep + tag v1.5
+
+---
+Task ID: P5-D75
+Agent: main (Z.ai Code)
+Task: Phase 5 QA Day — full-catalog audit, fix + tag v1.5
+
+Work Log:
+- Full-catalog sweep: all 84 registry apps opened via hash-router health loop — every app window renders (role=dialog + heading + real content length), zero error boundaries, zero blank windows
+- Responsive: 360×740 / 390×844 / 1280×800 — document.scrollWidth − innerWidth = 0 at all three (no horizontal overflow); launcher icons 44–48px compact tiles (prior "icons too big" complaint resolved), 3 widget cards per page 1, dock + page dots clean at every width
+- Feature E2E for the platform wave passed (see P5-D70-74 entry)
+- Served manifest verified: share_target (GET / with title/text/url params) + shortcuts (Store / Note / Weather / QR) present in /manifest.webmanifest
+- Dev server restart mid-session (stale process); no code fixes required this QA day — zero defects found
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean · agent-browser sweep 84/84 OK · errors/console clean at 360/390/1280
+
+Stage Summary:
+- Phase 5 "Games & OS Delight" closed: 9 games + Game Center (37 achievements) + 5 OS platform features; catalog 84
+- Tagged v1.5; Next: Phase 6 D76 Accounts (optional NextAuth sign-in)

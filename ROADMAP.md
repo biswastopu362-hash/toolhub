@@ -168,12 +168,12 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D67** Solitaire (games) — klondike, drag & drop, win animation
 - [x] **D68** Trivia Quiz (games) — category packs, scoring streaks
 - [x] **D69** Games hub polish — high-score center, achievements badges across all games
-- [ ] **D70** Share Target (platform) — PWA share_target manifest: receive text/files into Tools
-- [ ] **D71** Quick Actions (platform) — home-screen long-press menu, app shortcuts in manifest
-- [ ] **D72** Home Widgets (platform) — clock, weather, notes-sticky widgets on launcher pages
-- [ ] **D73** Notification Center (platform) — in-OS notification shade, reminders/events feed
-- [ ] **D74** Spotlight v2 — inline calculator, unit answers, deep app actions ("note: buy milk")
-- [ ] **D75** Phase 5 QA Day — audit + fix + tag **v1.5**
+- [x] **D70** Share Target (platform) — PWA share_target manifest: receive text/files into Tools
+- [x] **D71** Quick Actions (platform) — home-screen long-press menu, app shortcuts in manifest
+- [x] **D72** Home Widgets (platform) — clock, weather, notes-sticky widgets on launcher pages
+- [x] **D73** Notification Center (platform) — in-OS notification shade, reminders/events feed
+- [x] **D74** Spotlight v2 — inline calculator, unit answers, deep app actions ("note: buy milk")
+- [x] **D75** Phase 5 QA Day — audit + fix + tag **v1.5**
 
 ## Phase 6 — Days 76–90 · "Platform, Scale & Launch"
 
