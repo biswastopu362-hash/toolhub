@@ -1,31 +1,47 @@
 'use client'
 
 /**
- * Flashcards — build decks, flip, grade, remember.
+ * Flashcards v2 — build decks, flip, grade, remember.
  *
- * Decks of front/back cards with a 3D flip study mode. Grading ("Again" /
- * "Got it") updates per-card counters, re-queues missed cards to the end of
- * the session queue, and feeds all-time deck accuracy. Everything persists
- * in IndexedDB — private, offline, instant.
+ * Decks of front/back cards with a 3D flip study mode, now backed by a lite
+ * SM-2 spaced-repetition scheduler. Every card carries { ease, intervalDays,
+ * due, reps, lapses }; grading with Again / Hard / Good / Easy updates the
+ * schedule and pushes the next due date forward. Study "All cards" or just
+ * "Due now" (ordered by due date, then most-lapsed first), and watch per-deck
+ * chips for due / learning / mature buckets plus a 7-day due forecast.
+ * Everything persists in IndexedDB — private, offline, instant.
+ *
+ * Backward compatibility: decks saved by v1 (cards without scheduling fields,
+ * lastResult 'correct' | 'wrong') are migrated in memory on load with safe
+ * defaults — old data never crashes and keeps its counters/accuracy.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft,
   BookOpen,
   Check,
+  Clock,
+  Flame,
   GraduationCap,
   Layers,
+  Minus,
+  PartyPopper,
   Pencil,
   Play,
   Plus,
   RotateCw,
+  ShieldCheck,
   Shuffle,
+  Sparkles,
   Trash2,
   Trophy,
   X,
+  Zap,
 } from 'lucide-react'
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
@@ -34,7 +50,12 @@ import { useToast } from '@/hooks/use-toast'
 /* Model                                                               */
 /* ================================================================== */
 
-type Grade = 'correct' | 'wrong'
+/** Four-way grading — 'correct'/'wrong' from v1 maps to good/again on load. */
+type Grade = 'again' | 'hard' | 'good' | 'easy'
+
+const GRADES: Grade[] = ['again', 'hard', 'good', 'easy']
+
+type StudyMode = 'all' | 'due'
 
 interface FlashCard {
   id: string
@@ -43,6 +64,17 @@ interface FlashCard {
   correct: number
   wrong: number
   lastResult?: Grade
+  /* ---- SM-2 lite scheduling ---- */
+  /** ease factor; starts 2.5, clamped [1.3, 3.5] */
+  ease: number
+  /** current gap in days (0 = due today / learning) */
+  intervalDays: number
+  /** next due date as local YYYY-MM-DD key */
+  due: string
+  /** total times the card has been graded */
+  reps: number
+  /** times graded Again */
+  lapses: number
 }
 
 interface Deck {
@@ -53,16 +85,20 @@ interface Deck {
   color: string
   createdAt: number
   cards: FlashCard[]
+  /** reviews per local date key — feeds the per-deck streak */
+  reviewLog: Record<string, number>
 }
 
 interface Session {
-  /** card ids; may contain repeats (wrong cards re-queued at the end) */
+  mode: StudyMode
+  /** card ids; may contain repeats (Again cards re-queued at the end) */
   queue: string[]
   index: number
   got: number
   again: number
-  /** first-attempt result per card id (accuracy basis) */
+  /** first-attempt grade per card id (accuracy basis) */
   first: Record<string, Grade>
+  counts: { again: number; hard: number; good: number; easy: number }
 }
 
 /* ================================================================== */
@@ -162,6 +198,39 @@ function idbDelete(store: string, key: string): Promise<void> {
 }
 
 /* ================================================================== */
+/* Dates — local YYYY-MM-DD keys (lexicographically comparable)        */
+/* ================================================================== */
+
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+function dateKey(d: Date): string {
+  const m = `${d.getMonth() + 1}`.padStart(2, '0')
+  const day = `${d.getDate()}`.padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+function todayKey(): string {
+  return dateKey(new Date())
+}
+
+function addDaysKey(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + n)
+  return dateKey(d)
+}
+
+/** Parse a YYYY-MM-DD key at local midnight. */
+function parseKey(key: string): Date {
+  const parts = key.split('-').map(Number)
+  return new Date(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1)
+}
+
+/** Whole days from key a to key b (b - a). */
+function daysBetweenKeys(a: string, b: string): number {
+  return Math.round((parseKey(b).getTime() - parseKey(a).getTime()) / 86_400_000)
+}
+
+/* ================================================================== */
 /* Helpers                                                             */
 /* ================================================================== */
 
@@ -193,6 +262,132 @@ function shuffleArr<T>(arr: T[]): T[] {
 /** Thin glass scrollbar for long lists. */
 const THIN_SCROLLBAR =
   '[scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10'
+
+/** Dark-glass tooltip shell shared by recharts charts. */
+const TOOLTIP_STYLE: CSSProperties = {
+  backgroundColor: 'rgba(9,9,11,0.95)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 12,
+  fontSize: 11,
+  color: '#e4e4e7',
+  padding: '6px 10px',
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n).trimEnd()}…` : s
+}
+
+/* ================================================================== */
+/* Migration — v1 decks/cards get scheduling defaults, never crash     */
+/* ================================================================== */
+
+function asNum(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback
+}
+
+function normalizeLastResult(v: unknown): Grade | undefined {
+  if (v === 'correct') return 'good'
+  if (v === 'wrong') return 'again'
+  return GRADES.find((g) => g === v)
+}
+
+function normalizeCard(raw: {
+  id: string
+  front?: unknown
+  back?: unknown
+  correct?: unknown
+  wrong?: unknown
+  lastResult?: unknown
+  ease?: unknown
+  intervalDays?: unknown
+  due?: unknown
+  reps?: unknown
+  lapses?: unknown
+}): FlashCard {
+  return {
+    id: raw.id,
+    front: typeof raw.front === 'string' ? raw.front : '',
+    back: typeof raw.back === 'string' ? raw.back : '',
+    correct: Math.max(0, Math.round(asNum(raw.correct, 0))),
+    wrong: Math.max(0, Math.round(asNum(raw.wrong, 0))),
+    lastResult: normalizeLastResult(raw.lastResult),
+    ease: Math.min(3.5, Math.max(1.3, Math.round(asNum(raw.ease, 2.5) * 100) / 100)),
+    intervalDays: Math.max(0, Math.round(asNum(raw.intervalDays, 0))),
+    due: typeof raw.due === 'string' && DATE_KEY_RE.test(raw.due) ? raw.due : todayKey(),
+    reps: Math.max(0, Math.round(asNum(raw.reps, 0))),
+    lapses: Math.max(0, Math.round(asNum(raw.lapses, 0))),
+  }
+}
+
+function normalizeReviewLog(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!DATE_KEY_RE.test(k)) continue
+    const n = asNum(v, 0)
+    if (n > 0) out[k] = Math.round(n)
+  }
+  return out
+}
+
+/* ================================================================== */
+/* SM-2 lite scheduler                                                 */
+/* ================================================================== */
+
+interface Schedule {
+  ease: number
+  intervalDays: number
+  due: string
+  reps: number
+  lapses: number
+}
+
+function clampEase(e: number): number {
+  return Math.min(3.5, Math.max(1.3, Math.round(e * 100) / 100))
+}
+
+/**
+ * SM-2 lite:
+ *  Again — interval 0, due today, ease −0.2 (min 1.3), lapse++
+ *  Hard  — interval ×1.2 (first step 1 day), ease −0.15
+ *  Good  — interval ×ease (first success 1 day)
+ *  Easy  — interval ×ease×1.3 (first success 4 days), ease +0.15
+ * Due = today + interval days.
+ */
+function nextSchedule(card: FlashCard, grade: Grade): Schedule {
+  const reps = card.reps + 1
+  if (grade === 'again') {
+    return {
+      ease: clampEase(card.ease - 0.2),
+      intervalDays: 0,
+      due: todayKey(),
+      reps,
+      lapses: card.lapses + 1,
+    }
+  }
+  const I = card.intervalDays
+  const E = card.ease
+  if (grade === 'hard') {
+    const interval = I === 0 ? 1 : Math.max(1, Math.round(I * 1.2))
+    return { ease: clampEase(E - 0.15), intervalDays: interval, due: addDaysKey(interval), reps, lapses: card.lapses }
+  }
+  if (grade === 'good') {
+    const interval = I === 0 ? 1 : Math.max(1, Math.round(I * E))
+    return { ease: clampEase(E), intervalDays: interval, due: addDaysKey(interval), reps, lapses: card.lapses }
+  }
+  const interval = I === 0 ? 4 : Math.max(4, Math.round(I * E * 1.3))
+  return { ease: clampEase(E + 0.15), intervalDays: interval, due: addDaysKey(interval), reps, lapses: card.lapses }
+}
+
+/** Short next-interval label for the grading buttons. */
+function gradePreview(card: FlashCard, grade: Grade): string {
+  if (grade === 'again') return 'today'
+  return `${nextSchedule(card, grade).intervalDays}d`
+}
+
+/* ================================================================== */
+/* Stats — accuracy, buckets, streak, forecast, due labels             */
+/* ================================================================== */
 
 /** All-time grading accuracy across a deck's cards; null when never graded. */
 function deckAccuracy(d: Deck): number | null {
@@ -227,15 +422,82 @@ function deckStats(d: Deck): DeckStats {
   return { correct, wrong, gradings, mastered, accuracy: gradings === 0 ? null : Math.round((correct / gradings) * 100) }
 }
 
-function truncate(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n).trimEnd()}…` : s
+interface DeckBuckets {
+  due: number
+  learning: number
+  young: number
+  mature: number
+  total: number
+}
+
+/**
+ * Maturity buckets are mutually exclusive: mature (interval ≥ 21d),
+ * learning (reps < 2 or interval < 4), young = the rest.
+ * `due` is a temporal overlay (due ≤ today) and may overlap maturity.
+ */
+function deckBuckets(d: Deck): DeckBuckets {
+  const today = todayKey()
+  let due = 0
+  let learning = 0
+  let mature = 0
+  for (const c of d.cards) {
+    if (c.due <= today) due++
+    if (c.intervalDays >= 21) mature++
+    else if (c.reps < 2 || c.intervalDays < 4) learning++
+  }
+  return { due, learning, mature, young: d.cards.length - mature - learning, total: d.cards.length }
+}
+
+/** Consecutive days (ending today or yesterday) with ≥ 1 review. */
+function reviewStreak(log: Record<string, number>): number {
+  let streak = 0
+  const cursor = new Date()
+  if ((log[dateKey(cursor)] ?? 0) === 0) cursor.setDate(cursor.getDate() - 1)
+  while ((log[dateKey(cursor)] ?? 0) > 0) {
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
+/** Cards due per day for the next 7 days; overdue folds into today. */
+function dueForecast(d: Deck): { day: string; count: number }[] {
+  const today = todayKey()
+  const counts = new Array<number>(7).fill(0)
+  for (const c of d.cards) {
+    let idx = 0
+    if (c.due > today) {
+      const diff = daysBetweenKeys(today, c.due)
+      if (diff <= 6) idx = diff
+      else continue
+    }
+    counts[idx] = (counts[idx] ?? 0) + 1
+  }
+  const base = new Date()
+  return counts.map((count, i) => {
+    const day = new Date(base)
+    day.setDate(day.getDate() + i)
+    return {
+      day: i === 0 ? 'Today' : day.toLocaleDateString('en-US', { weekday: 'short' }),
+      count,
+    }
+  })
+}
+
+function dueLabelOf(c: FlashCard): { text: string; tone: 'amber' | 'emerald' | 'zinc' } {
+  const today = todayKey()
+  if (c.reps === 0 && c.intervalDays === 0) return { text: 'new', tone: 'zinc' }
+  if (c.due <= today) return { text: 'due now', tone: 'amber' }
+  const d = daysBetweenKeys(today, c.due)
+  if (d === 1) return { text: 'due tomorrow', tone: 'zinc' }
+  return c.intervalDays >= 21 ? { text: `in ${d}d`, tone: 'emerald' } : { text: `in ${d}d`, tone: 'zinc' }
 }
 
 /* ================================================================== */
 /* Component                                                           */
 /* ================================================================== */
 
-type Screen = 'home' | 'deck' | 'study' | 'summary'
+type Screen = 'home' | 'deck' | 'study' | 'summary' | 'caught'
 
 export default function FlashcardsApp() {
   const { toast } = useToast()
@@ -287,7 +549,7 @@ export default function FlashcardsApp() {
     return () => clearTimeout(t)
   }, [confirmDeckDelete])
 
-  /* ---------------- hydration ---------------- */
+  /* ---------------- hydration (migrates v1 cards in memory) ---------------- */
   useEffect(() => {
     let alive = true
     void (async () => {
@@ -302,17 +564,11 @@ export default function FlashcardsApp() {
             emoji: typeof d.emoji === 'string' ? d.emoji : '',
             color: ACCENTS.some((a) => a.id === d.color) ? d.color : 'violet',
             createdAt: typeof d.createdAt === 'number' ? d.createdAt : Date.now(),
+            reviewLog: normalizeReviewLog(d.reviewLog),
             cards: Array.isArray(d.cards)
               ? d.cards
                   .filter((c) => c && typeof c.id === 'string')
-                  .map<FlashCard>((c) => ({
-                    id: c.id,
-                    front: typeof c.front === 'string' ? c.front : '',
-                    back: typeof c.back === 'string' ? c.back : '',
-                    correct: Number(c.correct) || 0,
-                    wrong: Number(c.wrong) || 0,
-                    lastResult: c.lastResult === 'correct' || c.lastResult === 'wrong' ? c.lastResult : undefined,
-                  }))
+                  .map<FlashCard>((c) => normalizeCard(c))
               : [],
           }))
           .sort((a, b) => b.createdAt - a.createdAt)
@@ -346,7 +602,11 @@ export default function FlashcardsApp() {
   const sessionSummary = useMemo(() => {
     if (!session) return null
     const ids = Object.keys(session.first)
-    const firstTry = ids.filter((id) => session.first[id] === 'correct').length
+    let firstTry = 0
+    for (const id of ids) {
+      const g = session.first[id]
+      if (g && g !== 'again') firstTry++
+    }
     return {
       unique: ids.length,
       firstTry,
@@ -355,6 +615,9 @@ export default function FlashcardsApp() {
   }, [session])
 
   const activeDeckStats = useMemo(() => (activeDeck ? deckStats(activeDeck) : null), [activeDeck])
+
+  const studyCard =
+    session && activeDeck ? activeDeck.cards.find((c) => c.id === session.queue[session.index]) ?? null : null
 
   /* ---------------- mutations (write-through to IndexedDB) ---------------- */
   const persistDeck = useCallback((deck: Deck) => {
@@ -366,7 +629,7 @@ export default function FlashcardsApp() {
 
   const createDeck = useCallback(
     (name: string, emoji: string, color: string) => {
-      const deck: Deck = { id: uid('deck'), name, emoji, color, createdAt: Date.now(), cards: [] }
+      const deck: Deck = { id: uid('deck'), name, emoji, color, createdAt: Date.now(), cards: [], reviewLog: {} }
       setDecks((prev) => [deck, ...prev])
       void idbPut(DECKS_STORE, deck).catch(() => {
         /* memory-only fallback */
@@ -430,7 +693,18 @@ export default function FlashcardsApp() {
       })
       toast({ title: 'Card updated', description: truncate(front, 48) })
     } else {
-      const card: FlashCard = { id: uid('card'), front, back, correct: 0, wrong: 0 }
+      const card: FlashCard = {
+        id: uid('card'),
+        front,
+        back,
+        correct: 0,
+        wrong: 0,
+        ease: 2.5,
+        intervalDays: 0,
+        due: todayKey(),
+        reps: 0,
+        lapses: 0,
+      }
       persistDeck({ ...activeDeck, cards: [card, ...activeDeck.cards] })
       toast({ title: 'Card added', description: truncate(front, 48) })
     }
@@ -477,15 +751,36 @@ export default function FlashcardsApp() {
 
   /* ---------------- study session ---------------- */
   const startStudy = useCallback(
-    (deck: Deck) => {
+    (deck: Deck, mode: StudyMode) => {
       if (deck.cards.length === 0) return
-      const ids = deck.cards.map((c) => c.id)
+      let ids: string[]
+      if (mode === 'due') {
+        const today = todayKey()
+        const dueCards = deck.cards
+          .filter((c) => c.due <= today)
+          .sort((a, b) => (a.due === b.due ? b.lapses - a.lapses : a.due < b.due ? -1 : 1))
+          .map((c) => c.id)
+        if (dueCards.length === 0) {
+          // celebratory "all caught up" state — nothing due right now
+          setSession(null)
+          setFlipped(false)
+          setScreen('caught')
+          haptic([10, 30, 10])
+          return
+        }
+        ids = dueCards
+      } else {
+        ids = deck.cards.map((c) => c.id)
+        if (shuffle) ids = shuffleArr(ids)
+      }
       setSession({
-        queue: shuffle ? shuffleArr(ids) : ids,
+        mode,
+        queue: ids,
         index: 0,
         got: 0,
         again: 0,
         first: {},
+        counts: { again: 0, hard: 0, good: 0, easy: 0 },
       })
       setFlipped(false)
       setScreen('study')
@@ -501,6 +796,12 @@ export default function FlashcardsApp() {
     haptic()
   }, [])
 
+  const backToDeck = useCallback(() => {
+    setFlipped(false)
+    setScreen('deck')
+    haptic()
+  }, [])
+
   const flipCard = useCallback(() => {
     if (!session) return
     setFlipped((f) => !f)
@@ -508,40 +809,54 @@ export default function FlashcardsApp() {
   }, [session])
 
   const grade = useCallback(
-    (result: Grade) => {
+    (g: Grade) => {
       if (!session || !activeDeck || !flipped) return
       const cardId = session.queue[session.index]
       if (!cardId) return
+      const card = activeDeck.cards.find((c) => c.id === cardId)
+      if (!card) return
 
-      // 1) update the card's all-time counters and persist the deck
+      // 1) update the card's counters + schedule, log the review, persist
+      const sched = nextSchedule(card, g)
+      const today = todayKey()
+      const log = { ...activeDeck.reviewLog }
+      log[today] = (log[today] ?? 0) + 1
       persistDeck({
         ...activeDeck,
+        reviewLog: log,
         cards: activeDeck.cards.map((c) =>
           c.id === cardId
             ? {
                 ...c,
-                correct: c.correct + (result === 'correct' ? 1 : 0),
-                wrong: c.wrong + (result === 'wrong' ? 1 : 0),
-                lastResult: result,
+                correct: c.correct + (g === 'again' ? 0 : 1),
+                wrong: c.wrong + (g === 'again' ? 1 : 0),
+                lastResult: g,
+                ...sched,
               }
             : c
         ),
       })
 
-      // 2) advance the session; wrong cards re-queue at the end
+      // 2) advance the session; Again cards re-queue at the end
       const first = { ...session.first }
-      if (!(cardId in first)) first[cardId] = result
-      const next = {
+      if (!(cardId in first)) first[cardId] = g
+      const next: Session = {
         ...session,
-        queue: result === 'wrong' ? [...session.queue, cardId] : session.queue,
+        queue: g === 'again' ? [...session.queue, cardId] : session.queue,
         index: session.index + 1,
-        got: session.got + (result === 'correct' ? 1 : 0),
-        again: session.again + (result === 'wrong' ? 1 : 0),
+        got: session.got + (g === 'again' ? 0 : 1),
+        again: session.again + (g === 'again' ? 1 : 0),
         first,
+        counts: {
+          again: session.counts.again + (g === 'again' ? 1 : 0),
+          hard: session.counts.hard + (g === 'hard' ? 1 : 0),
+          good: session.counts.good + (g === 'good' ? 1 : 0),
+          easy: session.counts.easy + (g === 'easy' ? 1 : 0),
+        },
       }
       setSession(next)
       setFlipped(false)
-      haptic(result === 'correct' ? 12 : [12, 40, 12])
+      haptic(g === 'again' ? [12, 40, 12] : 12)
 
       // 3) session complete → summary (same event, no cascading effect)
       if (next.index >= next.queue.length) setScreen('summary')
@@ -560,7 +875,7 @@ export default function FlashcardsApp() {
     // mid-session: shuffle only the cards still ahead
     if (next && screen === 'study') {
       setSession((p) => {
-        if (!p) return p
+        if (!p || p.mode === 'due') return p
         const head = p.queue.slice(0, p.index + 1)
         const tail = shuffleArr(p.queue.slice(p.index + 1))
         return { ...p, queue: [...head, ...tail] }
@@ -569,7 +884,7 @@ export default function FlashcardsApp() {
     haptic()
   }, [screen, shuffle])
 
-  // keyboard shortcuts while studying (Space/Enter flip · 1/← Again · 2/→ Got it)
+  // keyboard shortcuts while studying (Space/Enter flip · 1 Again · 2 Hard · 3 Good · 4 Easy · ←/→ Again/Good)
   useEffect(() => {
     if (screen !== 'study' || !session) return
     const onKey = (e: KeyboardEvent) => {
@@ -579,9 +894,17 @@ export default function FlashcardsApp() {
         e.preventDefault()
         flipCard()
       } else if (flipped && (e.key === '1' || e.key === 'ArrowLeft')) {
-        grade('wrong')
-      } else if (flipped && (e.key === '2' || e.key === 'ArrowRight')) {
-        grade('correct')
+        e.preventDefault()
+        grade('again')
+      } else if (flipped && e.key === '2') {
+        e.preventDefault()
+        grade('hard')
+      } else if (flipped && (e.key === '3' || e.key === 'ArrowRight')) {
+        e.preventDefault()
+        grade('good')
+      } else if (flipped && e.key === '4') {
+        e.preventDefault()
+        grade('easy')
       }
     }
     window.addEventListener('keydown', onKey)
@@ -591,9 +914,6 @@ export default function FlashcardsApp() {
   /* ================================================================== */
   /* Render                                                              */
   /* ================================================================== */
-
-  const studyCard =
-    session && activeDeck ? activeDeck.cards.find((c) => c.id === session.queue[session.index]) ?? null : null
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -612,7 +932,7 @@ export default function FlashcardsApp() {
             </span>
             <div className="min-w-0 flex-1">
               <h2 className="text-lg font-bold tracking-tight">Flashcards</h2>
-              <p className="text-xs text-zinc-400">Flip, grade and remember — all on this device.</p>
+              <p className="text-xs text-zinc-400">Flip, grade and remember — spaced repetition on this device.</p>
             </div>
             {screen === 'home' && (
               <Button
@@ -633,13 +953,7 @@ export default function FlashcardsApp() {
             ))}
           </div>
         ) : screen === 'home' ? (
-          <HomeScreen
-            decks={decks}
-            totals={totals}
-            onOpenDeck={openDeck}
-            onStudy={(d) => startStudy(d)}
-            onNewDeck={() => openDeckForm()}
-          />
+          <HomeScreen decks={decks} totals={totals} onOpenDeck={openDeck} onStudy={(d) => startStudy(d, 'all')} onNewDeck={() => openDeckForm()} />
         ) : screen === 'deck' && activeDeck ? (
           <DeckScreen
             deck={activeDeck}
@@ -649,26 +963,26 @@ export default function FlashcardsApp() {
             onBack={goHome}
             onEditDeck={() => openDeckForm(activeDeck)}
             onDeleteDeck={() => setConfirmDeckDelete(true)}
-            onStudy={() => startStudy(activeDeck)}
+            onStudy={() => startStudy(activeDeck, 'all')}
+            onStudyDue={() => startStudy(activeDeck, 'due')}
             onAddCard={() => openCardForm()}
             onEditCard={(c) => openCardForm(c)}
             onAskDeleteCard={(id) => setConfirmCardId(id)}
             onDeleteCard={(id) => deleteCard(id)}
             onToggleShuffle={toggleShuffle}
           />
+        ) : screen === 'caught' && activeDeck ? (
+          <CaughtUpScreen deck={activeDeck} onStudyAll={() => startStudy(activeDeck, 'all')} onBack={backToDeck} />
         ) : (screen === 'study' || screen === 'summary') && session && activeDeck ? (
           screen === 'summary' && sessionSummary && activeDeckStats ? (
             <SummaryScreen
               deck={activeDeck}
               stats={activeDeckStats}
               summary={sessionSummary}
-              got={session.got}
-              again={session.again}
-              onAgain={() => startStudy(activeDeck)}
-              onBack={() => {
-                setSession(null)
-                setScreen('deck')
-              }}
+              counts={session.counts}
+              mode={session.mode}
+              onAgain={() => startStudy(activeDeck, session.mode)}
+              onBack={backToDeck}
             />
           ) : screen === 'study' && studyCard ? (
             <StudyScreen
@@ -917,6 +1231,54 @@ export default function FlashcardsApp() {
 }
 
 /* ================================================================== */
+/* Shared bits — chips                                                 */
+/* ================================================================== */
+
+function StatChip({
+  icon,
+  label,
+  count,
+  tone,
+}: {
+  icon: ReactNode
+  label: string
+  count: number
+  tone: 'amber' | 'sky' | 'emerald' | 'zinc'
+}) {
+  const tones: Record<'amber' | 'sky' | 'emerald' | 'zinc', string> = {
+    amber: 'border-amber-400/25 bg-amber-400/10 text-amber-200',
+    sky: 'border-sky-400/25 bg-sky-400/10 text-sky-200',
+    emerald: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200',
+    zinc: 'border-white/10 bg-white/5 text-zinc-300',
+  }
+  return (
+    <span className={cn('flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold', tones[tone])}>
+      {icon}
+      {label}
+      <span className="rounded-full bg-black/25 px-1.5 py-px tabular-nums">{count}</span>
+    </span>
+  )
+}
+
+function SrsChip({ card }: { card: FlashCard }) {
+  const l = dueLabelOf(card)
+  return (
+    <span
+      className={cn(
+        'shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+        l.tone === 'amber'
+          ? 'border-amber-400/30 bg-amber-400/10 text-amber-300'
+          : l.tone === 'emerald'
+            ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+            : 'border-white/10 bg-white/5 text-zinc-400'
+      )}
+    >
+      {l.text}
+    </span>
+  )
+}
+
+/* ================================================================== */
 /* Home screen — stats strip + deck grid                               */
 /* ================================================================== */
 
@@ -971,8 +1333,8 @@ function HomeScreen({
             </span>
             <p className="text-sm font-semibold text-zinc-300">No decks yet</p>
             <p className="max-w-xs text-xs leading-relaxed text-zinc-500">
-              Create a deck of front/back cards, then flip through it. Grading builds your all-time stats — data never
-              leaves this device.
+              Create a deck of front/back cards, then flip through them. Spaced repetition schedules reviews so cards
+              come back right before you forget — all on this device.
             </p>
             <Button
               onClick={onNewDeck}
@@ -992,6 +1354,7 @@ function HomeScreen({
             {decks.map((deck) => {
               const accent = accentOf(deck.color)
               const accuracy = deckAccuracy(deck)
+              const dueCount = deckBuckets(deck).due
               return (
                 <motion.div
                   key={deck.id}
@@ -1023,10 +1386,17 @@ function HomeScreen({
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-zinc-100">{deck.name}</p>
-                      <p className="text-[11px] text-zinc-500">
-                        {deck.cards.length} {deck.cards.length === 1 ? 'card' : 'cards'} ·{' '}
-                        {accuracy === null ? 'New' : `${accuracy}% accuracy`}
-                      </p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-zinc-500">
+                        <span>
+                          {deck.cards.length} {deck.cards.length === 1 ? 'card' : 'cards'} ·{' '}
+                          {accuracy === null ? 'New' : `${accuracy}% accuracy`}
+                        </span>
+                        {dueCount > 0 && (
+                          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-1.5 py-px text-[10px] font-bold text-amber-300">
+                            {dueCount} due
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
                         <motion.div
                           className="h-full rounded-full"
@@ -1061,7 +1431,7 @@ function HomeScreen({
 }
 
 /* ================================================================== */
-/* Deck screen — meta, actions, card list                              */
+/* Deck screen — meta, insights, actions, card list                    */
 /* ================================================================== */
 
 function DeckScreen({
@@ -1073,6 +1443,7 @@ function DeckScreen({
   onEditDeck,
   onDeleteDeck,
   onStudy,
+  onStudyDue,
   onAddCard,
   onEditCard,
   onAskDeleteCard,
@@ -1087,6 +1458,7 @@ function DeckScreen({
   onEditDeck: () => void
   onDeleteDeck: () => void
   onStudy: () => void
+  onStudyDue: () => void
   onAddCard: () => void
   onEditCard: (card: FlashCard) => void
   onAskDeleteCard: (id: string) => void
@@ -1095,7 +1467,11 @@ function DeckScreen({
 }) {
   const accent = accentOf(deck.color)
   const stats = deckStats(deck)
+  const buckets = deckBuckets(deck)
+  const streak = reviewStreak(deck.reviewLog)
+  const forecast = dueForecast(deck)
   const canStudy = deck.cards.length > 0
+  const totalForBar = Math.max(buckets.total, 1)
 
   return (
     <div className="space-y-4 p-4 sm:p-5">
@@ -1164,20 +1540,129 @@ function DeckScreen({
             transition={{ type: 'spring', stiffness: 120, damping: 24 }}
           />
         </div>
+        <div className="mt-3 flex items-center justify-between text-[11px]">
+          <span className="flex items-center gap-1.5 font-semibold text-zinc-300">
+            <Flame className={cn('size-3.5', streak > 0 ? 'text-amber-400' : 'text-zinc-600')} aria-hidden />
+            {streak === 0 ? 'No streak yet' : `${streak}-day streak`}
+          </span>
+          <span className="text-zinc-500">
+            {stats.gradings} {stats.gradings === 1 ? 'review' : 'reviews'} all-time
+          </span>
+        </div>
       </div>
 
+      {/* insights card — buckets + maturity mix + 7-day forecast */}
+      {deck.cards.length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="flex flex-wrap gap-1.5">
+            <StatChip
+              icon={<Clock className="size-3" aria-hidden />}
+              label="Due today"
+              count={buckets.due}
+              tone="amber"
+            />
+            <StatChip
+              icon={<Sparkles className="size-3" aria-hidden />}
+              label="Learning"
+              count={buckets.learning}
+              tone="sky"
+            />
+            <StatChip
+              icon={<ShieldCheck className="size-3" aria-hidden />}
+              label="Mature"
+              count={buckets.mature}
+              tone="emerald"
+            />
+            <StatChip icon={<Layers className="size-3" aria-hidden />} label="Total" count={buckets.total} tone="zinc" />
+          </div>
+
+          {/* maturity mix — learning / young / mature */}
+          <div
+            className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-white/[0.06]"
+            role="img"
+            aria-label={`Card maturity: ${buckets.learning} learning, ${buckets.young} young, ${buckets.mature} mature`}
+          >
+            {[
+              { key: 'learning', color: '#38bdf8', value: buckets.learning },
+              { key: 'young', color: '#52525b', value: buckets.young },
+              { key: 'mature', color: '#34d399', value: buckets.mature },
+            ]
+              .filter((s) => s.value > 0)
+              .map((s) => (
+                <motion.div
+                  key={s.key}
+                  className="h-full"
+                  style={{ backgroundColor: s.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(s.value / totalForBar) * 100}%` }}
+                  transition={{ type: 'spring', stiffness: 120, damping: 24 }}
+                />
+              ))}
+          </div>
+          <div className="mt-1.5 flex items-center gap-3 text-[10px] text-zinc-500">
+            <span className="flex items-center gap-1">
+              <span className="size-2 rounded-full bg-sky-400" aria-hidden /> Learning
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="size-2 rounded-full bg-zinc-600" aria-hidden /> Young
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="size-2 rounded-full bg-emerald-400" aria-hidden /> Mature
+            </span>
+          </div>
+
+          {/* 7-day due forecast */}
+          <div className="mt-4 border-t border-white/5 pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Due next 7 days</p>
+            <div className="mt-1 h-24 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={forecast} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fill: '#71717a', fontSize: 9 }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                  />
+                  <YAxis hide domain={[0, 'dataMax + 1']} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                    formatter={(value) => [`${Number(value)} ${Number(value) === 1 ? 'card' : 'cards'}`, 'Due']}
+                  />
+                  <Bar dataKey="count" fill="#fbbf24" radius={[3, 3, 0, 0]} maxBarSize={16} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* actions */}
-      <div className="flex gap-2.5">
-        <Button
-          onClick={onStudy}
-          disabled={!canStudy}
-          className="h-11 flex-1 rounded-xl bg-gradient-to-r from-violet-400 via-purple-500 to-fuchsia-600 font-semibold text-white shadow-lg hover:from-violet-300 hover:via-purple-400 hover:to-fuchsia-500 disabled:opacity-40"
-        >
-          <Play className="size-4" aria-hidden /> Study
-        </Button>
+      <div className="space-y-2.5">
+        <div className="flex gap-2.5">
+          <Button
+            onClick={onStudy}
+            disabled={!canStudy}
+            className="h-11 flex-1 rounded-xl bg-gradient-to-r from-violet-400 via-purple-500 to-fuchsia-600 font-semibold text-white shadow-lg hover:from-violet-300 hover:via-purple-400 hover:to-fuchsia-500 disabled:opacity-40"
+          >
+            <Play className="size-4" aria-hidden /> Study all
+          </Button>
+          <Button
+            onClick={onStudyDue}
+            disabled={!canStudy}
+            variant="ghost"
+            className="h-11 flex-1 rounded-xl border border-amber-400/30 bg-amber-400/15 font-semibold text-amber-200 shadow-none hover:bg-amber-400/25 disabled:opacity-40"
+          >
+            <Clock className="size-4" aria-hidden /> Due now
+            <span className="ml-0.5 rounded-full bg-amber-400/20 px-1.5 py-px text-[11px] font-bold tabular-nums">
+              {buckets.due}
+            </span>
+          </Button>
+        </div>
         <Button
           onClick={onAddCard}
-          className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 font-semibold text-zinc-100 shadow-none hover:bg-white/10"
+          className="h-11 w-full rounded-xl border border-white/10 bg-white/5 font-semibold text-zinc-100 shadow-none hover:bg-white/10"
           variant="ghost"
         >
           <Plus className="size-4" aria-hidden /> Add card
@@ -1192,7 +1677,7 @@ function DeckScreen({
       >
         <span className="flex items-center gap-2 text-xs font-semibold text-zinc-300">
           <Shuffle className={cn('size-4', shuffle ? 'text-violet-300' : 'text-zinc-500')} aria-hidden />
-          Shuffle cards
+          Shuffle in “Study all”
         </span>
         <span
           className={cn(
@@ -1224,7 +1709,8 @@ function DeckScreen({
             <Layers className="size-8 text-zinc-600" aria-hidden />
             <p className="text-sm font-semibold text-zinc-300">No cards in this deck yet</p>
             <p className="max-w-xs text-xs leading-relaxed text-zinc-500">
-              Add front/back cards, then hit Study to flip through them.
+              Add front/back cards, then hit Study to flip through them. Grading schedules each card&apos;s next
+              review automatically.
             </p>
             <Button
               onClick={onAddCard}
@@ -1237,6 +1723,7 @@ function DeckScreen({
           <div className={cn('space-y-1.5', deck.cards.length > 5 && 'max-h-96 overflow-y-auto pr-1', THIN_SCROLLBAR)}>
             {deck.cards.map((card) => {
               const confirming = confirmCardId === card.id
+              const due = dueLabelOf(card)
               return (
                 <motion.div
                   key={card.id}
@@ -1250,11 +1737,15 @@ function DeckScreen({
                   <span
                     className={cn(
                       'size-2 shrink-0 rounded-full',
-                      card.lastResult === 'correct'
-                        ? 'bg-emerald-400'
-                        : card.lastResult === 'wrong'
-                          ? 'bg-rose-400'
-                          : 'bg-zinc-700'
+                      card.lastResult === 'again'
+                        ? 'bg-rose-400'
+                        : card.lastResult === 'hard'
+                          ? 'bg-amber-400'
+                          : card.lastResult === 'good'
+                            ? 'bg-emerald-400'
+                            : card.lastResult === 'easy'
+                              ? 'bg-violet-400'
+                              : 'bg-zinc-700'
                     )}
                     aria-hidden
                   />
@@ -1262,10 +1753,24 @@ function DeckScreen({
                     <p className="truncate text-sm font-semibold text-zinc-100">{card.front}</p>
                     <p className="truncate text-[11px] text-zinc-500">{card.back}</p>
                   </div>
-                  <p className="shrink-0 text-[10px] font-semibold tabular-nums text-zinc-500" aria-hidden>
-                    <span className="text-emerald-400/80">{card.correct}✓</span>{' '}
-                    <span className="text-rose-400/80">{card.wrong}✗</span>
-                  </p>
+                  <div className="flex shrink-0 flex-col items-end gap-0.5">
+                    <p className="text-[10px] font-semibold tabular-nums text-zinc-500" aria-hidden>
+                      <span className="text-emerald-400/80">{card.correct}✓</span>{' '}
+                      <span className="text-rose-400/80">{card.wrong}✗</span>
+                    </p>
+                    <span
+                      className={cn(
+                        'text-[10px] font-semibold',
+                        due.tone === 'amber'
+                          ? 'text-amber-300'
+                          : due.tone === 'emerald'
+                            ? 'text-emerald-300/80'
+                            : 'text-zinc-600'
+                      )}
+                    >
+                      {due.text}
+                    </span>
+                  </div>
                   <button
                     onClick={() => onEditCard(card)}
                     aria-label={`Edit card ${truncate(card.front, 24)}`}
@@ -1296,8 +1801,35 @@ function DeckScreen({
 }
 
 /* ================================================================== */
-/* Study screen — 3D flip card, grading, progress                      */
+/* Study screen — 3D flip card, 4-way grading, progress                */
 /* ================================================================== */
+
+const GRADE_BUTTONS: { grade: Grade; label: string; icon: ReactNode; btn: string }[] = [
+  {
+    grade: 'again',
+    label: 'Again',
+    icon: <X className="size-4" aria-hidden />,
+    btn: 'bg-gradient-to-r from-rose-400 to-rose-600 text-white shadow-lg shadow-rose-500/20 hover:from-rose-300 hover:to-rose-500',
+  },
+  {
+    grade: 'hard',
+    label: 'Hard',
+    icon: <Minus className="size-4" aria-hidden />,
+    btn: 'bg-gradient-to-r from-amber-300 to-amber-500 text-zinc-950 shadow-lg shadow-amber-500/20 hover:from-amber-200 hover:to-amber-400',
+  },
+  {
+    grade: 'good',
+    label: 'Good',
+    icon: <Check className="size-4" aria-hidden />,
+    btn: 'bg-gradient-to-r from-emerald-300 to-emerald-500 text-zinc-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-200 hover:to-emerald-400',
+  },
+  {
+    grade: 'easy',
+    label: 'Easy',
+    icon: <Zap className="size-4" aria-hidden />,
+    btn: 'bg-gradient-to-r from-violet-400 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25 hover:from-violet-300 hover:to-fuchsia-500',
+  },
+]
 
 function StudyScreen({
   deck,
@@ -1316,12 +1848,13 @@ function StudyScreen({
   flipped: boolean
   shuffle: boolean
   onFlip: () => void
-  onGrade: (result: Grade) => void
+  onGrade: (grade: Grade) => void
   onExit: () => void
   onToggleShuffle: () => void
 }) {
   const accent = accentOf(deck.color)
   const progress = session.queue.length === 0 ? 0 : Math.round((session.index / session.queue.length) * 100)
+  const isDue = session.mode === 'due'
 
   return (
     <div className="p-4 sm:p-5">
@@ -1339,23 +1872,35 @@ function StudyScreen({
             {deck.emoji ? `${deck.emoji} ` : ''}
             {deck.name}
           </p>
-          <p className="text-[11px] tabular-nums text-zinc-500">
-            {session.index} of {session.queue.length} graded
-          </p>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span
+              className={cn(
+                'rounded-full px-2 py-px text-[9px] font-bold uppercase tracking-wider',
+                isDue ? 'bg-amber-400/15 text-amber-300' : 'bg-violet-400/15 text-violet-300'
+              )}
+            >
+              {isDue ? 'Due now' : 'All cards'}
+            </span>
+            <span className="text-[11px] tabular-nums text-zinc-500">
+              {session.index} of {session.queue.length} graded
+            </span>
+          </div>
         </div>
-        <button
-          onClick={onToggleShuffle}
-          aria-pressed={shuffle}
-          aria-label="Shuffle remaining cards"
-          className={cn(
-            'flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors',
-            shuffle
-              ? 'border-violet-400/30 bg-violet-500/15 text-violet-300'
-              : 'border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'
-          )}
-        >
-          <Shuffle className="size-4.5" aria-hidden />
-        </button>
+        {!isDue && (
+          <button
+            onClick={onToggleShuffle}
+            aria-pressed={shuffle}
+            aria-label="Shuffle remaining cards"
+            className={cn(
+              'flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors',
+              shuffle
+                ? 'border-violet-400/30 bg-violet-500/15 text-violet-300'
+                : 'border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'
+            )}
+          >
+            <Shuffle className="size-4.5" aria-hidden />
+          </button>
+        )}
       </div>
 
       {/* progress bar */}
@@ -1389,13 +1934,16 @@ function StudyScreen({
         >
           {/* front face */}
           <div className="absolute inset-0 flex flex-col rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-5 [backface-visibility:hidden]">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
                 Front
               </span>
-              <span className="text-[10px] font-semibold tabular-nums text-zinc-500">
-                {card.correct}✓ · {card.wrong}✗
-              </span>
+              <div className="flex items-center gap-2">
+                <SrsChip card={card} />
+                <span className="text-[10px] font-semibold tabular-nums text-zinc-500">
+                  {card.correct}✓ · {card.wrong}✗
+                </span>
+              </div>
             </div>
             <div className="flex min-h-0 flex-1 items-center overflow-y-auto py-3">
               <p className="w-full whitespace-pre-wrap break-words text-xl font-semibold leading-snug text-zinc-100">
@@ -1412,16 +1960,19 @@ function StudyScreen({
             className="absolute inset-0 flex flex-col rounded-3xl border bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]"
             style={{ borderColor: `${accent.hex}55` }}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span
                 className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
                 style={{ color: accent.hex, backgroundColor: `${accent.hex}1f` }}
               >
                 Back
               </span>
-              <span className="text-[10px] font-semibold tabular-nums text-zinc-500">
-                {card.correct}✓ · {card.wrong}✗
-              </span>
+              <div className="flex items-center gap-2">
+                <SrsChip card={card} />
+                <span className="text-[10px] font-semibold tabular-nums text-zinc-500">
+                  {card.correct}✓ · {card.wrong}✗
+                </span>
+              </div>
             </div>
             <div className="flex min-h-0 flex-1 items-center overflow-y-auto py-3">
               <p className="w-full whitespace-pre-wrap break-words text-xl font-semibold leading-snug text-zinc-100">
@@ -1445,20 +1996,25 @@ function StudyScreen({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-              className="flex gap-2.5"
             >
-              <Button
-                onClick={() => onGrade('wrong')}
-                className="h-12 flex-1 rounded-xl bg-gradient-to-r from-rose-400 to-rose-600 text-base font-bold text-white shadow-lg shadow-rose-500/20 hover:from-rose-300 hover:to-rose-500"
-              >
-                <X className="size-4.5" aria-hidden /> Again
-              </Button>
-              <Button
-                onClick={() => onGrade('correct')}
-                className="h-12 flex-1 rounded-xl bg-gradient-to-r from-emerald-300 to-emerald-500 text-base font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-200 hover:to-emerald-400"
-              >
-                <Check className="size-4.5" aria-hidden /> Got it
-              </Button>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {GRADE_BUTTONS.map((g) => (
+                  <button
+                    key={g.grade}
+                    onClick={() => onGrade(g.grade)}
+                    aria-label={`Grade ${g.label}, next review ${gradePreview(card, g.grade)}`}
+                    className={cn(
+                      'flex h-12 flex-col items-center justify-center rounded-xl text-sm font-bold shadow-md transition-all active:scale-95',
+                      g.btn
+                    )}
+                  >
+                    <span className="flex items-center gap-1">
+                      {g.icon} {g.label}
+                    </span>
+                    <span className="text-[10px] font-semibold opacity-80">{gradePreview(card, g.grade)}</span>
+                  </button>
+                ))}
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -1478,7 +2034,7 @@ function StudyScreen({
           )}
         </AnimatePresence>
         <p className="mt-3 text-center text-[11px] text-zinc-600">
-          Missed cards come back at the end of the session
+          Again cards come back at the end of the session · keys 1–4 grade
         </p>
       </div>
     </div>
@@ -1486,27 +2042,55 @@ function StudyScreen({
 }
 
 /* ================================================================== */
-/* Summary screen — session results + all-time stats                   */
+/* Summary screen — graded counts, next due preview, all-time stats    */
 /* ================================================================== */
 
 function SummaryScreen({
   deck,
   stats,
   summary,
-  got,
-  again,
+  counts,
+  mode,
   onAgain,
   onBack,
 }: {
   deck: Deck
   stats: DeckStats
   summary: { unique: number; firstTry: number; accuracy: number }
-  got: number
-  again: number
+  counts: { again: number; hard: number; good: number; easy: number }
+  mode: StudyMode
   onAgain: () => void
   onBack: () => void
 }) {
   const accent = accentOf(deck.color)
+  const today = todayKey()
+  const tomorrow = addDaysKey(1)
+  let dueTomorrow = 0
+  let dueToday = 0
+  for (const c of deck.cards) {
+    if (c.due === tomorrow) dueTomorrow++
+    else if (c.due <= today) dueToday++
+  }
+  const streak = reviewStreak(deck.reviewLog)
+
+  const tiles: { grade: Grade; label: string; cls: string }[] = [
+    { grade: 'again', label: 'Again', cls: 'border-rose-400/20 bg-rose-500/10' },
+    { grade: 'hard', label: 'Hard', cls: 'border-amber-400/20 bg-amber-500/10' },
+    { grade: 'good', label: 'Good', cls: 'border-emerald-400/20 bg-emerald-500/10' },
+    { grade: 'easy', label: 'Easy', cls: 'border-violet-400/20 bg-violet-500/10' },
+  ]
+  const tileText: Record<Grade, string> = {
+    again: 'text-rose-200',
+    hard: 'text-amber-200',
+    good: 'text-emerald-200',
+    easy: 'text-violet-200',
+  }
+  const tileLabel: Record<Grade, string> = {
+    again: 'text-rose-300/80',
+    hard: 'text-amber-300/80',
+    good: 'text-emerald-300/80',
+    easy: 'text-violet-300/80',
+  }
 
   return (
     <div className="space-y-4 p-4 sm:p-5">
@@ -1515,20 +2099,47 @@ function SummaryScreen({
         <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-400 via-purple-500 to-fuchsia-600 text-white shadow-lg">
           <GraduationCap className="size-6" aria-hidden />
         </span>
-        <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Session complete</p>
+        <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          {mode === 'due' ? 'Due session complete' : 'Session complete'}
+        </p>
         <p className="mt-1 text-5xl font-black tracking-tight text-white">{summary.accuracy}%</p>
         <p className="mt-1 text-xs text-zinc-400">
           first-try accuracy · {summary.unique} {summary.unique === 1 ? 'card' : 'cards'}
         </p>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/80">Got it</p>
-            <p className="text-xl font-black tabular-nums text-emerald-200">{got}</p>
-          </div>
-          <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-300/80">Again</p>
-            <p className="text-xl font-black tabular-nums text-rose-200">{again}</p>
-          </div>
+        <div className="mt-4 grid grid-cols-4 gap-1.5">
+          {tiles.map((t) => (
+            <div key={t.grade} className={cn('rounded-xl border px-1.5 py-2', t.cls)}>
+              <p className={cn('text-[9px] font-semibold uppercase tracking-wider', tileLabel[t.grade])}>{t.label}</p>
+              <p className={cn('text-lg font-black tabular-nums', tileText[t.grade])}>{counts[t.grade]}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* next due preview */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <p className="flex items-center gap-2 text-sm font-bold">
+          <Clock className="size-4 text-amber-300" aria-hidden /> What&apos;s next
+        </p>
+        <div className="mt-2 space-y-1.5 text-xs">
+          {dueTomorrow > 0 && (
+            <p className="flex items-center gap-2 text-zinc-300">
+              <CalendarGlyph /> <span>
+                <b className="tabular-nums text-zinc-100">{dueTomorrow}</b> {dueTomorrow === 1 ? 'card' : 'cards'} due
+                tomorrow
+              </span>
+            </p>
+          )}
+          {dueToday > 0 && (
+            <p className="flex items-center gap-2 text-amber-300/90">
+              <Clock className="size-3.5 shrink-0" aria-hidden /> <span>
+                <b className="tabular-nums">{dueToday}</b> {dueToday === 1 ? 'card' : 'cards'} still due today
+              </span>
+            </p>
+          )}
+          {dueTomorrow === 0 && dueToday === 0 && (
+            <p className="text-zinc-500">Nothing scheduled — check back in a few days ☕</p>
+          )}
         </div>
       </div>
 
@@ -1552,7 +2163,7 @@ function SummaryScreen({
             transition={{ type: 'spring', stiffness: 120, damping: 24 }}
           />
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
           <div className="rounded-xl bg-white/[0.04] px-2 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Graded</p>
             <p className="text-sm font-bold tabular-nums text-zinc-100">{stats.gradings}</p>
@@ -1562,6 +2173,10 @@ function SummaryScreen({
             <p className="text-sm font-bold tabular-nums text-emerald-300">
               {stats.mastered}/{deck.cards.length}
             </p>
+          </div>
+          <div className="rounded-xl bg-white/[0.04] px-2 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300/80">Streak</p>
+            <p className="text-sm font-bold tabular-nums text-amber-300">{streak}d</p>
           </div>
           <div className="rounded-xl bg-white/[0.04] px-2 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Cards</p>
@@ -1576,11 +2191,123 @@ function SummaryScreen({
           onClick={onAgain}
           className="h-11 flex-1 rounded-xl bg-gradient-to-r from-violet-400 via-purple-500 to-fuchsia-600 font-semibold text-white shadow-lg hover:from-violet-300 hover:via-purple-400 hover:to-fuchsia-500"
         >
-          <RotateCw className="size-4" aria-hidden /> Study again
+          <RotateCw className="size-4" aria-hidden /> {mode === 'due' ? 'Review again' : 'Study again'}
         </Button>
         <Button
           onClick={onBack}
           className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 font-semibold text-zinc-100 shadow-none hover:bg-white/10"
+          variant="ghost"
+        >
+          <ArrowLeft className="size-4" aria-hidden /> Back to deck
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Small calendar glyph for the "due tomorrow" line. */
+function CalendarGlyph() {
+  return (
+    <span
+      className="flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border border-zinc-500 text-[7px] font-black leading-none text-zinc-400"
+      aria-hidden
+    >
+      31
+    </span>
+  )
+}
+
+/* ================================================================== */
+/* Caught-up screen — celebratory empty due queue                      */
+/* ================================================================== */
+
+function CaughtUpScreen({
+  deck,
+  onStudyAll,
+  onBack,
+}: {
+  deck: Deck
+  onStudyAll: () => void
+  onBack: () => void
+}) {
+  const today = todayKey()
+  const tomorrow = addDaysKey(1)
+  let dueTomorrow = 0
+  let earliest: string | null = null
+  for (const c of deck.cards) {
+    if (c.due === tomorrow) dueTomorrow++
+    if (c.due > today && (earliest === null || c.due < earliest)) earliest = c.due
+  }
+  const nextIn = earliest ? daysBetweenKeys(today, earliest) : null
+
+  return (
+    <div className="flex flex-col items-center px-6 py-12 text-center">
+      <motion.span
+        initial={{ scale: 0.3, rotate: -14, opacity: 0 }}
+        animate={{ scale: 1, rotate: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 13 }}
+        className="relative flex size-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-400 via-purple-500 to-fuchsia-600 text-white shadow-[0_18px_44px_-12px_rgb(168_85_247/0.75)]"
+      >
+        <PartyPopper className="size-9" aria-hidden />
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className={cn(
+              'absolute size-1.5 rounded-full',
+              i === 0 ? 'bg-amber-300' : i === 1 ? 'bg-fuchsia-300' : 'bg-emerald-300'
+            )}
+            style={{ left: `${20 + i * 28}%`, top: `${i === 1 ? -6 : 8}%` }}
+            initial={{ y: 6, opacity: 0 }}
+            animate={{ y: -10 - i * 4, opacity: [0, 1, 0] }}
+            transition={{ duration: 1.2, delay: 0.25 + i * 0.18, repeat: Infinity, repeatDelay: 1.6 }}
+            aria-hidden
+          />
+        ))}
+      </motion.span>
+
+      <motion.h3
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12, type: 'spring', stiffness: 320, damping: 26 }}
+        className="mt-5 text-xl font-black tracking-tight text-white"
+      >
+        All caught up! 🎉
+      </motion.h3>
+      <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-zinc-400">
+        Nothing is due in {deck.emoji || ''} {deck.name} right now. Spaced repetition will bring the right cards back
+        at the right time.
+      </p>
+
+      {(dueTomorrow > 0 || nextIn !== null) && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, type: 'spring', stiffness: 320, damping: 26 }}
+          className="mt-4 flex flex-wrap items-center justify-center gap-2"
+        >
+          {dueTomorrow > 0 && (
+            <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-300">
+              {dueTomorrow} {dueTomorrow === 1 ? 'card' : 'cards'} due tomorrow
+            </span>
+          )}
+          {nextIn !== null && nextIn > 1 && (
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-300">
+              Next review in {nextIn} days
+            </span>
+          )}
+        </motion.div>
+      )}
+
+      <div className="mt-7 flex w-full max-w-xs flex-col gap-2.5">
+        <Button
+          onClick={onStudyAll}
+          className="h-11 w-full rounded-xl bg-gradient-to-r from-violet-400 via-purple-500 to-fuchsia-600 font-semibold text-white shadow-lg hover:from-violet-300 hover:via-purple-400 hover:to-fuchsia-500"
+        >
+          <Play className="size-4" aria-hidden /> Study all cards anyway
+        </Button>
+        <Button
+          onClick={onBack}
+          className="h-11 w-full rounded-xl border border-white/10 bg-white/5 font-semibold text-zinc-100 shadow-none hover:bg-white/10"
           variant="ghost"
         >
           <ArrowLeft className="size-4" aria-hidden /> Back to deck

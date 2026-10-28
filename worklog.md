@@ -1907,3 +1907,76 @@ Stage Summary:
 - All prior features preserved: EMI/total interest/total payment math, yearly amortization schedule table, validation, empty state
 - New localStorage namespace 'toolhub-emi' (NOTE for main agent: if backup-restore.tsx enumerates tool localStorage keys, add 'toolhub-emi' in a QA pass — harmless no-op today)
 - Caveat: charts/AnimatedMoney render client-side only (dynamic import); prepayment + compare math is pure simulation, no APIs
+---
+Task ID: P4-3c (D59 AI Writer)
+Agent: subagent
+Task: AI Writer — templates, tone/length controls, streaming generation, history
+
+Work Log:
+- Read context: worklog tail, /api/ai/stream/route.ts (NDJSON {t:'delta'|'done'|'error'}, system messages allowed, 8000-char/24-msg clamps), expense-tracker.tsx (dark-glass shell + IndexedDB write-through: onupgradeneeded → dbPromise singleton → idbGetAll/idbPut/idbDelete → setState FIRST then void idbPut(...).catch), translator.tsx (AI text app structure, buzz/copyText/two-tap-adjacent patterns)
+- NEW src/components/tools/ai-writer.tsx ('use client', default export AiWriterApp, ~1050 lines) — did NOT touch registry.tsx or the stream route
+- Template picker: 8 templates (Email ✉️, Social 📣, Caption 🏷️, Summary 📝, Blog Intro 🖋️, Product Description 🛍️, Reply ↩️, Ideas 💡) each with emoji, short chip label, full title, input schema (shared 'topic' + 'notes' keys so switching templates preserves text; Email adds optional 'recipient'), and per-template build(fields) prompt function
+- Controls: 6 tone pills (Professional/Friendly/Funny/Persuasive/Formal/Casual) + 3 length pills (Short ~50 / Medium ~120 / Long ~250 words) feeding system prompt "You are a professional copywriter. Respond with ONLY the requested writing, no preamble. Tone: <tone>. Target length: about N words. Never explain or annotate what you wrote."
+- Streaming client (first consumer of /api/ai/stream): POST [system,user] → res.body.getReader() + TextDecoder({stream:true}) + '\n' line-buffer NDJSON parse; delta appends to acc and setOutput(acc); server error events thrown → error chip; !res.ok parses {error} JSON; AbortController Stop keeps partial text (status done if partial, idle + cleared if nothing); empty-response → "Tap Retry"; buzz(12) on completion; generate() auto-scrolls to result card
+- Result card: font-serif text-[15px]/1.8 whitespace-pre-wrap with framer-motion blinking caret (opacity [1,1,0,0] times, repeat Infinity) while streaming; "Putting pen to paper…" Loader2 state before first delta; meta row = template emoji+title · tone · length · {words}w · {chars}c (max-h-[420px] overflow-y-auto custom fuchsia scrollbar); actions grid Copy (clipboard + 1.6s check flip) / Share (navigator.share → clipboard+toast fallback, AbortError-swallowing) / Again (replays lastPromptRef exactly) / Save; resultMeta tracks which template/tone/length actually produced the output (survives template switching + history reopen)
+- Error chip: rose alert with message + min-h-11 Retry (regenerate)
+- History tab: IndexedDB 'toolhub-aiwriter' v1 store 'docs' {id, templateId, tone, length, topic, content, createdAt, fields?}; hydration useEffect alive-flag + idbGetAll sorted createdAt desc, best-effort trim >300 docs; reopen loads content into result card AND restores templateId/tone/length/fields (faithful regeneration), switches to Write tab, scrolls to result; delete = two-tap confirm (Trash2 → w-16 rose "Sure?" with 2.6s auto-reset timer ref); search input filters by topic text (X clear button); history count badge on tab pill
+- Design: writer-studio dark-glass zinc-950 rounded-3xl card, gradient identity from-violet-400 via-fuchsia-500 to-pink-500 + #d946ef glow (header tile shadow rgb(217_70_239/0.7)), Feather icon, header gradient wash violet→pink, "Writing…" pulsing live badge while streaming; tab bar layoutId "aiwriter-tab-pill" spring 340/30; AnimatePresence mode="wait" tab panels + result/error/empty spring mounts (320/28); pill chips with ring-1 consistent sizing; empty states premium (gradient orb Feather tile / SearchX no-match)
+- Responsive/a11y: 4-col template grid at 360px → sm:grid-cols-8; all touch targets ≥44px (h-11 min: chips, tabs, actions, Retry, search clear); role=tablist/tab + aria-selected, aria-pressed chips, aria-busy streaming card, aria-labels on icon buttons, role=alert error chip; English UI; no new npm packages
+- Verified: bunx tsc --noEmit clean; bun run lint clean (whole project); registry.tsx + /api/ai/stream/route.ts untouched; no dev server started/stopped (dev.log healthy GET / 200)
+
+Stage Summary:
+- AI Writer shipped: 8-template prompt studio (Email/Social/Caption/Summary/Blog Intro/Product Description/Reply/Ideas) with per-template schemas + prompt builders, 6 tones × 3 lengths feeding the copywriter system prompt
+- First live consumer of POST /api/ai/stream — NDJSON line-buffered streaming with blinking caret, Stop (keeps partial), error chip + Retry, exact-prompt Regenerate
+- IndexedDB database 'toolhub-aiwriter' store 'docs' (records: id, templateId, tone, length, topic, content, createdAt, fields) with write-through mutations, hydration alive-flag, 300-doc cap
+- Result actions: Copy / Web Share (clipboard fallback) / Again / Save; reopen-from-history restores full control state for faithful regeneration
+- NOTE for main agent: wire 'ai-writer' into src/lib/tools/registry.tsx (default export AiWriterApp) — file left untouched per task rules; backend /api/ai/stream works as final (no backend bugs encountered)
+---
+Task ID: P4-3a (D57 Flashcards v2)
+Agent: subagent
+Task: Flashcards v2 — SM-2 lite spaced repetition, due queue, grading, deck stats
+
+Work Log:
+- Read worklog tail + flashcards.tsx (1591 lines) end-to-end; kept violet identity ('from-violet-400 via-purple-500 to-fuchsia-600', #a855f7 glow), 3D flip, deck CRUD, search-free list, IndexedDB write-through, two-tap deletes, shuffle toggle, all modals
+- Extended FlashCard with scheduling state {ease(2.5, clamp 1.3–3.5), intervalDays(0), due(YYYY-MM-DD local key), reps, lapses}; Deck gains reviewLog: Record<dateKey, count>. DB name/version/store untouched ('toolhub-flashcards' v1, keyPath id) — values are JSON so no IDB schema migration needed
+- Migration on load: normalizeCard/normalizeReviewLog give missing fields safe defaults (old lastResult 'correct'→'good', 'wrong'→'again'); invalid/missing due → today; never crashes, migrated decks write back on next natural mutation
+- SM-2 lite scheduler nextSchedule(): Again → interval 0/due today/ease −0.2 (min 1.3)/lapse++; Hard → ×1.2 (first step 1d)/ease −0.15; Good → ×ease (first success 1d); Easy → ×ease×1.3 (first 4d, min 4)/ease +0.15; due = today + interval; reps++ every grade; correct/wrong all-time counters preserved (non-again/again) so accuracy stats stay continuous
+- Study modes: "Study all" (existing shuffled flow) + "Due now" — queue filtered due ≤ today, sorted by due asc then lapses desc; no shuffle in due mode (SRS order); Again cards re-queue at session end in both modes; empty due queue → celebratory CaughtUpScreen (PartyPopper spring, staggered sparkles, "N cards due tomorrow"/"Next review in Nd", study-all-anyway escape hatch)
+- Grading UI: 4 buttons post-flip (Again rose / Hard amber / Good emerald / Easy violet-gradient) in 2×2 grid at 360px → 4-col sm+, each with next-interval preview ("today"/"3d"); haptic 12 on grade, [12,40,12] on Again; keyboard 1–4 + ←/→
+- Deck screen upgrades: bucket chips (Due today amber / Learning sky = reps<2 or interval<4 / Mature emerald = interval≥21 / Total), segmented learning-young-mature maturity bar, recharts 7-day due forecast BarChart (amber bars, tick={{fill:'#71717a',fontSize:9}}, dark TOOLTIP_STYLE), 🔥 streak from reviewLog + total reviews line; per-card due labels in list (due now amber / in Nd / new) + grade-colored status dots
+- Session summary v2: 4 graded-count tiles, first-try accuracy %, "What's next" due preview (N due tomorrow / N still due today / nothing scheduled), all-time card now 4 tiles (Graded/Mastered/Streak/Cards)
+- Home deck rows show amber "N due" pill; new-card creation seeds scheduling defaults; startStudy(deck, mode) signature; Screen type + 'caught'
+- Verify: bunx tsc --noEmit clean; bun run lint exit 0; no new npm packages (recharts 2.15.4 already present); registry.tsx untouched; no dev servers started/stopped (dev.log shows healthy GET / 200)
+
+Stage Summary:
+- Flashcards v2 shipped in-place: SM-2 lite scheduling with Again/Hard/Good/Easy grading, due-now queue with all-caught-up celebration, per-deck bucket chips + maturity bar + 7-day due forecast chart, review streak via per-deck reviewLog, upgraded session summary with next-due preview
+- IndexedDB shape change (backward compatible): same DB/store; Deck.cards[*] gain ease/intervalDays/due/reps/lapses (defaults on read for v1 data), Deck gains reviewLog {}; v1 lastResult 'correct'/'wrong' maps to 'good'/'again'; writes are full-deck puts so old→new reads are the only compat path needed
+- Scheduling math is deterministic & local-time based (YYYY-MM-DD keys compare lexicographically); no uploads, no APIs, all offline
+- NOTE for main agent: version bump in registry.tsx is yours per plan; no other tool shares the 'toolhub-flashcards' namespace
+---
+Task ID: P4-3b (D58 AI Chat v2)
+Agent: subagent
+Task: AI Chat v2 — streaming, personas, conversation history, markdown-lite
+
+Work Log:
+- Read worklog tail, old ai-chat.tsx (POST /api/ai non-streaming, light Card UI), final /api/ai/stream route, and expense-tracker dark-glass + IndexedDB patterns
+- Rewrote src/components/tools/ai-chat.tsx in place (default export 'use client', ~1640 lines); react-markdown import removed — markdown now rendered by an in-house deterministic tokenizer (no new packages)
+- Streaming: POST /api/ai/stream with {messages:[{role:'system',...persona.system}, ...history.slice(-12)]}; res.body.getReader() + TextDecoder({stream:true}), buffer split on '\n' (pop tail), JSON.parse per line: {t:'delta',v} appends into streamText + blinking amber cursor block, {t:'done'} / {t:'error',v} tracked; !res.ok or missing body → error surfaced from {error} JSON; AbortError → keep partial
+- Finalize path: commits partial/full assistant msg (batched with streamText reset), saves conversation; distinguishable empty cases: aborted→"Stopped before the assistant replied", !done→"connection ended", done+empty→"empty response" — all as inline retry chips; retry strips trailing assistant msgs and re-runs
+- Stop button (AbortController, size-11 destructive) replaces Send while streaming; partial reply is committed + saved on stop
+- Conversations: IndexedDB 'toolhub-aichat' v1 store 'conversations' keyPath 'id'; auto-title = first user message collapsed whitespace, truncated 32 chars + '…'; user turn persisted immediately on send (visible in sidebar at once), re-saved after each completed exchange and on stop; open/delete (two-tap confirm w/ 2.6s timeout, red "sure" state); new chat = lazy id creation; deleting active conv → new chat
+- Sidebar on lg (w-64 aside, new-chat gradient button, list with persona emoji + msg count + relTime); mobile: PanelLeft header button opens framer spring slide-in drawer (fixed, backdrop blur, Escape/backdrop close, role=dialog aria-modal)
+- Personas: 6 entries {id,name,emoji,system} — 🤖 Assistant, ✍️ Writing helper, 🌐 Translator (reply only with translation), 🧑‍🏫 Teacher, 💻 Code helper, 💡 Brainstormer; horizontally scrollable chip radiogroup under header; active persona persisted in localStorage 'toolhub.aichat.persona', active conv id in 'toolhub.aichat.active'; mid-conversation switch shows amber hint "<persona> takes over with your next message"; opening a conversation restores its persona
+- Markdown-lite: splitFences (regex mark pairing; unterminated trailing fence renders as open code block for streaming), makeCode (first-line lang detection), per-line TextBlockView (## / ### → h3/h4, - * • ul, \d+. ol with start attr, > blockquote, per-line <p>), renderInline earliest-match scanner (`code` → **bold** (recursive) → *italic* → bare https URLs clickable), code blocks = bg-black/40 rounded-xl with lang label + copy button
+- Extras: copy on user + assistant messages (clipboard w/ fallback silence), regenerate last response (RotateCcw on last assistant bubble), clear conversation (header two-tap), msg-count + ~tokens chip (chars/4, k-format), legacy migration: v1 'toolhub.ai-chat.messages' localStorage → imported as a conversation on first run (key removed after)
+- Auto-scroll: stickRef updated in onScroll (near-bottom <140px); messages/error/streamWait → smooth scroll; streamText deltas → instant scroll only when stuck; conversation open forces stick=true, hydration restore sets stick=false (no yank)
+- Design: dark-glass zinc-950 card (border-white/10, 0_24px_60px_-24px shadow), amber/orange/rose identity kept ('from-amber-300 via-orange-500 to-rose-500', glow #f59e0b shadows), user bubbles = amber→rose gradient, assistant = white/[0.06] glass, framer spring (340/28) on bubbles, typing dots preserved, custom thin white scrollbars
+- Responsive: lg fixed-height two-column card, mobile 56vh messages + drawer; 44px+ touch targets everywhere (size-10 header icons w/ after:-inset-1, size-8 list icons w/ after:-inset-1.5, h-10 persona chips w/ after:-inset-y-1.5, min-h-11 rows/chips, size-11 send/stop)
+- Verified: bunx tsc --noEmit clean; bun run lint clean (whole project); no new npm packages; registry.tsx + /api/ai/stream/route.ts untouched; no dev server started/stopped (dev.log healthy, GET / 200); direct curl/fetch smoke-test of the endpoint from the shell was unreachable (sandbox network namespace: ConnectionRefused on 127.0.0.1:3000 — not a backend issue, UI-side protocol matches the route source exactly)
+
+Stage Summary:
+- AI Chat v2 shipped: NDJSON streaming with live markdown rendering + blinking cursor, Stop/regenerate/retry, 6 system personas, multi-conversation history (sidebar + mobile drawer), markdown-lite renderer (fences/headings/lists/quotes/bold/italic/inline-code/links), copy everywhere, msg/token chip, dark-glass amber identity
+- IndexedDB 'toolhub-aichat' v1 store 'conversations': { id, title, personaId, messages: [{role:'user'|'assistant', content, createdAt}], updatedAt }; localStorage mirrors: 'toolhub.aichat.persona' (active persona), 'toolhub.aichat.active' (active conversation id); legacy 'toolhub.ai-chat.messages' auto-migrated then removed
+- Streaming protocol usage: request {messages:[system?, ...tail(≤12)]} (last must be user); response lines {t:'delta',v}|{t:'done'}|{t:'error',v} parsed with TextDecoder line-buffering; non-OK responses are JSON {error} → retry chip
+- No backend bugs found in /api/ai/stream (source-reviewed only; endpoint unreachable from agent shell due to sandbox networking, dev server itself healthy per dev.log)
+- NOTE for main agent: registry version bump for ai-chat (1.3.0 → suggest 2.0.0) still pending in registry.tsx per hand-off rules

@@ -79,6 +79,7 @@ import {
   MoonStar,
   CalendarHeart,
   Fuel,
+  PenLine,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -185,6 +186,7 @@ const RandomToolsApp = load(() => import('@/components/tools/random-tools'))
 const PrayerTimesApp = load(() => import('@/components/tools/prayer-times'))
 const CycleTrackerApp = load(() => import('@/components/tools/cycle-tracker'))
 const TravelFuelApp = load(() => import('@/components/tools/travel-fuel'))
+const AiWriterApp = load(() => import('@/components/tools/ai-writer'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -536,15 +538,15 @@ export const tools: Tool[] = [
   {
     id: 'ai-chat',
     name: 'AI Assistant',
-    description: 'Ask anything — write, translate, summarize and brainstorm',
+    description: 'Ask anything — streaming replies, 6 personas, saved conversations and markdown rendering',
     tagline: 'A smart friend, always ready',
     category: 'utilities',
     icon: Bot,
     gradient: 'from-amber-300 via-orange-500 to-rose-500',
     glow: '#f59e0b',
-    keywords: ['ai', 'chat', 'assistant', 'gpt', 'writer', 'translate', 'summarize', 'bot'],
+    keywords: ['ai', 'chat', 'assistant', 'gpt', 'writer', 'translate', 'summarize', 'bot', 'persona', 'streaming'],
     featured: true,
-    version: '1.3.0',
+    version: '2.0.0',
     Component: AiChatApp,
   },
   {
@@ -926,9 +928,9 @@ export const tools: Tool[] = [
     icon: Layers,
     gradient: 'from-violet-400 via-purple-500 to-fuchsia-600',
     glow: '#a855f7',
-    keywords: ['flashcards', 'deck', 'study', 'memorize', 'learn', 'revision', 'exam', 'quiz', 'cards', 'flip', 'practice'],
+    keywords: ['flashcards', 'deck', 'study', 'memorize', 'learn', 'revision', 'exam', 'quiz', 'cards', 'flip', 'practice', 'spaced repetition', 'srs'],
     featured: true,
-    version: '1.0.0',
+    version: '2.0.0',
     Component: FlashcardsApp,
   },
   {
@@ -1162,6 +1164,20 @@ export const tools: Tool[] = [
     keywords: ['font', 'typography', 'typeface', 'text style', 'quote card', 'specimen', 'lettering'],
     version: '1.0.0',
     Component: FontPlaygroundApp,
+  },
+  {
+    id: 'ai-writer',
+    name: 'AI Writer',
+    description: 'Generate emails, posts, captions and summaries in your tone and length — streaming, with history',
+    tagline: 'Write anything, effortlessly',
+    category: 'text',
+    icon: PenLine,
+    gradient: 'from-violet-400 via-fuchsia-500 to-pink-500',
+    glow: '#d946ef',
+    keywords: ['ai writer', 'copywriting', 'email', 'caption', 'post', 'summary', 'blog', 'draft', 'tone', 'write'],
+    featured: true,
+    version: '1.0.0',
+    Component: AiWriterApp,
   },
 ]
 

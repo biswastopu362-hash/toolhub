@@ -752,9 +752,16 @@ export default function PrayerTimesApp() {
 
   const applyLocation = useCallback(
     (latNum: number, lngNum: number, city: string) => {
-      const base: PrayerSettings =
-        settingsRef.current ?? { lat: latNum, lng: lngNum, city, method: 1, school: 1, adhanOn: false }
-      changeSettings({ ...base, lat: latNum, lng: lngNum, city })
+      /* Write directly — changeSettings bails when no settings row exists yet,
+         which is exactly the first-run "location not set" case. */
+      const next: PrayerSettings = settingsRef.current
+        ? { ...settingsRef.current, lat: latNum, lng: lngNum, city }
+        : { lat: latNum, lng: lngNum, city, method: 1, school: 1, adhanOn: false }
+      settingsRef.current = next
+      setSettings(next)
+      void idbPut(STORE_SET, { key: 'settings', value: next } satisfies SetRow).catch(() => {
+        /* memory-only fallback */
+      })
       setTomorrow(null)
       setLocOpen(false)
       setQuery('')
@@ -763,7 +770,7 @@ export default function PrayerTimesApp() {
       haptic()
       toast({ title: 'Location saved', description: city })
     },
-    [changeSettings, toast]
+    [toast]
   )
 
   const toggleAdhan = useCallback(() => {

@@ -133,7 +133,167 @@ const IDB_DBS: Record<string, DbMeta> = {
   },
   'toolhub-audio': {
     label: 'Music library',
-    stores: { tracks: { keyPath: 'id', label: 'Tracks' } },
+    stores: {
+      tracks: { keyPath: 'id', label: 'Tracks' },
+      playlists: { keyPath: 'id', label: 'Playlists' },
+    },
+  },
+  /* ---- Phase 1 ---- */
+  'toolhub-flashcards': {
+    label: 'Flashcards',
+    stores: { decks: { keyPath: 'id', label: 'Decks & cards' } },
+  },
+  'toolhub-habits': {
+    label: 'Habit Tracker',
+    stores: { habits: { keyPath: 'id', label: 'Habits & check-ins' } },
+  },
+  'toolhub-qr': {
+    label: 'QR history',
+    stores: { history: { keyPath: 'id', label: 'Generated codes' } },
+  },
+  /* ---- Phase 2 ---- */
+  'toolhub-decks': {
+    label: 'Presentation Studio',
+    stores: { decks: { keyPath: 'id', label: 'Presentations' } },
+  },
+  'toolhub-resumes': {
+    label: 'Resume Builder',
+    stores: { resumes: { keyPath: 'id', label: 'Resumes' } },
+  },
+  'toolhub-invoices': {
+    label: 'Invoice Generator',
+    stores: { invoices: { keyPath: 'id', label: 'Invoices' } },
+  },
+  'toolhub-markdown': {
+    label: 'Markdown Studio',
+    stores: { docs: { keyPath: 'id', label: 'Documents' } },
+  },
+  'toolhub-snippets': {
+    label: 'Code Editor',
+    stores: { snippets: { keyPath: 'id', label: 'Snippets' } },
+  },
+  'toolhub-taskboard': {
+    label: 'Task Board',
+    stores: { boards: { keyPath: 'id', label: 'Boards' } },
+  },
+  'toolhub-businesscard': {
+    label: 'Business Card Maker',
+    stores: { cards: { keyPath: 'id', label: 'Cards' } },
+  },
+  /* ---- Phase 3 ---- */
+  'toolhub-screenrec': {
+    label: 'Screen Recorder',
+    stores: { recordings: { keyPath: 'id', label: 'Recording history' } },
+  },
+  'toolhub-gifmaker': {
+    label: 'GIF Maker',
+    stores: { history: { keyPath: 'id', label: 'GIF history' } },
+  },
+  'toolhub-videoconv': {
+    label: 'Video Converter',
+    stores: { history: { keyPath: 'id', label: 'Conversion history' } },
+  },
+  'toolhub-memes': {
+    label: 'Meme Maker',
+    stores: { memes: { keyPath: 'id', label: 'Saved memes' } },
+  },
+  'toolhub-collage': {
+    label: 'Collage Maker',
+    stores: { collages: { keyPath: 'id', label: 'Collages' } },
+  },
+  'toolhub-stickers': {
+    label: 'Sticker Studio',
+    stores: { stickers: { keyPath: 'id', label: 'Stickers' } },
+  },
+  'toolhub-subtitles': {
+    label: 'Subtitle Studio',
+    stores: { projects: { keyPath: 'id', label: 'Projects' } },
+  },
+  'toolhub-fontplay': {
+    label: 'Font Playground',
+    stores: { cards: { keyPath: 'id', label: 'Quote cards' } },
+  },
+  'toolhub-voice-recorder': {
+    label: 'Voice Recorder',
+    stores: { recordings: { keyPath: 'id', label: 'Recordings' } },
+  },
+  /* ---- Phase 4 ---- */
+  'toolhub-weather': {
+    label: 'Weather',
+    stores: {
+      locations: { keyPath: 'id', label: 'Saved locations' },
+      cache: { keyPath: 'locationId', label: 'Forecast cache' },
+      settings: { keyPath: 'key', label: 'Settings' },
+    },
+  },
+  'toolhub-prayer': {
+    label: 'Prayer Times',
+    stores: {
+      settings: { keyPath: 'key', label: 'Location & method' },
+      cache: { keyPath: 'date', label: 'Timings cache' },
+    },
+  },
+  'toolhub-health': {
+    label: 'Health Tracker',
+    stores: {
+      metrics: { keyPath: 'key', label: 'Body profile' },
+      water: { keyPath: 'date', label: 'Water intake' },
+      weights: { keyPath: 'id', label: 'Weight log' },
+    },
+  },
+  'toolhub-workouts': {
+    label: 'Workout Planner',
+    stores: {
+      routines: { keyPath: 'id', label: 'Routines' },
+      history: { keyPath: 'id', label: 'Workout history' },
+      settings: { keyPath: 'key', label: 'Settings' },
+    },
+  },
+  'toolhub-recipes': {
+    label: 'Recipe Box',
+    stores: {
+      recipes: { keyPath: 'id', label: 'Recipes' },
+      planner: { keyPath: 'slot', label: 'Meal planner' },
+      settings: { keyPath: 'key', label: 'Settings' },
+    },
+  },
+  'toolhub-shopping': {
+    label: 'Shopping List',
+    stores: {
+      lists: { keyPath: 'id', label: 'Lists' },
+      items: { keyPath: 'id', label: 'Items' },
+    },
+  },
+  'toolhub-cycle': {
+    label: 'Cycle Tracker',
+    stores: {
+      periods: { keyPath: 'id', label: 'Period log' },
+      notes: { keyPath: 'date', label: 'Daily notes' },
+      settings: { keyPath: 'key', label: 'Settings' },
+    },
+  },
+  'toolhub-travel': {
+    label: 'Travel & Fuel',
+    stores: {
+      settings: { keyPath: 'key', label: 'Settings' },
+      fillups: { keyPath: 'id', label: 'Fill-ups' },
+      trips: { keyPath: 'id', label: 'Trips' },
+    },
+  },
+  'toolhub-currency': {
+    label: 'Currency Converter',
+    stores: {
+      cache: { keyPath: 'key', label: 'Rate cache' },
+      settings: { keyPath: 'key', label: 'Favorites & pair' },
+    },
+  },
+  'toolhub-aichat': {
+    label: 'AI Assistant',
+    stores: { conversations: { keyPath: 'id', label: 'Conversations' } },
+  },
+  'toolhub-aiwriter': {
+    label: 'AI Writer',
+    stores: { docs: { keyPath: 'id', label: 'Saved drafts' } },
   },
 }
 
