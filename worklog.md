@@ -2033,3 +2033,29 @@ Stage Summary:
 - Games category 1 → 5 apps; shared games store live at toolhub.games.v1 (backup-restore covers localStorage keys — scores ride along)
 - All 4 wave-1 games follow 2048 conventions: gradient header, chip selectors, h-11/48px targets, spring overlays, aria grids, vibrate feedback
 - Next: D65 Bangla Wordle → D68 Trivia Quiz (Wave 2)
+
+---
+Task ID: P5-W2 (Days 65–68)
+Agent: main (Z.ai Code)
+Task: Phase 5 Wave 2 — Bangla Wordle (D65), 2P Arcade (D66), Solitaire (D67), Trivia Quiz (D68)
+
+Work Log:
+- D65 bangla-wordle.tsx (~420 ln): 46 curated 5-code-point Bengali answers (no conjuncts → every tile is one code point), classic 🟩🟨⬛ scoring with used-letter pass, 6-row board + 60-key Bengali on-screen keyboard (vowels/consonants/signs, ⏎ + ⌫ rows), keyboard-hint coloring (correct>present>absent), streak🔥 persisted (`toolhub.wordle.streak`), share via navigator.share with clipboard fallback + emoji grid
+- D66 2p-arcade.tsx (~430 ln): tab between Tic-Tac-Toe (pass-and-play or vs-CPU minimax — never loses) and Connect-4 (7×6, gravity drops via column tap zones, spring drop animation, win-cell rings); shared per-game win/draw counters; CPU turn blocks taps (no extra lock state)
+- D67 solitaire.tsx (~600 ln): full Klondike draw-1 — pure-CSS flow piles (negative-% margins scale with viewport), pointer-drag with floating run layer + pile hit-testing, tap = smart auto-move (foundation first, then tableau), auto flip-exposed, recycle stock, undo (80 snapshots), win cascade overlay; best time (timeMode) + achievements solitaire-first-win/-sub5/-noundo
+- D68 trivia-quiz.tsx (~430 ln): 60-question offline bank × 6 categories + mixed pack (10/run, shuffled options), 15s timer with speed bonus (+2/s), streak multiplier (+25 from streak 3), timeout auto-advance (derived lock, no sync setState in effect), results screen with per-question review list; best score + achievements trivia-first-quiz/-perfect/-streak5/-1500
+- Registry: +4 games; catalog 78 → 82 (games category now 9)
+
+Fixes during QA:
+- solitaire: tsc error (waste branch type narrow) → explicit moveWasteToTableau path; win detection moved out of useEffect into finalizeIfWon() called by foundation-touching moves (kills set-state-in-effect lint + double-record risk)
+- trivia: removed `locked` state; timeout path schedules advance instead of sync setState; revealed state derived from timeLeft<=0; pick() score/nextScore divergence fixed (single `gained`)
+- 2p-arcade: `locked` state removed entirely (CPU turn guard suffices)
+
+Gates:
+- bunx tsc --noEmit clean; bun run lint clean; agent-browser E2E 390×844 golden paths: wordle (typed আঊকচট → XXYXX feedback, hint colors), ttt (alternation via real dispatched clicks, CPU O-corner reply, disabled occupied cells), c4 (col drops red→yellow gravity), solitaire (deal 1..7, stock draw K♥, tap 2♣→3♥ + Q♣ auto-flip, mouse drag Q♦→K♠ + 9♦ flip), trivia (auto-answer loop → score 242, "2/10 correct · best streak 2 — new best! 🏆", store {best:242,plays:1}; timeout auto-advance observed live)
+- Responsive: 360×740 wordle (keys 30px, no overflow), 1280×800 solitaire (classic layout clean); zero console/page errors
+
+Stage Summary:
+- Games category complete per roadmap: 9 games (2048, sudoku, minesweeper, snake, memory, wordle, 2p-arcade, solitaire, trivia)
+- Shared games store now tracks 10 gameIds — ready for D69 Game Center
+- Next: D69 games-hub polish (Game Center: high scores + achievements UI)

@@ -163,10 +163,10 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D62** Minesweeper (games) — classic grid, flag mode toggle, best times
 - [x] **D63** Snake (games) — swipe controls for mobile, speed levels, high score
 - [x] **D64** Memory Match (games) — emoji/card themes, 2-player local mode
-- [ ] **D65** Bangla Wordle (games) — Bengali word guessing game, share result
-- [ ] **D66** 2P Arcade (games) — tic-tac-toe + connect-4, pass-and-play
-- [ ] **D67** Solitaire (games) — klondike, drag & drop, win animation
-- [ ] **D68** Trivia Quiz (games) — category packs, scoring streaks
+- [x] **D65** Bangla Wordle (games) — Bengali word guessing game, share result
+- [x] **D66** 2P Arcade (games) — tic-tac-toe + connect-4, pass-and-play
+- [x] **D67** Solitaire (games) — klondike, drag & drop, win animation
+- [x] **D68** Trivia Quiz (games) — category packs, scoring streaks
 - [ ] **D69** Games hub polish — high-score center, achievements badges across all games
 - [ ] **D70** Share Target (platform) — PWA share_target manifest: receive text/files into Tools
 - [ ] **D71** Quick Actions (platform) — home-screen long-press menu, app shortcuts in manifest

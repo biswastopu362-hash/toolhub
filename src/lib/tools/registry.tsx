@@ -84,6 +84,10 @@ import {
   Bomb,
   Worm,
   Brain,
+  SpellCheck,
+  Swords,
+  Spade,
+  CircleHelp,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -195,6 +199,10 @@ const SudokuApp = load(() => import('@/components/tools/sudoku'))
 const MinesweeperApp = load(() => import('@/components/tools/minesweeper'))
 const SnakeApp = load(() => import('@/components/tools/snake'))
 const MemoryMatchApp = load(() => import('@/components/tools/memory-match'))
+const BanglaWordleApp = load(() => import('@/components/tools/bangla-wordle'))
+const TwoPlayerArcadeApp = load(() => import('@/components/tools/2p-arcade'))
+const SolitaireApp = load(() => import('@/components/tools/solitaire'))
+const TriviaQuizApp = load(() => import('@/components/tools/trivia-quiz'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -622,6 +630,60 @@ export const tools: Tool[] = [
     keywords: ['memory', 'match', 'pairs', 'cards', 'concentration', '2 player', 'emoji'],
     version: '1.0.0',
     Component: MemoryMatchApp,
+  },
+  {
+    id: 'bangla-wordle',
+    name: 'Bangla Wordle',
+    description: 'Guess the five-character Bengali word in six tries — share your grid',
+    tagline: 'শব্দ অনুমান করুন — daily Bengali word puzzle',
+    category: 'games',
+    icon: SpellCheck,
+    gradient: 'from-emerald-400 via-green-500 to-teal-600',
+    glow: '#10b981',
+    keywords: ['wordle', 'bangla', 'bengali', 'word', 'guess', 'puzzle', 'shobdo', 'daily'],
+    featured: true,
+    version: '1.0.0',
+    Component: BanglaWordleApp,
+  },
+  {
+    id: '2p-arcade',
+    name: '2P Arcade',
+    description: 'Tic-Tac-Toe (vs friend or unbeatable CPU) and Connect-4, pass-and-play',
+    tagline: 'Two classics, one game night',
+    category: 'games',
+    icon: Swords,
+    gradient: 'from-orange-400 via-red-500 to-rose-600',
+    glow: '#ef4444',
+    keywords: ['tic tac toe', 'connect 4', 'arcade', '2 player', 'pass and play', 'cpu', 'board'],
+    version: '1.0.0',
+    Component: TwoPlayerArcadeApp,
+  },
+  {
+    id: 'solitaire',
+    name: 'Solitaire',
+    description: 'Classic Klondike with drag & drop, tap auto-move, undo and win cascade',
+    tagline: 'The timeless card patience',
+    category: 'games',
+    icon: Spade,
+    gradient: 'from-teal-400 via-emerald-500 to-green-600',
+    glow: '#14b8a6',
+    keywords: ['solitaire', 'klondike', 'cards', 'patience', 'drag', 'classic'],
+    version: '1.0.0',
+    Component: SolitaireApp,
+  },
+  {
+    id: 'trivia-quiz',
+    name: 'Trivia Quiz',
+    description: 'Six offline category packs, 15-second timer, streak multipliers',
+    tagline: 'How much do you actually know?',
+    category: 'games',
+    icon: CircleHelp,
+    gradient: 'from-yellow-400 via-amber-500 to-orange-600',
+    glow: '#f59e0b',
+    keywords: ['trivia', 'quiz', 'questions', 'categories', 'streak', 'general knowledge'],
+    featured: true,
+    version: '1.0.0',
+    Component: TriviaQuizApp,
   },
   {
     id: 'calculator',
