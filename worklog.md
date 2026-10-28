@@ -2006,3 +2006,30 @@ Stage Summary:
 - backup-restore now knows all 35 DBs — full-device backup/restore coverage complete
 - Known-dev-only: Turbopack memory cap must stay unset in this sandbox (deadlock); production unaffected
 - Next: ROADMAP D61 — Sudoku (Phase 5 "Games & OS Delight" opens)
+
+---
+Task ID: P5-W1 (Days 61–64)
+Agent: main (Z.ai Code)
+Task: Phase 5 Wave 1 — Sudoku (D61), Minesweeper (D62), Snake (D63), Memory Match (D64)
+
+Work Log:
+- Created src/lib/games/scores.ts — shared localStorage score/achievement store (`toolhub.games.v1`): per-game best (score or time mode), plays, wins, lastPlayed + unlockAchievement/getAllAchievements + storage-event subscription for the future Game Center (D69)
+- D61 sudoku.tsx (~640 ln): on-device generator (backtracking fill + unique-solution dig via MRV solver, givens 38/30/24), 3 difficulties, bitmask pencil notes (3×3 mini-grid), auto note cleanup on correct placement, 3 hints, mistakes counter, pause-hides-board, per-difficulty best time (timeMode), achievements sudoku-first-solve/-difficulty-solve/-hard-sub10; keyboard 1–9/N/H/E/arrows
+- D62 minesweeper.tsx (~480 ln): Easy 9×9/10, Medium 12×12/24, Hard 12×16/45, first-click safety (3×3 safe zone), flood-fill reveal, chording, flag-mode toggle + long-press flag (420ms) + right-click, mine/flag counter, per-difficulty best time, achievements mines-first-win/-difficulty-win/-no-flag-win/-hard-sub5
+- D63 snake.tsx (~430 ln): 20×20 grid, direction queue with reversal guard, 4 speed levels (200/140/95/65ms), swipe + D-pad + keyboard/WASD + space pause, food pulse, death on wall/self, high score via games store, achievements snake-first-meal/-100/-250/-500
+- D64 memory-match.tsx (~450 ln): 4 emoji themes × 3 sizes (4×4/6×4/6×6), 3D card flip (framer-motion rotateY + backface), solo scoring (match +100, streak bonus +25/chain, miss −10 floored) with timer, duo pass-and-play (turn switch on miss, pair scoreboard, tie handling), achievements memory-first-finish/-large-finish/-perfect/-duo-win/-duo-draw
+- Registry: +4 games (sudoku featured, minesweeper, snake, memory-match) with violet/rose/lime/fuchsia identities; catalog 74 → 78
+
+Fixes during QA:
+- minesweeper: desktop mouse click was dead (touch-only handlers) — added touch-guarded onClick (800ms lastTouch guard); pure state transitions (all side effects pulled out of setCells updaters to survive StrictMode double-invoke)
+- lint: react-hooks/set-state-in-effect ×3 → lazy useState initializers reading getGameStat; react-hooks/immutability (pairWins clone); sudoku rules-of-hooks (useHint → doHint rename)
+- snake: removed head-position footer that re-rendered every tick
+
+Gates:
+- bunx tsc --noEmit clean; bun run lint clean; agent-browser E2E 390×844 golden paths: sudoku (notes toggle, digit placement, mistake→1, hint fills correct 7, hints 3→2), minesweeper (flood reveal 42 cells, flag mode flag+counter 10→9, chord code present), snake (start/steer/pause/game-over, store best=10 plays=2), memory (miss flip-back + points floor 0, 🦊 pair match → emerald faces, 2P P1/P2 scoreboard, 6×6 = 36 cards)
+- Responsive: 360×740 (sudoku board 294px + pad 48px, no overflow; minesweeper hard 12×16 no overflow), 1280×800 (sudoku board capped 420px, memory fine); zero console/page errors; mode-drift sweep clean
+
+Stage Summary:
+- Games category 1 → 5 apps; shared games store live at toolhub.games.v1 (backup-restore covers localStorage keys — scores ride along)
+- All 4 wave-1 games follow 2048 conventions: gradient header, chip selectors, h-11/48px targets, spring overlays, aria grids, vibrate feedback
+- Next: D65 Bangla Wordle → D68 Trivia Quiz (Wave 2)

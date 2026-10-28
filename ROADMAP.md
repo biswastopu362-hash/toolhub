@@ -159,10 +159,10 @@ Target: **~80+ apps & features** by Day 90.
 
 ## Phase 5 — Days 61–75 · "Games & OS Delight"
 
-- [ ] **D61** Sudoku (games) — 3 difficulties, notes mode, hint, timer
-- [ ] **D62** Minesweeper (games) — classic grid, flag mode toggle, best times
-- [ ] **D63** Snake (games) — swipe controls for mobile, speed levels, high score
-- [ ] **D64** Memory Match (games) — emoji/card themes, 2-player local mode
+- [x] **D61** Sudoku (games) — 3 difficulties, notes mode, hint, timer
+- [x] **D62** Minesweeper (games) — classic grid, flag mode toggle, best times
+- [x] **D63** Snake (games) — swipe controls for mobile, speed levels, high score
+- [x] **D64** Memory Match (games) — emoji/card themes, 2-player local mode
 - [ ] **D65** Bangla Wordle (games) — Bengali word guessing game, share result
 - [ ] **D66** 2P Arcade (games) — tic-tac-toe + connect-4, pass-and-play
 - [ ] **D67** Solitaire (games) — klondike, drag & drop, win animation

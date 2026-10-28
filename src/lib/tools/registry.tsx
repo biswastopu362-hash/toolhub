@@ -80,6 +80,10 @@ import {
   CalendarHeart,
   Fuel,
   PenLine,
+  Grid3x3,
+  Bomb,
+  Worm,
+  Brain,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -187,6 +191,10 @@ const PrayerTimesApp = load(() => import('@/components/tools/prayer-times'))
 const CycleTrackerApp = load(() => import('@/components/tools/cycle-tracker'))
 const TravelFuelApp = load(() => import('@/components/tools/travel-fuel'))
 const AiWriterApp = load(() => import('@/components/tools/ai-writer'))
+const SudokuApp = load(() => import('@/components/tools/sudoku'))
+const MinesweeperApp = load(() => import('@/components/tools/minesweeper'))
+const SnakeApp = load(() => import('@/components/tools/snake'))
+const MemoryMatchApp = load(() => import('@/components/tools/memory-match'))
 
 /* ------------------------------------------------------------------ */
 /* App registry — to add a new app: one entry here + one component file */
@@ -561,6 +569,59 @@ export const tools: Tool[] = [
     keywords: ['2048', 'game', 'puzzle', 'tiles', 'merge', 'numbers', 'swipe'],
     version: '1.0.0',
     Component: Game2048App,
+  },
+  {
+    id: 'sudoku',
+    name: 'Sudoku',
+    description: 'Classic 9×9 logic puzzle — three difficulties, pencil notes, hints and a timer',
+    tagline: 'Fill the grid, clear your head',
+    category: 'games',
+    icon: Grid3x3,
+    gradient: 'from-violet-400 via-purple-500 to-fuchsia-600',
+    glow: '#a855f7',
+    keywords: ['sudoku', 'puzzle', 'logic', 'numbers', 'grid', 'brain', 'notes', 'hint'],
+    featured: true,
+    version: '1.0.0',
+    Component: SudokuApp,
+  },
+  {
+    id: 'minesweeper',
+    name: 'Minesweeper',
+    description: 'Sweep the field without waking a mine — flag mode, chording, best times',
+    tagline: 'One wrong tap and it all blows up',
+    category: 'games',
+    icon: Bomb,
+    gradient: 'from-rose-400 via-red-500 to-orange-600',
+    glow: '#f43f5e',
+    keywords: ['minesweeper', 'mines', 'bomb', 'flag', 'logic', 'classic', 'sweep'],
+    version: '1.0.0',
+    Component: MinesweeperApp,
+  },
+  {
+    id: 'snake',
+    name: 'Snake',
+    description: 'Grow the snake with swipe or D-pad controls across four speed levels',
+    tagline: 'The arcade legend, in your pocket',
+    category: 'games',
+    icon: Worm,
+    gradient: 'from-lime-400 via-green-500 to-emerald-600',
+    glow: '#22c55e',
+    keywords: ['snake', 'arcade', 'retro', 'swipe', 'grow', 'speed', 'classic'],
+    version: '1.0.0',
+    Component: SnakeApp,
+  },
+  {
+    id: 'memory-match',
+    name: 'Memory Match',
+    description: 'Flip cards and find every pair — solo scoring or pass-and-play 2-player',
+    tagline: 'Train your recall, four themes',
+    category: 'games',
+    icon: Brain,
+    gradient: 'from-fuchsia-400 via-purple-500 to-violet-600',
+    glow: '#d946ef',
+    keywords: ['memory', 'match', 'pairs', 'cards', 'concentration', '2 player', 'emoji'],
+    version: '1.0.0',
+    Component: MemoryMatchApp,
   },
   {
     id: 'calculator',
