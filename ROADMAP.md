@@ -141,21 +141,21 @@ Target: **~80+ apps & features** by Day 90.
 
 ## Phase 4 — Days 46–60 · "Daily Life & Intelligence"
 
-- [ ] **D46** Weather v2 — hourly + 7-day charts, multiple saved locations, dynamic backdrops
-- [ ] **D47** Prayer Times (daily) — location-based schedule, Bengali labels, adhan reminder toggle
-- [ ] **D48** Health Tracker (daily) — BMI/BMR calculator, water intake tracker with day rings
-- [ ] **D49** Cycle Tracker (daily, private) — calendar predictions, notes, App Lock recommended badge
-- [ ] **D50** Workout Planner (daily) — routine builder, exercise timer with rest beeps, history
-- [ ] **D51** Recipe Box (daily) — recipes, ingredients checklist, meal planner week view
-- [ ] **D52** Shopping List (daily) — lists, check-off, quantity, share via Web Share
-- [ ] **D53** Travel & Fuel (calculator) — fuel cost, mileage, trip split, currency-aware
-- [ ] **D54** EMI/Loan v2 (calculator) — amortization chart, side-by-side loan comparison
-- [ ] **D55** Currency v2 — offline last-rates cache, favorites strip, swap animation
-- [ ] **D56** Random Tools (utilities) — dice, coin flip, wheel spinner, random name/number picker
-- [ ] **D57** Flashcards v2 — spaced repetition (SM-2 lite), due-queue, deck stats
-- [ ] **D58** AI Chat v2 — streaming responses, conversation history, system personas, markdown render
-- [ ] **D59** AI Writer (ai) — email/post/caption/summary generator with tone + length controls
-- [ ] **D60** Phase 4 QA Day — audit + fix + tag **v1.4**
+- [x] **D46** Weather v2 — hourly + 7-day charts, multiple saved locations, dynamic backdrops
+- [x] **D47** Prayer Times (daily) — location-based schedule, Bengali labels, adhan reminder toggle
+- [x] **D48** Health Tracker (daily) — BMI/BMR calculator, water intake tracker with day rings
+- [x] **D49** Cycle Tracker (daily, private) — calendar predictions, notes, App Lock recommended badge
+- [x] **D50** Workout Planner (daily) — routine builder, exercise timer with rest beeps, history
+- [x] **D51** Recipe Box (daily) — recipes, ingredients checklist, meal planner week view
+- [x] **D52** Shopping List (daily) — lists, check-off, quantity, share via Web Share
+- [x] **D53** Travel & Fuel (calculator) — fuel cost, mileage, trip split, currency-aware
+- [x] **D54** EMI/Loan v2 (calculator) — amortization chart, side-by-side loan comparison
+- [x] **D55** Currency v2 — offline last-rates cache, favorites strip, swap animation
+- [x] **D56** Random Tools (utilities) — dice, coin flip, wheel spinner, random name/number picker
+- [x] **D57** Flashcards v2 — spaced repetition (SM-2 lite), due-queue, deck stats
+- [x] **D58** AI Chat v2 — streaming responses, conversation history, system personas, markdown render
+- [x] **D59** AI Writer (ai) — email/post/caption/summary generator with tone + length controls
+- [x] **D60** Phase 4 QA Day — audit + fix + tag **v1.4**
 
 ## Phase 5 — Days 61–75 · "Games & OS Delight"
 
