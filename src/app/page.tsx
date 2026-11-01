@@ -135,6 +135,11 @@ function OsShell() {
     root.style.setProperty('--primary-foreground', lum < 0.55 ? '#ffffff' : '#18181b')
     root.style.setProperty('--ring', customAccent)
   }, [customAccent])
+  /* D81: keep <html lang> in sync with the UI language for screen readers */
+  const lang = useAppStore((s) => s.lang)
+  useEffect(() => {
+    document.documentElement.lang = lang === 'bn' ? 'bn' : 'en'
+  }, [lang])
   /* D39: active user-designed wallpaper (stable ref; null when none) */
   const activeCustom = useAppStore(
     (s) => s.customWallpapers.find((c) => c.id === s.activeCustomId) ?? null
