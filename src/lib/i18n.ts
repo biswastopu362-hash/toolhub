@@ -267,6 +267,11 @@ const en = {
   obBack: 'Previous step',
   obNext: 'Next',
   obStart: 'Start exploring',
+
+  /* Launch Day (D90) */
+  launchToastTitle: 'ToolHub {v} is here 🎉',
+  launchToastDesc:
+    'Accounts & cloud backup, full Bengali, theme engine v3, Help Center and a brand-new onboarding. Open Help Center for the full story.',
 } as const
 
 export type TKey = keyof typeof en
@@ -524,6 +529,11 @@ const bn: Record<TKey, string> = {
   obBack: 'আগের ধাপ',
   obNext: 'পরবর্তী',
   obStart: 'শুরু করুন',
+
+  /* Launch Day (D90) */
+  launchToastTitle: 'ToolHub {v} এসে গেছে 🎉',
+  launchToastDesc:
+    'অ্যাকাউন্ট ও ক্লাউড ব্যাকআপ, পূর্ণ বাংলা, থিম ইঞ্জিন v3, হেল্প সেন্টার আর নতুন অনবোর্ডিং। পুরো গল্প জানতে Help Center খুলুন।',
 }
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, bn }

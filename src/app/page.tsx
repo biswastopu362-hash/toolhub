@@ -41,6 +41,7 @@ import { ControlCenter } from '@/components/control-center'
 import { InstallBanner } from '@/components/pwa/install-banner'
 import { LockGate } from '@/components/os/lock-gate'
 import Onboarding from '@/components/os/onboarding'
+import { LaunchCelebration } from '@/components/os/launch-celebration'
 import { WidgetStrip } from '@/components/os/home-widgets'
 import { NotificationShade } from '@/components/os/notification-shade'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -445,6 +446,9 @@ function OsShell() {
 
         {/* D85 first-run welcome tour (self-gating via localStorage) */}
         <Onboarding />
+
+        {/* D90 launch day — one-time v2.0 celebration toast */}
+        <LaunchCelebration />
       </div>
     </MotionConfig>
   )

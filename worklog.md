@@ -2192,3 +2192,19 @@ Gates:
 Stage Summary:
 - Onboarding + Help Center shipped; catalog 85 built-ins
 - Next: D89 Release Candidate (screenshots, metadata, CHANGELOG.md) + D90 Launch Day
+
+---
+Task ID: P6-D89-90
+Agent: main (Z.ai Code)
+Task: Phase 6 Wave J — D89 Release Candidate v2.0 + D90 Launch Day (Phase 6 finale)
+
+Work Log:
+- D89 RC: constants APP_VERSION='2.0.0' (Settings badge now dynamic — was hardcoded v2.2); manifest v2.0 — refined description (85 apps, zero uploads, linked platforms), real-UI screenshots captured via agent-browser at 390×844 (public/screenshots/home-mobile.png + store-mobile.png, referenced with form_factor narrow + labels), Help Center added as 5th shortcut (?shortcut=help works via generic getToolById handler); root CHANGELOG.md authored (v1.0 → v1.5 → v2.0 full release notes, mirrors Help Center timeline)
+- D90 Launch: LaunchCelebration component — one-time "ToolHub 2.0.0 is here 🎉" toast 1.8s after first launch post-update (localStorage toolhub-celebrated keyed by version, i18n EN/BN, zero layout shift); ROADMAP Phase 7 draft appended (v2.1 "Reach & Rituals": auto-sync, telemetry charts, widget packs, Spotlight plugins, WebAuthn lock, Hindi/Spanish, store v2, perf); final QA: served manifest verified (screenshots + 5 shortcuts), full-catalog sweep 85/85 apps healthy (zero error boundaries / blank windows), 360/390/1280 zero horizontal overflow, zero page errors; celebration single-fire verified (no re-fire across reload)
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean · agent-browser sweep 85/85 OK · manifest live-verified · dev-server OOM restart ×2 (sandbox environment only)
+
+Stage Summary:
+- PHASE 6 "Platform, Scale & Launch" CLOSED: 90/90 days complete — catalog 85 built-ins + linked-platform platform (admin v2 + diagnostics), accounts/cloud-sync, full Bengali, theme v3, onboarding, Help Center
+- Tagged v2.0; Phase 7 draft queued in ROADMAP

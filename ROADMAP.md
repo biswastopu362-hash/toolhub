@@ -191,8 +191,21 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D86** Help & About (platform) — help app (FAQ, tips), privacy page, version changelog
 - [x] **D87** Hardening — error boundaries per app, crash recovery, storage-quota handling
 - [x] **D88** E2E Marathon — every app × {360, 390, 430, 768, 1280} viewport sweep, fix list closed
-- [ ] **D89** Release Candidate — **v2.0** changelog, metadata/screenshots, store description
-- [ ] **D90** Launch Day — final push, share the hub link, celebrate, draft v2.1 roadmap
+- [x] **D89** Release Candidate — **v2.0** changelog, metadata/screenshots, store description
+- [x] **D90** Launch Day — final push, share the hub link, celebrate, draft v2.1 roadmap
+
+---
+
+## Phase 7 (draft) — v2.1 · "Reach & Rituals" (post-launch backlog, pulled per week)
+
+- Richer cloud sync: automatic (debounced) backup, sync across folders + game scores, end-to-end encryption option
+- Platform telemetry v2: per-day open chart in Admin Console, embed-check auto-run on save, broken-platform alerts
+- Widget packs: calendar/agenda widget, habit-streak widget, goal progress ring — user-reorderable widget strip
+- Spotlight plugins: currency conversion (offline rates table), color hex preview, unit math chaining
+- App Lock v2: biometric (WebAuthn) unlock, per-folder locks
+- Localization wave 2: Hindi + Spanish dictionaries, app-internal screens graduate key-by-key
+- Store v2: editorial collections, "similar apps" on detail pages, update-badges with changelog popups
+- Performance: route-level prefetch warming, SW navigation preload, image CDN variants for wallpapers
 
 ---
 
