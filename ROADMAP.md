@@ -185,8 +185,8 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D80** Performance pass — bundle diet, lazy everything, Lighthouse ≥90 mobile, cold-start tune
 - [x] **D81** Accessibility pass — focus rings, aria labels sweep, reduced-motion, contrast audit
 - [x] **D82** Offline hardening — full offline data paths, SW update flow, "works on airplane" test
-- [ ] **D83** Admin Console v2 — linked-platform stats (opens/hides), reorder, bulk import/export
-- [ ] **D84** Linked Platforms v2 — per-platform deep links, embed-failure diagnostics, categories
+- [x] **D83** Admin Console v2 — linked-platform stats (opens/hides), reorder, bulk import/export
+- [x] **D84** Linked Platforms v2 — per-platform deep links, embed-failure diagnostics, categories
 - [ ] **D85** Onboarding — first-run welcome tour, sample-data seeding, "Add to Home Screen" coach
 - [ ] **D86** Help & About (platform) — help app (FAQ, tips), privacy page, version changelog
 - [x] **D87** Hardening — error boundaries per app, crash recovery, storage-quota handling

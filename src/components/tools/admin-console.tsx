@@ -2,22 +2,30 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
   Check,
   Copy,
   DatabaseZap,
   ExternalLink,
   Eye,
   EyeOff,
+  FileDown,
+  FileUp,
   Globe,
+  Link2,
   Loader2,
   LockKeyhole,
   LogOut,
+  MousePointerClick,
   Pencil,
   Plus,
   Share2,
   ShieldCheck,
   Star,
   Trash2,
+  TriangleAlert,
   Unlock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -102,6 +110,14 @@ function hostOf(url: string): string {
   }
 }
 
+/** Shape of /api/embed-check responses (D84 embed diagnostics). */
+interface EmbedReport {
+  verdict: 'yes' | 'no' | 'unknown'
+  reason: string
+  status: number | null
+  checkedMs: number
+}
+
 /* ================================================================== */
 /* Admin Console                                                       */
 /* ================================================================== */
@@ -119,6 +135,12 @@ export default function AdminConsole() {
   const [editing, setEditing] = useState<ExternalAppPayload | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<ExternalAppPayload | null>(null)
+
+  /* D83 — reorder, open telemetry, embed diagnostics (D84), import/export */
+  const [busySlug, setBusySlug] = useState<string | null>(null)
+  const [embedReports, setEmbedReports] = useState<Record<string, EmbedReport>>({})
+  const [embedChecking, setEmbedChecking] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   /* ---------------- session ---------------- */
   const checkSession = useCallback(async () => {
@@ -183,6 +205,15 @@ export default function AdminConsole() {
 
   /* ---------------- derived ---------------- */
   const liveCount = useMemo(() => apps.filter((a) => a.active).length, [apps])
+  const totalOpens = useMemo(() => apps.reduce((sum, a) => sum + (a.openCount ?? 0), 0), [apps])
+  const topPlatform = useMemo(
+    () =>
+      apps.reduce<ExternalAppPayload | null>(
+        (best, a) => (!best || a.openCount > best.openCount ? a : best),
+        null
+      ),
+    [apps]
+  )
   const [hubOrigin, setHubOrigin] = useState('')
   const [copied, setCopied] = useState(false)
 
@@ -200,6 +231,89 @@ export default function AdminConsole() {
       toast({ title: 'Copy failed', description: 'Long-press the link to copy manually.', variant: 'destructive' })
     }
   }, [hubOrigin, toast])
+
+  /* ---------------- D83 reorder ---------------- */
+  const move = useCallback(
+    async (slug: string, dir: -1 | 1) => {
+      if (busySlug) return
+      const idx = apps.findIndex((a) => a.id === slug)
+      const next = idx + dir
+      if (idx < 0 || next < 0 || next >= apps.length) return
+      const reordered = [...apps]
+      ;[reordered[idx], reordered[next]] = [reordered[next], reordered[idx]]
+      setApps(reordered) // optimistic
+      setBusySlug(slug)
+      try {
+        const res = await fetch('/api/admin/external-apps/reorder', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: reordered.map((a) => a.id) }),
+        })
+        if (!res.ok) throw new Error('failed')
+        await reloadExternals()
+      } catch {
+        toast({ title: 'Could not save the new order', variant: 'destructive' })
+        await loadList()
+      } finally {
+        setBusySlug(null)
+      }
+    },
+    [apps, busySlug, loadList, reloadExternals, toast]
+  )
+
+  /* ---------------- D84 embed diagnostics ---------------- */
+  const checkEmbed = useCallback(
+    async (slug: string, url: string) => {
+      if (embedChecking) return
+      setEmbedChecking(slug)
+      try {
+        const res = await fetch(`/api/embed-check?url=${encodeURIComponent(url)}`, {
+          cache: 'no-store',
+        })
+        const data = (await res.json().catch(() => ({}))) as EmbedReport & { error?: string }
+        if (res.ok && data.verdict) {
+          setEmbedReports((m) => ({ ...m, [slug]: data }))
+        } else {
+          toast({ title: data.error || 'Embed check failed', variant: 'destructive' })
+        }
+      } catch {
+        toast({ title: 'Embed check failed', description: 'Network error — try again.', variant: 'destructive' })
+      } finally {
+        setEmbedChecking(null)
+      }
+    },
+    [embedChecking, toast]
+  )
+
+  /* ---------------- D84 per-platform deep link ---------------- */
+  const copyDeepLink = useCallback(
+    async (slug: string, name: string) => {
+      try {
+        await navigator.clipboard.writeText(`${window.location.origin}/#/app/${slug}`)
+        toast({ title: 'Platform link copied', description: `${name} opens straight from this link.` })
+      } catch {
+        toast({ title: 'Copy failed', variant: 'destructive' })
+      }
+    },
+    [toast]
+  )
+
+  /* ---------------- D83 bulk export / import ---------------- */
+  const exportJson = useCallback(() => {
+    const payload = {
+      kind: 'toolhub-platforms',
+      exportedAt: new Date().toISOString(),
+      apps,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `toolhub-platforms-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast({ title: 'Export ready', description: `${apps.length} platform${apps.length === 1 ? '' : 's'} saved as JSON.` })
+  }, [apps, toast])
 
   /* ================= render ================= */
   if (phase === 'checking') {
@@ -254,6 +368,35 @@ export default function AdminConsole() {
         <p className="mt-2 text-[11px] leading-snug text-white/50">
           Anyone who opens this hub sees your platforms in the App Store — one share, all your apps.
         </p>
+
+        {/* D83 — platform telemetry at a glance */}
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-white/[0.08] p-2.5 ring-1 ring-white/15">
+            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-white/60">
+              <MousePointerClick className="size-3" aria-hidden /> Opens
+            </p>
+            <p className="mt-0.5 text-xl font-extrabold tabular-nums">{totalOpens.toLocaleString('en-US')}</p>
+          </div>
+          <div className="rounded-2xl bg-white/[0.08] p-2.5 ring-1 ring-white/15">
+            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-white/60">
+              <Activity className="size-3" aria-hidden /> Live
+            </p>
+            <p className="mt-0.5 text-xl font-extrabold tabular-nums">{liveCount}</p>
+          </div>
+          <div className="rounded-2xl bg-white/[0.08] p-2.5 ring-1 ring-white/15">
+            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-white/60">
+              <EyeOff className="size-3" aria-hidden /> Hidden
+            </p>
+            <p className="mt-0.5 text-xl font-extrabold tabular-nums">{apps.length - liveCount}</p>
+          </div>
+        </div>
+        {topPlatform && (topPlatform.openCount ?? 0) > 0 && (
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-white/60">
+            <Star className="size-3 fill-amber-300 text-amber-300" aria-hidden />
+            Most opened: <span className="font-semibold text-white/85">{topPlatform.name}</span> ·{' '}
+            {topPlatform.openCount.toLocaleString('en-US')} opens
+          </p>
+        )}
       </div>
 
       {/* list */}
@@ -322,8 +465,9 @@ export default function AdminConsole() {
           </div>
         ) : (
           <div className="divide-y divide-border/60 overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
-            {apps.map((a) => {
+            {apps.map((a, index) => {
               const Icon = externalIcon(a.icon)
+              const report = embedReports[a.id]
               return (
                 <div key={a.id} className="flex items-center gap-3 px-3.5 py-3">
                   <span
@@ -342,7 +486,7 @@ export default function AdminConsole() {
                       )}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">{hostOf(a.url)}</p>
-                    <div className="mt-1 flex items-center gap-1.5">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <Badge
                         variant={a.active ? 'secondary' : 'outline'}
                         className={cn(
@@ -354,12 +498,88 @@ export default function AdminConsole() {
                       >
                         {a.active ? 'Live' : 'Hidden'}
                       </Badge>
+                      {(a.openCount ?? 0) > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="h-5 gap-1 px-1.5 text-[10px] text-muted-foreground"
+                          title="How many times users opened this platform"
+                        >
+                          <MousePointerClick className="size-3" aria-hidden />
+                          {(a.openCount ?? 0).toLocaleString('en-US')}
+                        </Badge>
+                      )}
                       <span className="text-[10px] text-muted-foreground/70">
                         {CATEGORIES.find((c) => c.id === a.category)?.name ?? 'Utilities'}
                       </span>
                     </div>
+                    {report && (
+                      <p
+                        className={cn(
+                          'mt-1 flex items-center gap-1 text-[10px] font-medium',
+                          report.verdict === 'yes' && 'text-emerald-600 dark:text-emerald-400',
+                          report.verdict === 'no' && 'text-amber-600 dark:text-amber-400',
+                          report.verdict === 'unknown' && 'text-muted-foreground'
+                        )}
+                        title={report.reason}
+                      >
+                        {report.verdict === 'yes' ? (
+                          <ShieldCheck className="size-3" aria-hidden />
+                        ) : (
+                          <TriangleAlert className="size-3" aria-hidden />
+                        )}
+                        {report.verdict === 'yes'
+                          ? 'Embeds fine'
+                          : report.verdict === 'no'
+                            ? 'Blocks embedding'
+                            : 'Embed unknown'}
+                        <span className="font-normal text-muted-foreground">· {report.reason}</span>
+                      </p>
+                    )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full"
+                      onClick={() => void move(a.id, -1)}
+                      disabled={index === 0 || busySlug !== null}
+                      aria-label={`Move ${a.name} up`}
+                    >
+                      <ArrowUp className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full"
+                      onClick={() => void move(a.id, 1)}
+                      disabled={index === apps.length - 1 || busySlug !== null}
+                      aria-label={`Move ${a.name} down`}
+                    >
+                      <ArrowDown className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="hidden size-9 rounded-full sm:inline-flex"
+                      onClick={() => void copyDeepLink(a.id, a.name)}
+                      aria-label={`Copy deep link to ${a.name}`}
+                    >
+                      <Link2 className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="hidden size-9 rounded-full sm:inline-flex"
+                      onClick={() => void checkEmbed(a.id, a.url)}
+                      disabled={embedChecking !== null}
+                      aria-label={`Check embed support for ${a.name}`}
+                    >
+                      {embedChecking === a.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="size-4" />
+                      )}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -399,13 +619,30 @@ export default function AdminConsole() {
       </div>
 
       {/* footer actions */}
-      <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-card px-4 py-3 shadow-sm">
-        <p className="text-xs text-muted-foreground">
-          Changes apply to every user of this hub instantly.
-        </p>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => void logout()}>
-          <LogOut className="size-4" aria-hidden /> Sign out
-        </Button>
+      <div className="space-y-2.5 rounded-2xl border border-border/70 bg-card px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 rounded-full"
+            onClick={exportJson}
+            disabled={apps.length === 0}
+          >
+            <FileDown className="size-3.5" aria-hidden /> Export JSON
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-full" onClick={() => setImportOpen(true)}>
+            <FileUp className="size-3.5" aria-hidden /> Import
+          </Button>
+          <span className="text-[11px] text-muted-foreground">
+            Back up your catalog or move it to another hub.
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">Changes apply to every user of this hub instantly.</p>
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => void logout()}>
+            <LogOut className="size-4" aria-hidden /> Sign out
+          </Button>
+        </div>
       </div>
 
       {/* add / edit dialog */}
@@ -415,6 +652,9 @@ export default function AdminConsole() {
         onOpenChange={setFormOpen}
         onSaved={() => void afterMutation()}
       />
+
+      {/* D83 bulk import dialog */}
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => void afterMutation()} />
 
       {/* delete confirm */}
       <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(o) => !o && setPendingDelete(null)}>
@@ -459,6 +699,143 @@ async function confirmDelete(
   } catch {
     toast({ title: 'Could not remove the platform', variant: 'destructive' })
   }
+}
+
+/* ================================================================== */
+/* D83 bulk import dialog                                              */
+/* ================================================================== */
+
+interface ImportSummary {
+  created: number
+  skipped: number
+  errors: { name: string; message: string }[]
+}
+
+function ImportDialog({
+  open,
+  onOpenChange,
+  onImported,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onImported: () => void
+}) {
+  const { toast } = useToast()
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [summary, setSummary] = useState<ImportSummary | null>(null)
+
+  /* reset each time the dialog opens */
+  useEffect(() => {
+    if (open) {
+      setText('')
+      setSummary(null)
+    }
+  }, [open])
+
+  const parsed = useMemo<{ list: unknown[] | null; count: number; error: string | null }>(() => {
+    if (!text.trim()) return { list: null, count: 0, error: null }
+    try {
+      const data = JSON.parse(text) as unknown
+      const list = Array.isArray(data)
+        ? data
+        : ((data as { apps?: unknown })?.apps as unknown[] | undefined) ?? null
+      if (!Array.isArray(list)) return { list: null, count: 0, error: 'No platform array found — paste an export file or a JSON array' }
+      return { list, count: list.length, error: null }
+    } catch {
+      return { list: null, count: 0, error: 'Not valid JSON — check the file and paste again' }
+    }
+  }, [text])
+
+  const run = useCallback(async () => {
+    if (!parsed.list || busy) return
+    setBusy(true)
+    try {
+      const res = await fetch('/api/admin/external-apps/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apps: parsed.list }),
+      })
+      const data = (await res.json().catch(() => ({}))) as ImportSummary & { error?: string }
+      if (!res.ok) {
+        toast({ title: data.error || 'Import failed', variant: 'destructive' })
+        return
+      }
+      setSummary({ created: data.created, skipped: data.skipped, errors: data.errors ?? [] })
+      toast({
+        title: `${data.created} platform${data.created === 1 ? '' : 's'} imported ✓`,
+        description:
+          data.skipped > 0
+            ? `${data.skipped} duplicate${data.skipped === 1 ? '' : 's'} skipped.`
+            : 'They are live in the store now.',
+      })
+      onImported()
+    } catch {
+      toast({ title: 'Import failed', description: 'Network error — try again.', variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }, [parsed.list, busy, toast, onImported])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[86dvh] overflow-y-auto rounded-3xl sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-left">Import platforms</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Paste a ToolHub export file, or your own JSON array of platforms. Each entry needs at
+            least a name, url and description. Duplicates (same URL) are skipped.
+          </p>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder='[{ "name": "My App", "url": "https://…", "description": "…" }]'
+            rows={8}
+            className="font-mono text-xs"
+            aria-label="Platforms JSON"
+            spellCheck={false}
+          />
+          {parsed.error && (
+            <p role="alert" className="text-xs font-medium text-destructive">
+              {parsed.error}
+            </p>
+          )}
+          {!parsed.error && parsed.count > 0 && (
+            <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              {parsed.count} platform{parsed.count === 1 ? '' : 's'} found in the JSON — ready to import.
+            </p>
+          )}
+          {summary && (
+            <div className="rounded-2xl border border-border/70 bg-muted/40 p-3 text-xs">
+              <p className="font-semibold">
+                {summary.created} created · {summary.skipped} skipped
+              </p>
+              {summary.errors.length > 0 && (
+                <ul className="mt-1.5 space-y-1 text-destructive">
+                  {summary.errors.slice(0, 6).map((e, i) => (
+                    <li key={i} className="truncate">
+                      <span className="font-semibold">{e.name}:</span> {e.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              {summary ? 'Done' : 'Cancel'}
+            </Button>
+            <Button onClick={() => void run()} disabled={busy || !parsed.list || parsed.error !== null} className="gap-2">
+              {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
+              Import {parsed.count > 0 ? parsed.count : ''}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 /* ================================================================== */

@@ -38,6 +38,9 @@ model ExternalApp {
   keywords    String   @default("")
   featured    Boolean  @default(false)
   active      Boolean  @default(true)
+  /* D83 Admin Console v2 — manual store ordering + open telemetry */
+  sortOrder   Int      @default(0)
+  openCount   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

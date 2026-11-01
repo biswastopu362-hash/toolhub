@@ -15,7 +15,8 @@ export async function GET(): Promise<NextResponse> {
     await ensureSchema()
     const rows = await db.externalApp.findMany({
       where: { active: true },
-      orderBy: { createdAt: 'asc' },
+      /* D83: admin's manual order wins; createdAt keeps legacy rows stable */
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     })
     return NextResponse.json(
       { apps: rows.map(serializeApp) },

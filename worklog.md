@@ -2154,3 +2154,22 @@ Gates:
 
 Stage Summary:
 - Phase 5 remainder + Phase 6 core shipped; D83-D86 (Admin Console v2, Linked Platforms v2, Onboarding, Help & About) remain for the next session before the v2.0 tag
+
+---
+Task ID: P6-D83-84
+Agent: main (Z.ai Code)
+Task: Phase 6 Wave H — Admin Console v2 (stats/reorder/bulk import-export) + Linked Platforms v2 (deep links, embed diagnostics, category filters)
+
+Work Log:
+- D83 Schema: ExternalApp += sortOrder (manual store order), openCount (open telemetry); db:push applied + self-heal soft ALTERs in ensure-schema (duplicate-column tolerant for Turso cold starts)
+- D83 APIs: PATCH /api/admin/external-apps/reorder (full-order transaction), POST /api/admin/external-apps/import (per-entry validation, URL-dedupe skip, max 50, lands at bottom of order), POST /api/external-apps/[id]/open (public write-only counter), admin GET now sortOrder-ordered
+- D83 Admin UI: telemetry strip (Opens / Live / Hidden + Most-opened line), per-row opens badge, up/down reorder with optimistic UI + rollback, Export JSON download, Import dialog (paste JSON, live parse preview, created/skipped/error summary)
+- D84: per-platform deep links (copy #/app/<slug> in admin rows + store detail "Copy link" button), embed-failure diagnostics via GET /api/embed-check (admin-gated server probe reads X-Frame-Options + CSP frame-ancestors, 6s timeout, body never read; verdict badge per row "Embeds fine / Blocks embedding / unknown"), store My Platforms category chip filter (All · N + per-category counts), external-app-view fires open telemetry once per mount + expanded embed-block explanation
+- E2E (390×844): created 2 platforms via API → both listed with boundary-disabled reorder buttons; "Move Hacker Pulse up" reordered + persisted (public API order 0/1); embed-check live: HN → "no (X-Frame-Options: DENY)", wikipedia → unknown (403 bot wall), unauthenticated → 401; open telemetry: opening wiki-voyager bumped openCount 0→1; import dialog: 2-entry JSON → 1 created + 1 duplicate skipped, catalog confirmed; store chips "All · 3 / Developer · 1 / Everyday · 2"; detail Copy link present
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean · agent-browser 360/390/1280 zero horizontal overflow · console clean (one pre-existing DialogContent aria-describedby warning only)
+
+Stage Summary:
+- Admin Console v2 + Linked Platforms v2 shipped; catalog 84 built-ins + 3 demo platforms
+- Next: D85 Onboarding + D86 Help & About, then D89 RC + D90 Launch

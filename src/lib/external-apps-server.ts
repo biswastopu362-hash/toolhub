@@ -44,6 +44,8 @@ export interface ExternalAppRow {
   keywords: string
   featured: boolean
   active: boolean
+  sortOrder: number
+  openCount: number
   createdAt: Date
   updatedAt: Date
 }
@@ -63,6 +65,8 @@ export interface ExternalAppPayload {
   keywords: string
   featured: boolean
   active: boolean
+  sortOrder: number
+  openCount: number
 }
 
 export function serializeApp(row: ExternalAppRow): ExternalAppPayload {
@@ -80,6 +84,8 @@ export function serializeApp(row: ExternalAppRow): ExternalAppPayload {
     keywords: row.keywords,
     featured: row.featured,
     active: row.active,
+    sortOrder: row.sortOrder,
+    openCount: row.openCount,
   }
 }
 

@@ -6,9 +6,11 @@ import {
   ArrowLeft,
   BadgeCheck,
   ChevronRight,
+  Copy,
   Download,
   Globe,
   LayoutGrid,
+  Link2,
   Search,
   SearchX,
   ShieldCheck,
@@ -380,6 +382,7 @@ function AppDetail({
   onInstall,
   onOpen,
   onUninstall,
+  onCopyLink,
   onShow,
   installedIds,
   catalog,
@@ -390,6 +393,7 @@ function AppDetail({
   onInstall: () => void
   onOpen: () => void
   onUninstall: () => void
+  onCopyLink?: () => void
   onShow: (id: string) => void
   installedIds: string[]
   catalog: Tool[]
@@ -442,6 +446,11 @@ function AppDetail({
                 onClick={onUninstall}
               >
                 <Trash2 className="size-4" aria-hidden /> Uninstall
+              </Button>
+            )}
+            {tool.external && onCopyLink && (
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onCopyLink}>
+                <Link2 className="size-4" aria-hidden /> Copy link
               </Button>
             )}
           </div>
@@ -656,6 +665,8 @@ export default function AppStoreApp() {
   const [progress, setProgress] = useState<Record<string, number>>({})
   const [query, setQuery] = useState('')
   const [pendingUninstall, setPendingUninstall] = useState<string | null>(null)
+  /* D84 — category filter inside the My Platforms rail */
+  const [platformFilter, setPlatformFilter] = useState<string>('all')
 
   /* linked platforms live server-side — make sure the catalog is fresh */
   useEffect(() => {
@@ -754,11 +765,33 @@ export default function AppStoreApp() {
 
   const pendingTool = pendingUninstall ? allTools.find((t) => t.id === pendingUninstall) : undefined
 
+  const copyPlatformLink = useCallback(async (id: string, name: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/#/app/${id}`)
+      toast({ title: 'Link copied', description: `${name} can be shared with this link.` })
+    } catch {
+      toast({ title: 'Copy failed', description: 'Long-press the address bar to copy manually.', variant: 'destructive' })
+    }
+  }, [toast])
+
   const openTool = useCallback((id: string) => requestOpenApp(id), [])
   const showTool = useCallback((id: string) => setView({ type: 'app', id }), [])
 
   /* ---------------- derived lists ---------------- */
   const featured = useMemo(() => tools.filter((t) => t.featured), [])
+  const platformCats = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const t of externalApps) counts.set(t.category, (counts.get(t.category) ?? 0) + 1)
+    return Array.from(counts.entries()).map(([id, n]) => ({
+      id,
+      name: toolCategories.find((c) => c.id === id)?.name ?? 'Other',
+      count: n,
+    }))
+  }, [externalApps])
+  const shownPlatforms = useMemo(
+    () => (platformFilter === 'all' ? externalApps : externalApps.filter((t) => t.category === platformFilter)),
+    [externalApps, platformFilter]
+  )
   const topCharts = useMemo(
     () => [...tools].sort((a, b) => storeStats(b).rating - storeStats(a).rating).slice(0, 6),
     []
@@ -877,8 +910,41 @@ export default function AppStoreApp() {
               {externalApps.length > 0 && (
                 <div>
                   <SectionHead title="My Platforms" icon={Globe} />
+                  {platformCats.length > 1 && (
+                    <div className="no-scrollbar -mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                      <button
+                        type="button"
+                        onClick={() => setPlatformFilter('all')}
+                        aria-pressed={platformFilter === 'all'}
+                        className={cn(
+                          'h-7 shrink-0 rounded-full px-3 text-xs font-semibold transition',
+                          platformFilter === 'all'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                        )}
+                      >
+                        All · {externalApps.length}
+                      </button>
+                      {platformCats.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setPlatformFilter(c.id)}
+                          aria-pressed={platformFilter === c.id}
+                          className={cn(
+                            'h-7 shrink-0 rounded-full px-3 text-xs font-semibold transition',
+                            platformFilter === c.id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                          )}
+                        >
+                          {c.name} · {c.count}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-                    {externalApps.map((t) => (
+                    {shownPlatforms.map((t) => (
                       <AppCard
                         key={t.id}
                         tool={t}
@@ -1037,6 +1103,9 @@ export default function AppStoreApp() {
               onInstall={() => startInstall(currentApp.id)}
               onOpen={() => openTool(currentApp.id)}
               onUninstall={() => setPendingUninstall(currentApp.id)}
+              onCopyLink={
+                currentApp.external ? () => void copyPlatformLink(currentApp.id, currentApp.name) : undefined
+              }
               onShow={showTool}
               installedIds={installedIds}
               catalog={allTools}

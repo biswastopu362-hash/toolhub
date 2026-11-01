@@ -45,6 +45,15 @@ export default function ExternalAppView() {
     return () => clearTimeout(t)
   }, [url, frameKey])
 
+  /* D83: count the open once per mounted platform — fire-and-forget */
+  useEffect(() => {
+    if (!appId) return
+    void fetch(`/api/external-apps/${encodeURIComponent(appId)}/open`, {
+      method: 'POST',
+      keepalive: true,
+    }).catch(() => undefined)
+  }, [appId])
+
   const loaded = Boolean(loadedFrame && loadedFrame.url === url && loadedFrame.key === frameKey)
   const slow = Boolean(slowFrame && slowFrame.url === url && slowFrame.key === frameKey) && !loaded
 
@@ -129,8 +138,9 @@ export default function ExternalAppView() {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold">Page hasn&apos;t loaded yet</p>
               <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                Some sites block embedding for security. If this stays blank, open {app.name} in
-                a new tab — it works exactly the same.
+                Some sites block embedding for security (X-Frame-Options / CSP). If this stays
+                blank, open {app.name} in a new tab — it works exactly the same. The hub owner can
+                verify this from the Admin Console embed check.
               </p>
             </div>
             <Button

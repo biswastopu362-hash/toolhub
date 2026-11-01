@@ -37,6 +37,11 @@ const SCHEMA_STATEMENTS = [
   ON "ExternalApp"("slug")`,
   `CREATE INDEX IF NOT EXISTS "ExternalApp_active_createdAt_idx"
   ON "ExternalApp"("active", "createdAt")`,
+  /* D83 — additive columns for tables created by older deployments.
+   * SQLite has no ADD COLUMN IF NOT EXISTS, so these run "soft": a
+   * duplicate-column failure is swallowed by runSoftStatements(). */
+  `ALTER TABLE "ExternalApp" ADD COLUMN "sortOrder" INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE "ExternalApp" ADD COLUMN "openCount" INTEGER NOT NULL DEFAULT 0`,
   /* D77 Cloud Sync — optional per-account backup blobs */
   `CREATE TABLE IF NOT EXISTS "SyncAccount" (
   "id"        TEXT     NOT NULL PRIMARY KEY,
@@ -71,7 +76,11 @@ export async function ensureSchema(): Promise<void> {
   if (!schemaPromise) {
     schemaPromise = (async () => {
       for (const sql of SCHEMA_STATEMENTS) {
-        await db.$executeRawUnsafe(sql)
+        if (sql.startsWith('ALTER TABLE')) {
+          await runSoft(sql)
+        } else {
+          await db.$executeRawUnsafe(sql)
+        }
       }
     })().then(
       () => undefined,
@@ -82,6 +91,21 @@ export async function ensureSchema(): Promise<void> {
     )
   }
   return schemaPromise
+}
+
+/**
+ * Run an additive DDL statement, tolerating "already exists" failures —
+ * SQLite has no `ADD COLUMN IF NOT EXISTS`, and concurrent cold starts can
+ * race to add the same column.
+ */
+async function runSoft(sql: string): Promise<void> {
+  try {
+    await db.$executeRawUnsafe(sql)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/duplicate column name|already exists/i.test(msg)) return
+    throw err
+  }
 }
 
 /**

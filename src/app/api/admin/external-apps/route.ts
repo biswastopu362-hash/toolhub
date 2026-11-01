@@ -27,7 +27,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
   try {
     await ensureSchema()
-    const rows = await db.externalApp.findMany({ orderBy: { createdAt: 'asc' } })
+    const rows = await db.externalApp.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    })
     return NextResponse.json({ apps: rows.map(serializeApp) })
   } catch (err) {
     console.error('[admin/external-apps] GET failed:', err)
