@@ -2173,3 +2173,22 @@ Gates:
 Stage Summary:
 - Admin Console v2 + Linked Platforms v2 shipped; catalog 84 built-ins + 3 demo platforms
 - Next: D85 Onboarding + D86 Help & About, then D89 RC + D90 Launch
+
+---
+Task ID: P6-D85-86
+Agent: main (Z.ai Code)
+Task: Phase 6 Wave I — D85 Onboarding (first-run tour, sample data, A2HS coach) + D86 Help & About (Help Center app)
+
+Work Log:
+- D85 Onboarding: 4-step glass tour (Welcome chips "85 apps · offline · zero uploads" → home-screen drag/folders → Spotlight math/units/notes → A2HS coach) with spring icon, slide transitions, dots, Skip/Back/Next; shows once per device (toolhub-onboarded) 700ms after launcher settles; platform-aware A2HS copy (iOS share-sheet / Android banner / desktop address-bar); opt-in "Add sample data" seeds 2 notes (pinned welcome + Spotlight tip) + 1 reminder (once, toolhub-sample-seeded) so widgets + notification feed feel alive; mounted in OsShell after LockGate
+- D85 i18n: 23 new ob* keys EN + BN (Bengali numerals in app-count chip via localizeDigits)
+- D86 Help Center: new registry app id 'help' (LifeBuoy, featured, emerald-teal) — searchable 12-entry FAQ accordion (tag-weighted), 6 tip cards with deep-link actions, zero-upload privacy policy (4 sections), changelog timeline (v1.0→v2.0.0 current), About-hub card; Settings About badge now APP_VERSION-driven ("v2.0.0") + "Open Help Center" button dispatching toolhub:open-app
+- D86 rollout: constants APP_VERSION='2.0.0'; 'help' added to DEFAULT_INSTALLED + RESERVED_SLUGS; store persist migration v5→v6 backfills help install + home layout placement for existing devices (verified live: version 5→6, hasHelp true, window opens)
+- Dev-server OOM restart mid-session (environment, not app); SW stale-chunk workaround: unregister + cache clear to pick up new bundle in dev
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean (fixed react-hooks/set-state-in-effect by moving detection into timer) · E2E 390×844: tour 4 steps + seed + dismiss + persist-reload OK; help FAQ search "offline"→1 hit, Privacy/What's-new tabs OK (v2.0.0/v1.5.0/v1.0.0), Settings entry opens Help; 360/390/1280 zero horizontal overflow; zero page errors
+
+Stage Summary:
+- Onboarding + Help Center shipped; catalog 85 built-ins
+- Next: D89 Release Candidate (screenshots, metadata, CHANGELOG.md) + D90 Launch Day

@@ -240,6 +240,33 @@ const en = {
   customAccentDesc: 'Pick any color — it overrides the preset palettes for buttons and highlights.',
   usePreset: 'Use preset',
   colorInput: 'Pick a custom accent color',
+
+  /* Onboarding — first-run tour (D85) */
+  obWelcomeTitle: 'Welcome to ToolHub',
+  obWelcomeBody:
+    'Every tool you need in one app — calculators, converters, notes, games and more. Everything runs on your device.',
+  obChipApps: '{n} apps',
+  obChipOffline: 'Works offline',
+  obChipPrivate: 'Zero uploads',
+  obHomeTitle: 'Make it yours',
+  obHomeBody:
+    'Long-press any icon to drag it, drop it on another app to create a folder, or use quick actions. The dock and favorites stay one tap away.',
+  obSmartTitle: 'Search that thinks',
+  obSmartBody:
+    'Type math like 12*8+4, convert units like 5km to mi, or start with “note:” to jot something down. Widgets and notifications live on your home screen.',
+  obFinishTitle: 'One last thing',
+  obFinishBody:
+    'Install ToolHub to your home screen for the full app experience — it opens fullscreen and works offline.',
+  obA2hsIos: 'On iPhone: tap the Share button in Safari, then choose “Add to Home Screen”.',
+  obA2hsAndroid: 'On Android: tap the install banner on the home screen, or use your browser menu → “Install app”.',
+  obA2hsDesktop: 'On desktop: click the install icon in your browser’s address bar to install ToolHub as an app.',
+  obSeed: 'Add sample data',
+  obSeedDesc: 'Seeds a welcome note, a Spotlight tip and one reminder so widgets feel alive.',
+  obSeeded: 'Sample data added ✓',
+  obSkip: 'Skip',
+  obBack: 'Previous step',
+  obNext: 'Next',
+  obStart: 'Start exploring',
 } as const
 
 export type TKey = keyof typeof en
@@ -470,6 +497,33 @@ const bn: Record<TKey, string> = {
   customAccentDesc: 'যেকোনো রঙ বাছুন — বাটন ও হাইলাইটে প্রিসেট প্যালেটের জায়গা নেবে।',
   usePreset: 'প্রিসেট ব্যবহার করুন',
   colorInput: 'কাস্টম অ্যাকসেন্ট রঙ বাছুন',
+
+  /* Onboarding — first-run tour (D85) */
+  obWelcomeTitle: 'ToolHub-এ স্বাগতম',
+  obWelcomeBody:
+    'আপনার সব টুল একটি অ্যাপে — ক্যালকুলেটর, কনভার্টার, নোট, গেম আরও অনেক কিছু। সবকিছু চলে আপনার ডিভাইসেই।',
+  obChipApps: '{n}টি অ্যাপ',
+  obChipOffline: 'অফলাইনে চলে',
+  obChipPrivate: 'শূন্য আপলোড',
+  obHomeTitle: 'নিজের মতো সাজান',
+  obHomeBody:
+    'যেকোনো আইকন চেপে ধরে টেনে সরান, অন্য অ্যাপের ওপর ছেড়ে ফোল্ডার বানান, বা কুইক অ্যাকশন ব্যবহার করুন। ডক আর প্রিয় তালিকা সবসময় হাতের নাগালে।',
+  obSmartTitle: 'যে সার্চ ভাবতে পারে',
+  obSmartBody:
+    '১২*৮+৪ লিখে গণিত, 5km to mi লিখে একক রূপান্তর, বা “note:” দিয়ে শুরু করে ঝটপট নোট। উইজেট আর নোটিফিকেশন থাকে হোম স্ক্রিনেই।',
+  obFinishTitle: 'শেষ একটি কথা',
+  obFinishBody:
+    'সম্পূর্ণ অ্যাপ অভিজ্ঞতার জন্য ToolHub হোম স্ক্রিনে ইনস্টল করুন — ফুলস্ক্রিনে খোলে, অফলাইনেও চলে।',
+  obA2hsIos: 'iPhone-এ: Safari-র Share বাটনে চাপুন, তারপর “Add to Home Screen” বেছে নিন।',
+  obA2hsAndroid: 'Android-এ: হোম স্ক্রিনের ইনস্টল ব্যানারে চাপুন, অথবা ব্রাউজার মেনু → “Install app” ব্যবহার করুন।',
+  obA2hsDesktop: 'ডেস্কটপে: ব্রাউজারের অ্যাড্রেস বারের ইনস্টল আইকনে ক্লিক করে ToolHub অ্যাপ হিসেবে ইনস্টল করুন।',
+  obSeed: 'নমুনা ডেটা যোগ করুন',
+  obSeedDesc: 'একটি ওয়েলকাম নোট, একটি Spotlight টিপ ও একটি রিমাইন্ডার যোগ হয় — উইজেট জীবন্ত লাগবে।',
+  obSeeded: 'নমুনা ডেটা যোগ হয়েছে ✓',
+  obSkip: 'এড়িয়ে যান',
+  obBack: 'আগের ধাপ',
+  obNext: 'পরবর্তী',
+  obStart: 'শুরু করুন',
 }
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, bn }

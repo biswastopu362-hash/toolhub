@@ -26,7 +26,7 @@ const RESERVED_SLUGS = new Set([
   'emi-calculator', 'age-calculator', 'text-tools', 'color-tool',
   'json-formatter', 'base64-tool', 'clock', 'weather', 'notes',
   'reminders', 'currency', 'image-tools', 'voice-recorder',
-  'device-info', 'settings', 'admin-console', 'admin', 'api', 'transfer',
+  'device-info', 'settings', 'admin-console', 'admin', 'api', 'transfer', 'help',
 ])
 
 export interface ExternalAppRow {

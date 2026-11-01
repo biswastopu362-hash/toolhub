@@ -3,6 +3,9 @@
  * registry and shell never create import cycles.
  */
 
+/** Current app version — shown in Settings, Help Center and the changelog. */
+export const APP_VERSION = '2.0.0'
+
 /** Apps pinned to the dock (fixed, not draggable). */
 export const DOCK_IDS = ['store', 'files', 'calculator', 'clock', 'settings'] as const
 
@@ -20,6 +23,7 @@ export const DEFAULT_INSTALLED = [
   'gallery',
   'camera',
   'admin-console',
+  'help',
 ] as const
 
 /** Everything in DEFAULT_INSTALLED, as a plain string[] for runtime use. */

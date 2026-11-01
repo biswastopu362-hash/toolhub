@@ -206,7 +206,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'toolhub-store',
-      version: 5,
+      version: 6,
       migrate: (persisted) => {
         const state = persisted as Partial<AppState>
         const next = { ...state, layout: state.layout ?? [], layoutMigrated: false }
@@ -227,6 +227,20 @@ export const useAppStore = create<AppState>()(
             if (!docked.includes(id) && !placed.has(id)) {
               next.layout.push({ kind: 'app', id } as HomeItem)
             }
+          }
+        }
+        /* v6: Help Center (D86) ships on every device — backfill for
+         * profiles that predate it, placed at the end of the home layout. */
+        if (!next.installed.includes('help')) {
+          next.installed = [...next.installed, 'help']
+          const docked = DOCK_IDS as readonly string[]
+          const placed = new Set<string>()
+          for (const it of next.layout) {
+            if (it.kind === 'app') placed.add(it.id)
+            else for (const a of it.appIds) placed.add(a)
+          }
+          if (!docked.includes('help') && !placed.has('help')) {
+            next.layout.push({ kind: 'app', id: 'help' } as HomeItem)
           }
         }
         return next

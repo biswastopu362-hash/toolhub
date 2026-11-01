@@ -88,6 +88,7 @@ import {
   Swords,
   Spade,
   CircleHelp,
+  LifeBuoy,
   Trophy,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
@@ -165,6 +166,7 @@ const CalendarApp = load(() => import('@/components/tools/calendar'))
 const AiChatApp = load(() => import('@/components/tools/ai-chat'))
 const Game2048App = load(() => import('@/components/tools/game-2048'))
 const AdminConsoleApp = load(() => import('@/components/tools/admin-console'))
+const HelpCenterApp = load(() => import('@/components/tools/help-center'))
 const TranslatorApp = load(() => import('@/components/tools/translator'))
 const TtsStudioApp = load(() => import('@/components/tools/tts-studio'))
 const SpeechToTextApp = load(() => import('@/components/tools/speech-to-text'))
@@ -1057,6 +1059,20 @@ export const tools: Tool[] = [
     featured: true,
     version: '1.0.0',
     Component: AdminConsoleApp,
+  },
+  {
+    id: 'help',
+    name: 'Help Center',
+    description: 'Searchable FAQ, power-user tips, the zero-upload privacy policy and the full version changelog — the hub\'s support desk',
+    tagline: 'Answers, tips and privacy in one place',
+    category: 'utilities',
+    icon: LifeBuoy,
+    gradient: 'from-emerald-400 via-teal-500 to-cyan-600',
+    glow: '#14b8a6',
+    keywords: ['help', 'faq', 'support', 'tips', 'privacy', 'about', 'changelog', 'version', 'guide', 'how to'],
+    featured: true,
+    version: '1.0.0',
+    Component: HelpCenterApp,
   },
   {
     id: 'flashcards',

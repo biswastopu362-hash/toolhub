@@ -187,8 +187,8 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **D82** Offline hardening — full offline data paths, SW update flow, "works on airplane" test
 - [x] **D83** Admin Console v2 — linked-platform stats (opens/hides), reorder, bulk import/export
 - [x] **D84** Linked Platforms v2 — per-platform deep links, embed-failure diagnostics, categories
-- [ ] **D85** Onboarding — first-run welcome tour, sample-data seeding, "Add to Home Screen" coach
-- [ ] **D86** Help & About (platform) — help app (FAQ, tips), privacy page, version changelog
+- [x] **D85** Onboarding — first-run welcome tour, sample-data seeding, "Add to Home Screen" coach
+- [x] **D86** Help & About (platform) — help app (FAQ, tips), privacy page, version changelog
 - [x] **D87** Hardening — error boundaries per app, crash recovery, storage-quota handling
 - [x] **D88** E2E Marathon — every app × {360, 390, 430, 768, 1280} viewport sweep, fix list closed
 - [ ] **D89** Release Candidate — **v2.0** changelog, metadata/screenshots, store description

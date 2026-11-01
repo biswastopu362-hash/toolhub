@@ -5,6 +5,7 @@ import {
   Info,
   Languages,
   LayoutGrid,
+  LifeBuoy,
   Monitor,
   Moon,
   MoreVertical,
@@ -37,7 +38,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/lib/store/app-store'
 import { ACCENTS, MODES, WALLPAPERS, type ModeId } from '@/lib/theme'
 import { defaultLayout } from '@/lib/home-layout'
-import { DOCK_IDS } from '@/lib/constants'
+import { DOCK_IDS, APP_VERSION } from '@/lib/constants'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { AppLockCard } from '@/components/os/app-lock-card'
 import { AccountCard } from '@/components/os/account-card'
@@ -556,7 +557,7 @@ export default function SettingsTool() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold">ToolHub</h3>
-              <Badge variant="secondary">v2.2</Badge>
+              <Badge variant="secondary">v{APP_VERSION}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">{t('allYourApps')}</p>
           </div>
@@ -571,6 +572,16 @@ export default function SettingsTool() {
             {t('pwaNote')}
           </p>
         </div>
+        <Button
+          variant="outline"
+          className="h-11 gap-2"
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent<string>('toolhub:open-app', { detail: 'help' }))
+          }
+        >
+          <LifeBuoy className="size-4" aria-hidden="true" />
+          Open Help Center
+        </Button>
       </Card>
     </div>
   )

@@ -40,6 +40,7 @@ import { useToast } from '@/hooks/use-toast'
 import { ControlCenter } from '@/components/control-center'
 import { InstallBanner } from '@/components/pwa/install-banner'
 import { LockGate } from '@/components/os/lock-gate'
+import Onboarding from '@/components/os/onboarding'
 import { WidgetStrip } from '@/components/os/home-widgets'
 import { NotificationShade } from '@/components/os/notification-shade'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -441,6 +442,9 @@ function OsShell() {
             />
           )}
         </AnimatePresence>
+
+        {/* D85 first-run welcome tour (self-gating via localStorage) */}
+        <Onboarding />
       </div>
     </MotionConfig>
   )
