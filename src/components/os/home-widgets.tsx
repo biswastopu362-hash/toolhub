@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { CloudSun, StickyNote } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useLang } from '@/hooks/use-lang'
+import { localizeDigits } from '@/lib/i18n'
 
 /* ================================================================== */
 /* Home widgets (D72) — clock, weather and notes-sticky cards living   */
@@ -119,6 +121,7 @@ function useClock() {
 
 export function WidgetStrip({ onOpenApp, onLight }: WidgetStripProps) {
   const now = useClock()
+  const { lang, t } = useLang()
   const [weather, setWeather] = useState<WeatherBits | null>(null)
   const [sticky, setSticky] = useState<StickyBits | null>(null)
 
@@ -137,10 +140,17 @@ export function WidgetStrip({ onOpenApp, onLight }: WidgetStripProps) {
   }, [])
 
   const timeStr = now
-    ? now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    ? localizeDigits(
+        now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        lang
+      )
     : '--:--'
   const dateStr = now
-    ? now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+    ? now.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+      })
     : ''
   const wd = weather ? describeCode(weather.code) : null
 
@@ -154,17 +164,17 @@ export function WidgetStrip({ onOpenApp, onLight }: WidgetStripProps) {
   const subCls = onLight ? 'text-zinc-600' : 'text-white/65'
 
   return (
-    <div className="mb-4 grid grid-cols-3 gap-2.5" role="group" aria-label="Widgets">
+    <div className="mb-4 grid grid-cols-3 gap-2.5" role="group" aria-label={t('widgetGroup')}>
       {/* Clock */}
       <motion.button
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
         onClick={(e) => onOpenApp('clock', e.currentTarget)}
-        aria-label="Clock widget — open Clock"
+        aria-label={t('clockWidgetAria')}
         className={card}
       >
-        <div className={cn('text-[10px] font-bold uppercase tracking-wider', subCls)}>Clock</div>
+        <div className={cn('text-[10px] font-bold uppercase tracking-wider', subCls)}>{t('widgetClock')}</div>
         <div className={cn('mt-1 text-2xl font-black tabular-nums leading-none', titleCls)} suppressHydrationWarning>
           {timeStr}
         </div>
@@ -179,10 +189,10 @@ export function WidgetStrip({ onOpenApp, onLight }: WidgetStripProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, delay: 0.04 }}
         onClick={(e) => onOpenApp('weather', e.currentTarget)}
-        aria-label="Weather widget — open Weather"
+        aria-label={t('weatherWidgetAria')}
         className={card}
       >
-        <div className={cn('text-[10px] font-bold uppercase tracking-wider', subCls)}>Weather</div>
+        <div className={cn('text-[10px] font-bold uppercase tracking-wider', subCls)}>{t('widgetWeather')}</div>
         {weather && wd ? (
           <>
             <div className={cn('mt-1 flex items-baseline gap-1 text-2xl font-black leading-none', titleCls)}>
@@ -200,7 +210,7 @@ export function WidgetStrip({ onOpenApp, onLight }: WidgetStripProps) {
             <div className={cn('mt-1 flex items-center gap-1 text-2xl font-black leading-none', titleCls)}>
               <CloudSun className="size-5 opacity-60" aria-hidden />
             </div>
-            <div className={cn('mt-1 truncate text-[10px] font-medium', subCls)}>Open for forecast</div>
+            <div className={cn('mt-1 truncate text-[10px] font-medium', subCls)}>{t('openForForecast')}</div>
           </>
         )}
       </motion.button>
@@ -211,23 +221,25 @@ export function WidgetStrip({ onOpenApp, onLight }: WidgetStripProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, delay: 0.08 }}
         onClick={(e) => onOpenApp('notes', e.currentTarget)}
-        aria-label="Notes widget — open Notes"
+        aria-label={t('notesWidgetAria')}
         className={card}
       >
         <div className={cn('flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider', subCls)}>
-          <StickyNote className="size-3" aria-hidden /> Notes
+          <StickyNote className="size-3" aria-hidden /> {t('widgetNotes')}
         </div>
         {sticky ? (
           <>
-            <div className={cn('mt-1 truncate text-sm font-bold leading-tight', titleCls)}>{sticky.title}</div>
+            <div className={cn('mt-1 truncate text-sm font-bold leading-tight', titleCls)}>
+              {sticky.title || t('untitledNote')}
+            </div>
             <div className={cn('mt-0.5 line-clamp-2 text-[10px] leading-tight', subCls)}>
-              {sticky.body || 'Empty note'}
+              {sticky.body || t('emptyNote')}
             </div>
           </>
         ) : (
           <>
-            <div className={cn('mt-1 text-sm font-bold leading-tight', titleCls)}>Quick note</div>
-            <div className={cn('mt-0.5 text-[10px] leading-tight', subCls)}>Tap to write one</div>
+            <div className={cn('mt-1 text-sm font-bold leading-tight', titleCls)}>{t('quickNote')}</div>
+            <div className={cn('mt-0.5 text-[10px] leading-tight', subCls)}>{t('tapToWrite')}</div>
           </>
         )}
       </motion.button>

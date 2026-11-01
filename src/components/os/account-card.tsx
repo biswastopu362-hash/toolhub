@@ -30,6 +30,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
+import { useLang } from '@/hooks/use-lang'
 import { cn } from '@/lib/utils'
 import {
   SYNC_DOMAINS,
@@ -57,6 +58,7 @@ interface ProvidersShape {
 export function AccountCard() {
   const { data: session, status } = useSession()
   const { toast } = useToast()
+  const { t } = useLang()
 
   const [providers, setProviders] = useState<ProvidersShape | null>(null)
   const [email, setEmail] = useState('')
@@ -103,7 +105,7 @@ export function AccountCard() {
   const signInLocal = async () => {
     const value = email.trim().toLowerCase()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      setEmailError('Enter a valid email address')
+      setEmailError(t('invalidEmail'))
       return
     }
     setEmailError('')
@@ -116,11 +118,11 @@ export function AccountCard() {
         redirect: false,
       })
       if (res?.error) throw new Error('Sign-in failed')
-      toast({ title: 'Signed in ✓', description: `Cloud backup unlocked for ${value}.` })
+      toast({ title: t('signedInToast'), description: t('cloudUnlocked', { email: value }) })
     } catch (err) {
       toast({
-        title: 'Sign-in failed',
-        description: err instanceof Error ? err.message : 'Please try again.',
+        title: t('signInFailed'),
+        description: err instanceof Error ? err.message : t('tryAgain'),
       })
     } finally {
       setSigningIn(false)
@@ -154,16 +156,16 @@ export function AccountCard() {
       await refreshCloud()
       if (pushed === 0) {
         toast({
-          title: 'Nothing to back up yet',
-          description: 'All three stores are empty on this device — use an app first, then back up.',
+          title: t('nothingToBackup'),
+          description: t('nothingToBackupDesc'),
         })
       } else {
-        toast({ title: `Backup complete ✓ (${pushed}/${SYNC_DOMAINS.length})`, description: results.join(' — ') })
+        toast({ title: t('backupComplete', { n: pushed, m: SYNC_DOMAINS.length }), description: results.join(' — ') })
       }
     } catch (err) {
       toast({
-        title: 'Backup failed',
-        description: err instanceof Error ? err.message : 'Please try again.',
+        title: t('backupFailed'),
+        description: err instanceof Error ? err.message : t('tryAgain'),
       })
     } finally {
       setBusy(null)
@@ -177,14 +179,14 @@ export function AccountCard() {
     try {
       await restoreDomain(domain)
       toast({
-        title: `${domain.label} restored ✓`,
-        description: 'Reloading to apply the cloud copy…',
+        title: t('restoredToast', { name: domain.label }),
+        description: t('restoredToastDesc'),
       })
       setTimeout(() => window.location.reload(), 700)
     } catch (err) {
       toast({
-        title: 'Restore failed',
-        description: err instanceof Error ? err.message : 'Please try again.',
+        title: t('restoreFailed'),
+        description: err instanceof Error ? err.message : t('tryAgain'),
       })
       setBusy(null)
     }
@@ -195,11 +197,11 @@ export function AccountCard() {
     try {
       const n = await deleteCloudBlobs('*')
       await refreshCloud()
-      toast({ title: 'Cloud data deleted ✓', description: `${n} backup blob${n === 1 ? '' : 's'} removed.` })
+      toast({ title: t('cloudDeleted'), description: t('cloudDeletedDesc', { n, s: n === 1 ? '' : 's' }) })
     } catch (err) {
       toast({
-        title: 'Delete failed',
-        description: err instanceof Error ? err.message : 'Please try again.',
+        title: t('deleteFailed'),
+        description: err instanceof Error ? err.message : t('tryAgain'),
       })
     } finally {
       setBusy(null)
@@ -225,18 +227,15 @@ export function AccountCard() {
   const hasCloud = Boolean(cloud && cloud.length > 0)
 
   return (
-    <Card className="gap-4 p-4" aria-label="Account and cloud sync">
+    <Card className="gap-4 p-4" aria-label={t('accountTitle')}>
       <div>
-        <h3 className="font-semibold">Account &amp; cloud sync</h3>
-        <p className="text-sm text-muted-foreground">
-          Optional. ToolHub works fully without an account — signing in only unlocks an explicit,
-          on-demand backup of your notes, reminders and launcher settings.
-        </p>
+        <h3 className="font-semibold">{t('accountTitle')}</h3>
+        <p className="text-sm text-muted-foreground">{t('accountDesc')}</p>
       </div>
 
       {status === 'loading' && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-          <Loader2 className="size-4 animate-spin" aria-hidden /> Checking session…
+          <Loader2 className="size-4 animate-spin" aria-hidden /> {t('checkingSession')}
         </div>
       )}
 
@@ -245,8 +244,7 @@ export function AccountCard() {
           <div className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
             <span>
-              <span className="font-medium">Guest mode</span> — your data never leaves this device.
-              Sign in only if you want a cloud backup.
+              <span className="font-medium">{t('guestMode')}</span> — {t('guestDesc')}
             </span>
           </div>
 
@@ -258,40 +256,38 @@ export function AccountCard() {
                 <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z" />
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52Z" />
               </svg>
-              Continue with Google
+              {t('continueGoogle')}
             </Button>
           )}
 
           <div className="space-y-2 rounded-xl border p-3">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Mail className="size-4" aria-hidden /> Use a local account
+              <Mail className="size-4" aria-hidden /> {t('localAccount')}
             </div>
             <Input
               type="email"
               inputMode="email"
-              placeholder="you@example.com"
+              placeholder={t('emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              aria-label="Email address"
+              aria-label={t('emailAddress')}
               aria-invalid={Boolean(emailError)}
               className="h-11"
             />
             <Input
               type="text"
-              placeholder="Display name (optional)"
+              placeholder={t('displayName')}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              aria-label="Display name"
+              aria-label={t('displayName')}
               className="h-11"
             />
             {emailError && <p className="text-xs text-destructive">{emailError}</p>}
             <Button className="h-11 w-full gap-2" onClick={() => void signInLocal()} disabled={signingIn}>
               {signingIn ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <LogIn className="size-4" aria-hidden />}
-              Sign in
+              {t('signIn')}
             </Button>
-            <p className="text-xs text-muted-foreground">
-              Local accounts are verified by email only — intended for self-hosted hubs without OAuth setup.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('signInLocalNote')}</p>
           </div>
         </div>
       )}
@@ -306,7 +302,7 @@ export function AccountCard() {
               <span className="block truncate text-sm font-semibold">{session?.user?.name}</span>
               <span className="block truncate text-xs text-muted-foreground">{session?.user?.email}</span>
             </span>
-            <Badge variant="secondary">Sync ready</Badge>
+            <Badge variant="secondary">{t('syncReady')}</Badge>
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -316,7 +312,7 @@ export function AccountCard() {
               ) : (
                 <CloudUpload className="size-4" aria-hidden />
               )}
-              Back up now
+              {t('backUpNow')}
             </Button>
             <Button
               variant="outline"
@@ -324,7 +320,7 @@ export function AccountCard() {
               onClick={() => void signOut({ callbackUrl: '/' })}
               disabled={busy !== null}
             >
-              <LogOut className="size-4" aria-hidden /> Sign out
+              <LogOut className="size-4" aria-hidden /> {t('signOut')}
             </Button>
           </div>
 
@@ -332,29 +328,26 @@ export function AccountCard() {
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-sm font-semibold">Cloud backups</h4>
+              <h4 className="text-sm font-semibold">{t('cloudBackups')}</h4>
               {hasCloud && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-destructive hover:text-destructive">
-                      <Trash2 className="size-3.5" aria-hidden /> Delete all
+                      <Trash2 className="size-3.5" aria-hidden /> {t('deleteAll')}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete all cloud backups?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        The copies on the server are removed permanently. The data on this device is not
-                        touched.
-                      </AlertDialogDescription>
+                      <AlertDialogTitle>{t('deleteAllTitle')}</AlertDialogTitle>
+                      <AlertDialogDescription>{t('deleteAllDesc')}</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                       <AlertDialogAction
                         className="bg-destructive text-white hover:bg-destructive/90"
                         onClick={() => void wipeCloud()}
                       >
-                        Delete
+                        {t('delete')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -364,14 +357,12 @@ export function AccountCard() {
 
             {cloud === null && (
               <p className="text-sm text-muted-foreground" role="status">
-                <Loader2 className="mr-1 inline size-3.5 animate-spin" aria-hidden /> Reading cloud state…
+                <Loader2 className="mr-1 inline size-3.5 animate-spin" aria-hidden /> {t('readingCloud')}
               </p>
             )}
 
             {cloud !== null && !hasCloud && (
-              <p className="text-sm text-muted-foreground">
-                No backups yet — press “Back up now” to store a snapshot of the three domains below.
-              </p>
+              <p className="text-sm text-muted-foreground">{t('noBackupsYet')}</p>
             )}
 
             {hasCloud && (
@@ -388,7 +379,7 @@ export function AccountCard() {
                         <span className="block truncate text-xs text-muted-foreground">
                           {blob
                             ? `rev ${blob.rev} · ${fmtSize(blob.size)} · ${fmtTime(blob.updatedAt)}`
-                            : 'Not backed up yet'}
+                            : t('notBackedUp')}
                         </span>
                       </span>
                       {blob && (
@@ -399,27 +390,26 @@ export function AccountCard() {
                               size="sm"
                               className={cn('h-9 shrink-0 gap-1.5')}
                               disabled={busy !== null}
-                              aria-label={`Restore ${d.label} from cloud`}
+                              aria-label={t('restoreFromCloud', { name: d.label })}
                             >
                               {busy === 'restore' ? (
                                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
                               ) : (
                                 <CloudDownload className="size-3.5" aria-hidden />
                               )}
-                              Restore
+                              {t('restore')}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Restore {d.label}?</AlertDialogTitle>
+                              <AlertDialogTitle>{t('restoreTitle', { name: d.label })}</AlertDialogTitle>
                               <AlertDialogDescription>
-                                The cloud copy (rev {blob.rev}, {fmtTime(blob.updatedAt)}) replaces what is
-                                currently on this device. Everything else stays untouched.
+                                {t('restoreDesc', { rev: blob.rev, time: fmtTime(blob.updatedAt) })}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => void restore(d.id)}>Restore</AlertDialogAction>
+                              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => void restore(d.id)}>{t('restore')}</AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
@@ -431,10 +421,7 @@ export function AccountCard() {
             )}
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Backups are manual snapshots (last write wins). Nothing is uploaded automatically, and
-            payload content is never parsed on the server.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('syncPrivacyNote')}</p>
         </div>
       )}
     </Card>

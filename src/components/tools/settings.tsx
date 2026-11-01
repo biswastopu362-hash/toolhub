@@ -3,6 +3,7 @@
 import {
   Check,
   Info,
+  Languages,
   LayoutGrid,
   Monitor,
   Moon,
@@ -40,6 +41,8 @@ import { DOCK_IDS } from '@/lib/constants'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { AppLockCard } from '@/components/os/app-lock-card'
 import { AccountCard } from '@/components/os/account-card'
+import { useLang } from '@/hooks/use-lang'
+import type { TKey } from '@/lib/i18n'
 import { tools } from '@/lib/tools/registry'
 
 /* ================================================================== */
@@ -53,12 +56,27 @@ const MODE_ICONS: Record<ModeId, LucideIcon> = {
   system: Monitor,
 }
 
+const MODE_NAME_KEY: Record<ModeId, TKey> = {
+  light: 'modeLight',
+  dark: 'modeDark',
+  amoled: 'modeAmoled',
+  system: 'modeSystem',
+}
+
+const MODE_DESC_KEY: Record<ModeId, TKey> = {
+  light: 'descLight',
+  dark: 'descDark',
+  amoled: 'descAmoled',
+  system: 'descSystem',
+}
+
 /* ================================================================== */
 /* Component                                                           */
 /* ================================================================== */
 
 export default function SettingsTool() {
   const { toast } = useToast()
+  const { t, lang, setLang } = useLang()
 
   const favorites = useAppStore((s) => s.favorites)
   const recents = useAppStore((s) => s.recents)
@@ -78,8 +96,11 @@ export default function SettingsTool() {
     if (favorites.length === 0) return
     ;[...favorites].forEach((id) => toggleFavorite(id))
     toast({
-      title: 'Favorites cleared ✓',
-      description: `${favorites.length.toLocaleString('en-US')} ${favorites.length === 1 ? 'app' : 'apps'} removed from favorites.`,
+      title: t('favoritesCleared'),
+      description: t('removedFromFavorites', {
+        n: favorites.length,
+        s: favorites.length === 1 ? t('appWord') : t('appsWord'),
+      }),
     })
   }
 
@@ -88,8 +109,11 @@ export default function SettingsTool() {
     const count = recents.length
     clearRecents()
     toast({
-      title: 'Recents cleared ✓',
-      description: `${count.toLocaleString('en-US')} ${count === 1 ? 'entry' : 'entries'} removed from recents.`,
+      title: t('recentsCleared'),
+      description: t('removedFromFavorites', {
+        n: count,
+        s: count === 1 ? t('entry') : t('entries'),
+      }),
     })
   }
 
@@ -98,13 +122,43 @@ export default function SettingsTool() {
 
   return (
     <div className="space-y-4">
+      {/* ---------------- Language (D78) ---------------- */}
+      <Card className="gap-4 p-4">
+        <div>
+          <h3 className="font-semibold">{t('language')}</h3>
+          <p className="text-sm text-muted-foreground">{t('languageDesc')}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label={t('language')}>
+          {(['en', 'bn'] as const).map((l) => {
+            const active = lang === l
+            return (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLang(l)}
+                aria-pressed={active}
+                aria-label={l === 'en' ? 'English' : 'বাংলা'}
+                className={cn(
+                  'flex h-14 items-center justify-center gap-2 rounded-xl border px-2 text-sm font-semibold transition-all active:scale-95',
+                  active
+                    ? 'border-transparent bg-primary text-primary-foreground shadow-md shadow-primary/25'
+                    : 'border-border text-muted-foreground hover:bg-muted'
+                )}
+              >
+                <Languages className="size-4" aria-hidden="true" />
+                {l === 'en' ? 'English' : 'বাংলা'}
+                {active && <Check className="size-4" aria-hidden="true" />}
+              </button>
+            )
+          })}
+        </div>
+      </Card>
+
       {/* ---------------- Appearance · Mode ---------------- */}
       <Card className="gap-4 p-4">
         <div>
-          <h3 className="font-semibold">Color mode</h3>
-          <p className="text-sm text-muted-foreground">
-            Light, dark, true-black AMOLED — or follow your device automatically.
-          </p>
+          <h3 className="font-semibold">{t('colorMode')}</h3>
+          <p className="text-sm text-muted-foreground">{t('colorModeDesc')}</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Color mode">
           {MODES.map((m) => {
@@ -116,7 +170,7 @@ export default function SettingsTool() {
                 type="button"
                 onClick={() => setMode(m.id)}
                 aria-pressed={active}
-                aria-label={`${m.name} mode — ${m.description}`}
+                aria-label={`${t(MODE_NAME_KEY[m.id])} — ${t(MODE_DESC_KEY[m.id])}`}
                 className={cn(
                   'flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-medium transition-all active:scale-95',
                   active
@@ -125,14 +179,14 @@ export default function SettingsTool() {
                 )}
               >
                 <Icon className="size-5" aria-hidden="true" />
-                {m.name}
+                {t(MODE_NAME_KEY[m.id])}
                 <span
                   className={cn(
                     'text-center text-[10px] leading-tight',
                     active ? 'text-primary-foreground/75' : 'text-muted-foreground/80'
                   )}
                 >
-                  {m.description}
+                  {t(MODE_DESC_KEY[m.id])}
                 </span>
               </button>
             )
@@ -143,11 +197,8 @@ export default function SettingsTool() {
       {/* ---------------- Appearance · Accent ---------------- */}
       <Card className="gap-4 p-4">
         <div>
-          <h3 className="font-semibold">Accent color</h3>
-          <p className="text-sm text-muted-foreground">
-            Tints every app, button and highlight — currently{' '}
-            <span className="font-semibold text-foreground">{activeAccent?.name}</span>.
-          </p>
+          <h3 className="font-semibold">{t('accent')}</h3>
+          <p className="text-sm text-muted-foreground">{t('accentDesc', { name: activeAccent?.name ?? '' })}</p>
         </div>
         <div className="grid grid-cols-4 gap-3 sm:grid-cols-8" role="group" aria-label="Accent color">
           {ACCENTS.map((a) => {
@@ -187,11 +238,8 @@ export default function SettingsTool() {
       {/* ---------------- Appearance · Wallpaper ---------------- */}
       <Card className="gap-4 p-4">
         <div>
-          <h3 className="font-semibold">Wallpaper</h3>
-          <p className="text-sm text-muted-foreground">
-            Pick a background for your home screen — currently{' '}
-            <span className="font-semibold text-foreground">{activeWallpaper?.name}</span>.
-          </p>
+          <h3 className="font-semibold">{t('wallpaper')}</h3>
+          <p className="text-sm text-muted-foreground">{t('wallpaperDesc', { name: activeWallpaper?.name ?? '' })}</p>
         </div>
         <div className="grid grid-cols-4 gap-3 sm:grid-cols-8" role="group" aria-label="Wallpaper">
           {WALLPAPERS.map((wp) => {
@@ -230,41 +278,36 @@ export default function SettingsTool() {
             )
           })}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Tip: the palette button in the status bar opens quick settings from anywhere.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('wallpaperTip')}</p>
       </Card>
 
       {/* ---------------- Apps ---------------- */}
       <Card className="gap-4 p-4">
         <div>
-          <h3 className="font-semibold">Apps</h3>
-          <p className="text-sm text-muted-foreground">
-            {installed.length.toLocaleString('en-US')} of {tools.length.toLocaleString('en-US')}{' '}
-            apps installed. Browse, install and uninstall apps from the store.
-          </p>
+          <h3 className="font-semibold">{t('appsHeading')}</h3>
+          <p className="text-sm text-muted-foreground">{t('appsInstalled', { n: installed.length, m: tools.length })}</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-lg bg-muted p-3 text-center">
             <p className="text-2xl font-bold tabular-nums">{installed.length.toLocaleString('en-US')}</p>
-            <p className="text-xs text-muted-foreground">Installed</p>
+            <p className="text-xs text-muted-foreground">{t('installed')}</p>
           </div>
           <div className="rounded-lg bg-muted p-3 text-center">
             <p className="text-2xl font-bold tabular-nums">
               {(tools.length - installed.length).toLocaleString('en-US')}
             </p>
-            <p className="text-xs text-muted-foreground">Available</p>
+            <p className="text-xs text-muted-foreground">{t('availableLabel')}</p>
           </div>
           <div className="rounded-lg bg-muted p-3 text-center">
             <p className="text-2xl font-bold tabular-nums">{folderCount.toLocaleString('en-US')}</p>
-            <p className="text-xs text-muted-foreground">Folders</p>
+            <p className="text-xs text-muted-foreground">{t('foldersLabel')}</p>
           </div>
         </div>
         <Button
           className="h-11 gap-2"
           onClick={() => window.dispatchEvent(new CustomEvent<string>('toolhub:open-app', { detail: 'store' }))}
         >
-          <Store className="size-4" /> Open App Store
+          <Store className="size-4" /> {t('openAppStore')}
         </Button>
       </Card>
 
@@ -277,69 +320,61 @@ export default function SettingsTool() {
       {/* ---------------- Home screen layout ---------------- */}
       <Card className="gap-4 p-4">
         <div>
-          <h3 className="font-semibold">Home screen layout</h3>
-          <p className="text-sm text-muted-foreground">
-            Long-press any icon on the home screen to rearrange apps, stack two apps together to
-            create a folder, or hold near a screen edge to flip pages.
-          </p>
+          <h3 className="font-semibold">{t('homeLayout')}</h3>
+          <p className="text-sm text-muted-foreground">{t('homeLayoutDesc')}</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-lg bg-muted p-3 text-center">
             <p className="text-2xl font-bold tabular-nums">{installed.length.toLocaleString('en-US')}</p>
-            <p className="text-xs text-muted-foreground">Apps</p>
+            <p className="text-xs text-muted-foreground">{t('appsHeading')}</p>
           </div>
           <div className="rounded-lg bg-muted p-3 text-center">
             <p className="text-2xl font-bold tabular-nums">{folderCount.toLocaleString('en-US')}</p>
-            <p className="text-xs text-muted-foreground">Folders</p>
+            <p className="text-xs text-muted-foreground">{t('foldersLabel')}</p>
           </div>
           <div className="rounded-lg bg-muted p-3 text-center">
             <p className="text-2xl font-bold tabular-nums">{favorites.length.toLocaleString('en-US')}</p>
-            <p className="text-xs text-muted-foreground">Favorites</p>
+            <p className="text-xs text-muted-foreground">{t('favorites')}</p>
           </div>
         </div>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" className="h-11 gap-2">
-              <RotateCcw className="size-4" /> Reset home screen layout
+              <RotateCcw className="size-4" /> {t('resetLayout')}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Reset home screen layout?</AlertDialogTitle>
-              <AlertDialogDescription>
-                All folders will be dissolved and every app returns to its original position. Your
-                notes, reminders and favorites are not affected.
-              </AlertDialogDescription>
+              <AlertDialogTitle>{t('resetLayoutTitle')}</AlertDialogTitle>
+              <AlertDialogDescription>{t('resetLayoutDesc')}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
                   resetLayout(defaultLayout(installed, [...DOCK_IDS]))
                   toast({
-                    title: 'Home screen reset ✓',
-                    description: 'Every app is back in its original place.',
+                    title: t('resetDone'),
+                    description: t('resetDoneDesc'),
                   })
                 }}
               >
-                Reset
+                {t('reset')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
           <LayoutGrid className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-          Tip: you can also tap “Rearrange icons &amp; folders” in quick settings.
+          {t('layoutTip')}
         </p>
       </Card>
 
       {/* ---------------- Install ---------------- */}
       <Card className="gap-4 p-4">
         <div>
-          <h3 className="font-semibold">Install app</h3>
-          <p className="text-sm text-muted-foreground">
-            Add ToolHub to your home screen for a full-screen, offline experience.
-          </p>
+          <h3 className="font-semibold">{t('installApp')}</h3>
+          <p className="text-sm text-muted-foreground">{t('installAppDesc')}</p>
         </div>
         <InstallAppButton className="h-11 gap-2 px-4" />
         <Separator />
@@ -347,15 +382,13 @@ export default function SettingsTool() {
           <li className="flex items-start gap-2">
             <Share className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>
-              <span className="font-medium text-foreground">iPhone / iPad:</span> open in Safari, tap Share, then
-              “Add to Home Screen”.
+              <span className="font-medium text-foreground">{t('iphoneLabel')}</span> {t('iphoneTip')}
             </span>
           </li>
           <li className="flex items-start gap-2">
             <MoreVertical className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>
-              <span className="font-medium text-foreground">Android &amp; desktop Chrome:</span> open the browser
-              menu (⋮), then tap “Install app”.
+              <span className="font-medium text-foreground">{t('androidLabel')}</span> {t('androidTip')}
             </span>
           </li>
         </ul>
@@ -364,17 +397,17 @@ export default function SettingsTool() {
       {/* ---------------- Data ---------------- */}
       <Card className="gap-4 p-4">
         <div>
-          <h3 className="font-semibold">Your data</h3>
-          <p className="text-sm text-muted-foreground">Stored only on this device — cleared data cannot be restored.</p>
+          <h3 className="font-semibold">{t('yourData')}</h3>
+          <p className="text-sm text-muted-foreground">{t('yourDataDesc')}</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg bg-muted p-3 text-center">
             <p className="text-2xl font-bold tabular-nums">{favorites.length.toLocaleString('en-US')}</p>
-            <p className="text-xs text-muted-foreground">Favorites</p>
+            <p className="text-xs text-muted-foreground">{t('favorites')}</p>
           </div>
           <div className="rounded-lg bg-muted p-3 text-center">
             <p className="text-2xl font-bold tabular-nums">{recents.length.toLocaleString('en-US')}</p>
-            <p className="text-xs text-muted-foreground">Recents</p>
+            <p className="text-xs text-muted-foreground">{t('recents')}</p>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -385,16 +418,16 @@ export default function SettingsTool() {
               window.dispatchEvent(new CustomEvent<string>('toolhub:open-app', { detail: 'backup-restore' }))
             }
           >
-            Backup &amp; restore
+            {t('backupRestore')}
           </Button>
           <Button
             variant="outline"
             className="h-11 gap-2"
             onClick={onClearRecents}
             disabled={recents.length === 0}
-            aria-label="Clear recents"
+            aria-label={t('clearRecents')}
           >
-            <Trash2 className="size-4" /> Clear recents
+            <Trash2 className="size-4" /> {t('clearRecents')}
           </Button>
         </div>
         <Button
@@ -402,9 +435,9 @@ export default function SettingsTool() {
           className="h-11 gap-2"
           onClick={clearFavorites}
           disabled={favorites.length === 0}
-          aria-label="Clear favorites"
+          aria-label={t('clearFavorites')}
         >
-          <Trash2 className="size-4" /> Clear favorites
+          <Trash2 className="size-4" /> {t('clearFavorites')}
         </Button>
       </Card>
 
@@ -419,18 +452,17 @@ export default function SettingsTool() {
               <h3 className="text-lg font-bold">ToolHub</h3>
               <Badge variant="secondary">v2.2</Badge>
             </div>
-            <p className="text-sm text-muted-foreground">All your apps, one hub</p>
+            <p className="text-sm text-muted-foreground">{t('allYourApps')}</p>
           </div>
         </div>
         <Separator />
         <div className="space-y-1.5 text-sm">
           <p>
-            <span className="font-semibold">{tools.length.toLocaleString('en-US')}</span> apps and counting —
-            calculators, converters, generators and more.
+            <span className="font-semibold">{t('andCounting', { n: tools.length })}</span>
           </p>
           <p className="flex items-start gap-2 text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            Built as a Progressive Web App — works offline on every device.
+            {t('pwaNote')}
           </p>
         </div>
       </Card>

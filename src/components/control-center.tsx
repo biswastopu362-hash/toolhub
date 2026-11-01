@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import { ACCENTS, MODES, WALLPAPERS, type ModeId } from '@/lib/theme'
 import { useAppStore } from '@/lib/store/app-store'
+import { useLang } from '@/hooks/use-lang'
+import type { TKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 /**
@@ -42,6 +44,20 @@ const MODE_GLYPH: Record<ModeId, { icon: typeof Sun; cls: string }> = {
   system: { icon: Monitor, cls: 'text-sky-600' },
 }
 
+const MODE_NAME_KEY: Record<ModeId, TKey> = {
+  light: 'modeLight',
+  dark: 'modeDark',
+  amoled: 'modeAmoled',
+  system: 'modeSystem',
+}
+
+const MODE_DESC_KEY: Record<ModeId, TKey> = {
+  light: 'descLight',
+  dark: 'descDark',
+  amoled: 'descAmoled',
+  system: 'descSystem',
+}
+
 export function ControlCenter({
   onClose,
   onOpenApp,
@@ -60,6 +76,7 @@ export function ControlCenter({
   const activeCustom = useAppStore((s) =>
     s.customWallpapers.find((c) => c.id === s.activeCustomId),
   )
+  const { t } = useLang()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -78,7 +95,7 @@ export function ControlCenter({
       className="absolute inset-0 z-[60] flex flex-col justify-end bg-black/35 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
-      aria-label="Quick settings"
+      aria-label={t('quickSettings')}
     >
       <motion.div
         initial={{ y: '100%' }}
@@ -104,11 +121,11 @@ export function ControlCenter({
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-base font-bold tracking-tight">
               <Palette className="size-4.5 text-primary" aria-hidden />
-              Quick settings
+              {t('quickSettings')}
             </h2>
             <button
               onClick={onClose}
-              aria-label="Close quick settings"
+              aria-label={t('cancel')}
               className="grid size-8 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-accent hover:text-accent-foreground active:scale-90"
             >
               <X className="size-4" />
@@ -116,7 +133,7 @@ export function ControlCenter({
           </div>
 
           {/* ---------------- mode ---------------- */}
-          <section aria-label="Color mode">
+          <section aria-label={t('colorMode')}>
             <div className="grid grid-cols-4 gap-2">
               {MODES.map((m) => {
                 const active = mode === m.id
@@ -127,8 +144,8 @@ export function ControlCenter({
                     type="button"
                     onClick={() => setMode(m.id)}
                     aria-pressed={active}
-                    aria-label={`${m.name} mode — ${m.description}`}
-                    title={m.description}
+                    aria-label={`${t(MODE_NAME_KEY[m.id])} — ${t(MODE_DESC_KEY[m.id])}`}
+                    title={t(MODE_DESC_KEY[m.id])}
                     className={cn(
                       'group relative flex h-[4.6rem] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl border text-xs font-semibold transition-all active:scale-95',
                       active
@@ -146,7 +163,7 @@ export function ControlCenter({
                         aria-hidden
                       />
                     </span>
-                    <span className="mt-6">{m.name}</span>
+                    <span className="mt-6">{t(MODE_NAME_KEY[m.id])}</span>
                   </button>
                 )
               })}
@@ -154,10 +171,10 @@ export function ControlCenter({
           </section>
 
           {/* ---------------- accent ---------------- */}
-          <section aria-label="Accent color">
+          <section aria-label={t('accent')}>
             <div className="mb-2.5 flex items-baseline justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Accent color
+                {t('accent')}
               </h3>
               <span className="text-xs font-semibold text-primary">
                 {ACCENTS.find((a) => a.id === accent)?.name}
@@ -192,10 +209,10 @@ export function ControlCenter({
           </section>
 
           {/* ---------------- wallpaper ---------------- */}
-          <section aria-label="Wallpaper">
+          <section aria-label={t('wallpaper')}>
             <div className="mb-2.5 flex items-baseline justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Wallpaper
+                {t('wallpaper')}
               </h3>
               <span className="text-xs font-semibold text-primary">
                 {wallpaper === 'custom'
@@ -268,7 +285,7 @@ export function ControlCenter({
             className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-muted/70 text-sm font-semibold text-foreground ring-1 ring-border transition hover:bg-accent active:scale-[0.98]"
           >
             <LayoutGrid className="size-4 text-primary" aria-hidden />
-            Rearrange icons &amp; folders
+            {t('rearrangeIcons')}
           </button>
 
           {/* ---------------- footer ---------------- */}

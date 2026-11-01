@@ -11,6 +11,7 @@ import {
   type ModeId,
   type WallpaperId,
 } from '@/lib/theme'
+import type { Lang } from '@/lib/i18n'
 import { DEFAULT_INSTALLED_IDS, DOCK_IDS, SYSTEM_APP_IDS } from '@/lib/constants'
 import { uninstallPruneOp, type HomeItem } from '@/lib/home-layout'
 
@@ -42,6 +43,8 @@ interface AppState {
   customWallpapers: CustomWallpaper[]
   /** id of the custom wallpaper currently applied to the launcher, or null */
   activeCustomId: string | null
+  /** UI language for the OS chrome (D78): English or Bangla */
+  lang: Lang
 
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
@@ -63,6 +66,7 @@ interface AppState {
   /** remove a custom wallpaper; clears activeCustomId if it was active */
   deleteCustomWallpaper: (id: string) => void
   setActiveCustom: (id: string | null) => void
+  setLang: (l: Lang) => void
 }
 
 /** v2 → v3: installed apps didn't exist — derive them from the old layout. */
@@ -97,6 +101,7 @@ export const useAppStore = create<AppState>()(
       appLock: null,
       customWallpapers: [],
       activeCustomId: null,
+      lang: 'en',
 
       toggleFavorite: (id) =>
         set((s) => ({
@@ -165,6 +170,7 @@ export const useAppStore = create<AppState>()(
           activeCustomId: s.activeCustomId === id ? null : s.activeCustomId,
         })),
       setActiveCustom: (id) => set({ activeCustomId: id }),
+      setLang: (l) => set({ lang: l }),
     }),
     {
       name: 'toolhub-store',

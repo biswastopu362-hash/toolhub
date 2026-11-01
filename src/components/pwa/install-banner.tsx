@@ -10,6 +10,7 @@ import {
   Smartphone,
   X,
 } from 'lucide-react'
+import { useLang } from '@/hooks/use-lang'
 
 /**
  * One-tap PWA install banner for the home screen.
@@ -60,6 +61,7 @@ export function InstallBanner({
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [busy, setBusy] = useState(false)
+  const { t } = useLang()
 
   useEffect(() => {
     if (alreadyStandalone()) return
@@ -155,22 +157,20 @@ export function InstallBanner({
           {mode === 'native' && (
             <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-black/50 py-1.5 pl-3.5 pr-1.5 text-white shadow-2xl backdrop-blur-xl">
               <Smartphone className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
-              <span className="truncate text-xs font-medium">
-                Add ToolHub to your home screen
-              </span>
+              <span className="truncate text-xs font-medium">{t('addToolhubHome')}</span>
               <button
                 onClick={install}
                 disabled={busy}
                 className="ml-1 flex h-7 shrink-0 items-center gap-1 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 px-3 text-xs font-semibold text-emerald-950 shadow transition-transform active:scale-95 disabled:opacity-60"
-                aria-label="Install ToolHub on this device"
+                aria-label={t('installDevice')}
               >
                 <Download className="h-3.5 w-3.5" aria-hidden />
-                Install
+                {t('install')}
               </button>
               <button
                 onClick={dismiss}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                aria-label="Dismiss install suggestion"
+                aria-label={t('dismissInstall')}
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
               </button>
@@ -182,22 +182,20 @@ export function InstallBanner({
               <div className="flex items-start gap-3 p-3.5">
                 <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold">Install ToolHub on your iPhone</p>
+                  <p className="text-xs font-semibold">{t('installIphone')}</p>
                   {expanded ? (
                     <ol className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-white/85">
                       <li className="flex items-center gap-1.5">
                         <Share className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
-                        Tap the <span className="font-semibold">Share</span> button in Safari
+                        {t('shareSafari')}
                       </li>
                       <li className="flex items-center gap-1.5">
                         <PlusSquare className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
-                        Choose <span className="font-semibold">Add to Home Screen</span>
+                        {t('chooseAddHome')}
                       </li>
                     </ol>
                   ) : (
-                    <p className="mt-0.5 text-[11px] text-white/75">
-                      Two taps, just like a real app.
-                    </p>
+                    <p className="mt-0.5 text-[11px] text-white/75">{t('twoTaps')}</p>
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -206,12 +204,12 @@ export function InstallBanner({
                     className="flex h-7 items-center rounded-full bg-white/12 px-3 text-xs font-semibold transition-colors hover:bg-white/20"
                     aria-expanded={expanded}
                   >
-                    {expanded ? 'Hide' : 'How'}
+                    {expanded ? t('hide') : t('how')}
                   </button>
                   <button
                     onClick={dismiss}
                     className="flex h-7 w-7 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                    aria-label="Dismiss install guide"
+                    aria-label={t('dismissInstall')}
                   >
                     <X className="h-3.5 w-3.5" aria-hidden />
                   </button>
@@ -223,13 +221,11 @@ export function InstallBanner({
           {mode === 'manual' && (
             <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-black/50 py-1.5 pl-3.5 pr-1.5 text-white shadow-2xl backdrop-blur-xl">
               <Menu className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
-              <span className="truncate text-xs font-medium text-white/90">
-                Browser menu → <span className="font-semibold text-white">Install App</span>
-              </span>
+              <span className="truncate text-xs font-medium text-white/90">{t('browserMenuInstall')}</span>
               <button
                 onClick={dismiss}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                aria-label="Dismiss install suggestion"
+                aria-label={t('dismissInstall')}
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
               </button>

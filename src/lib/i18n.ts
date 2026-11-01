@@ -1,0 +1,465 @@
+/**
+ * D78 i18n — English / Bengali (পূর্ণ বাংলা) for the OS chrome.
+ *
+ * Scope: launcher, status bar, Spotlight, Control Center, notification
+ * shade, widgets, quick menu, install banner, Settings, Account card.
+ * App names stay English (product identity); app-internal screens remain
+ * English in v2 and graduate key-by-key later.
+ *
+ * Usage: `const { t, lang } = useLang()` → `t('searchApps')` or
+ * `t('appsInstalled', { n: 12, m: 84 })` for interpolated strings.
+ */
+
+export type Lang = 'en' | 'bn'
+
+const en = {
+  /* Spotlight / search */
+  searchApps: 'Search apps',
+  cancel: 'Cancel',
+  answer: 'Answer',
+  tapToCopy: 'Tap to copy',
+  installed: 'Installed',
+  available: 'Available',
+  recents: 'Recents',
+  noInstalledFor: 'No installed apps found for “{q}”',
+  noAppsInstalled: 'No apps installed yet',
+  createNote: 'Create note “{q}”',
+  opensNotes: 'Opens Notes with your text ready',
+  setReminder: 'Set reminder “{q}”',
+  opensReminders: 'Opens Reminders with your text ready',
+  openRemindersBtn: 'Open Reminders',
+  jumpChecklist: 'Jump straight to your checklist',
+  recent: 'Recent',
+  allApps: 'All Apps',
+  searchResults: 'Search results',
+  fromStore: 'From the App Store',
+  resultCopied: 'Result copied',
+  done: 'Done',
+
+  /* Launcher */
+  appLibrary: 'App Library',
+  goHome: 'Go home',
+  openApp: 'Open {name}',
+  openFolder: 'Open folder {name}',
+  pageN: 'Go to page {n}',
+  pageRegion: 'Page {n}',
+  searchAppsBtn: 'Search apps',
+  openNotificationCenter: 'Open Notification Center',
+  customizeTheme: 'Customize theme',
+  browseStore: 'Open App Store',
+  installDevice: 'Install ToolHub on this device',
+  dismissInstall: 'Dismiss install suggestion',
+  storeCta: 'Open the App Store to get more apps',
+  getMoreApps: 'Get more apps',
+  folderAria: 'Open {name} folder, {n} apps',
+  appsCount: '{n} apps',
+  libraryTip:
+    'Tip: long-press any icon on the home screen to rearrange it or create a folder. Visit the App Store to get more apps.',
+
+  /* Quick actions menu */
+  quickActions: '{name} quick actions',
+  open: 'Open',
+  addToFavorites: 'Add to favorites',
+  appInfo: 'App info',
+  editHomeScreen: 'Edit Home Screen',
+  uninstall: 'Uninstall',
+  removeTitle: 'Remove {name}?',
+  removeDesc:
+    'The app and its icon will be removed from this device. You can reinstall it anytime from the App Store.',
+  removeAction: 'Remove',
+  removedToast: '{name} uninstalled',
+  reinstallAnytime: 'Reinstall it anytime from the App Store.',
+  favAdded: 'Added to favorites ✓',
+  favAddedDesc: '{name} pinned to the favorites tray.',
+  favToastAdded: '{name} favorited',
+  favToastRemoved: '{name} removed from favorites',
+  removeFavorite: 'Remove favorite',
+
+  /* Widgets */
+  widgetGroup: 'Widgets',
+  widgetClock: 'Clock',
+  widgetWeather: 'Weather',
+  widgetNotes: 'Notes',
+  clockWidgetAria: 'Clock widget — open Clock',
+  weatherWidgetAria: 'Weather widget — open Weather',
+  notesWidgetAria: 'Notes widget — open Notes',
+  openForForecast: 'Open for forecast',
+  quickNote: 'Quick note',
+  tapToWrite: 'Tap to write one',
+  emptyNote: 'Empty note',
+  untitledNote: 'Untitled note',
+
+  /* Notification shade */
+  notificationCenter: 'Notification Center',
+  noNotifications: 'No notifications',
+  notifEmptyHint: 'Calendar events and open reminders will appear here.',
+  clearNotifications: 'Clear notifications',
+  closeNotifications: 'Close notifications',
+  openCalendar: 'open Calendar',
+  openReminders: 'open Reminders',
+  openRemindersN: '{n} open reminder{s}',
+  allDay: 'All day',
+  today: 'Today',
+
+  /* Install banner */
+  addToolhubHome: 'Add ToolHub to your home screen',
+  install: 'Install',
+  installIphone: 'Install ToolHub on your iPhone',
+  shareSafari: 'Tap the Share button in Safari',
+  chooseAddHome: 'Choose Add to Home Screen',
+  twoTaps: 'Two taps, just like a real app.',
+  how: 'How',
+  hide: 'Hide',
+  browserMenuInstall: 'Browser menu → Install App',
+
+  /* Control Center */
+  quickSettings: 'Quick settings',
+  colorMode: 'Color mode',
+  modeLight: 'Light',
+  modeDark: 'Dark',
+  modeAmoled: 'AMOLED',
+  modeSystem: 'System',
+  descLight: 'Bright and clean',
+  descDark: 'Easy on the eyes',
+  descAmoled: 'True black, saves battery',
+  descSystem: 'Match your device',
+  accent: 'Accent',
+  wallpaper: 'Wallpaper',
+  rearrangeIcons: 'Rearrange icons & folders',
+
+  /* Settings */
+  language: 'Language',
+  languageDesc: 'Use ToolHub in English or Bangla. App screens stay English for now.',
+  langEn: 'English',
+  langBn: 'বাংলা',
+  colorModeDesc: 'Light, dark, true-black AMOLED — or follow your device automatically.',
+  accentDesc: 'Tints every app, button and highlight — currently {name}.',
+  wallpaperDesc: 'Pick a background for your home screen — currently {name}.',
+  wallpaperTip: 'Tip: the palette button in the status bar opens quick settings from anywhere.',
+  appsHeading: 'Apps',
+  appsInstalled: '{n} of {m} apps installed. Browse, install and uninstall apps from the store.',
+  foldersLabel: 'Folders',
+  availableLabel: 'Available',
+  openAppStore: 'Open App Store',
+  homeLayout: 'Home screen layout',
+  homeLayoutDesc:
+    'Long-press any icon on the home screen to rearrange apps, stack two apps together to create a folder, or hold near a screen edge to flip pages.',
+  resetLayout: 'Reset home screen layout',
+  resetLayoutTitle: 'Reset home screen layout?',
+  resetLayoutDesc:
+    'All folders will be dissolved and every app returns to its original position. Your notes, reminders and favorites are not affected.',
+  reset: 'Reset',
+  resetDone: 'Home screen reset ✓',
+  resetDoneDesc: 'Every app is back in its original place.',
+  layoutTip: 'Tip: you can also tap “Rearrange icons & folders” in quick settings.',
+  installApp: 'Install app',
+  installAppDesc: 'Add ToolHub to your home screen for a full-screen, offline experience.',
+  iphoneLabel: 'iPhone / iPad:',
+  iphoneTip: 'open in Safari, tap Share, then “Add to Home Screen”.',
+  androidLabel: 'Android & desktop Chrome:',
+  androidTip: 'open the browser menu (⋮), then tap “Install app”.',
+  yourData: 'Your data',
+  yourDataDesc: 'Stored only on this device — cleared data cannot be restored.',
+  favorites: 'Favorites',
+  backupRestore: 'Backup & restore',
+  clearRecents: 'Clear recents',
+  clearFavorites: 'Clear favorites',
+  recentsCleared: 'Recents cleared ✓',
+  favoritesCleared: 'Favorites cleared ✓',
+  removedFromFavorites: '{n} {s} removed from favorites.',
+  entry: 'entry',
+  entries: 'entries',
+  appWord: 'app',
+  appsWord: 'apps',
+  andCounting: '{n} apps and counting — calculators, converters, generators and more.',
+  allYourApps: 'All your apps, one hub',
+  pwaNote: 'Built as a Progressive Web App — works offline on every device.',
+
+  /* Account card */
+  accountTitle: 'Account & cloud sync',
+  accountDesc:
+    'Optional. ToolHub works fully without an account — signing in only unlocks an explicit, on-demand backup of your notes, reminders and launcher settings.',
+  guestMode: 'Guest mode',
+  guestDesc: 'Your data never leaves this device. Sign in only if you want a cloud backup.',
+  continueGoogle: 'Continue with Google',
+  localAccount: 'Use a local account',
+  displayName: 'Display name (optional)',
+  emailAddress: 'Email address',
+  emailPlaceholder: 'you@example.com',
+  signIn: 'Sign in',
+  signInLocalNote:
+    'Local accounts are verified by email only — intended for self-hosted hubs without OAuth setup.',
+  syncReady: 'Sync ready',
+  backUpNow: 'Back up now',
+  signOut: 'Sign out',
+  cloudBackups: 'Cloud backups',
+  deleteAll: 'Delete all',
+  deleteAllTitle: 'Delete all cloud backups?',
+  deleteAllDesc:
+    'The copies on the server are removed permanently. The data on this device is not touched.',
+  delete: 'Delete',
+  notBackedUp: 'Not backed up yet',
+  restore: 'Restore',
+  restoreTitle: 'Restore {name}?',
+  restoreDesc:
+    'The cloud copy (rev {rev}, {time}) replaces what is currently on this device. Everything else stays untouched.',
+  readingCloud: 'Reading cloud state…',
+  noBackupsYet: 'No backups yet — press “Back up now” to store a snapshot of the three domains below.',
+  syncPrivacyNote:
+    'Backups are manual snapshots (last write wins). Nothing is uploaded automatically, and payload content is never parsed on the server.',
+  checkingSession: 'Checking session…',
+  invalidEmail: 'Enter a valid email address',
+  signedInToast: 'Signed in ✓',
+  cloudUnlocked: 'Cloud backup unlocked for {email}.',
+  backupComplete: 'Backup complete ✓ ({n}/{m})',
+  nothingToBackup: 'Nothing to back up yet',
+  nothingToBackupDesc: 'All three stores are empty on this device — use an app first, then back up.',
+  backupFailed: 'Backup failed',
+  restoreFailed: 'Restore failed',
+  restoredToast: '{name} restored ✓',
+  restoredToastDesc: 'Reloading to apply the cloud copy…',
+  cloudDeleted: 'Cloud data deleted ✓',
+  cloudDeletedDesc: '{n} backup blob{s} removed.',
+  deleteFailed: 'Delete failed',
+  signInFailed: 'Sign-in failed',
+  tryAgain: 'Please try again.',
+  restoreFromCloud: 'Restore {name} from cloud',
+} as const
+
+export type TKey = keyof typeof en
+
+const bn: Record<TKey, string> = {
+  /* Spotlight / search */
+  searchApps: 'অ্যাপ খুঁজুন',
+  cancel: 'বাতিল',
+  answer: 'উত্তর',
+  tapToCopy: 'কপি করতে ট্যাপ করুন',
+  installed: 'ইনস্টল করা',
+  available: 'উপলব্ধ',
+  recents: 'সাম্প্রতিক',
+  noInstalledFor: '“{q}”-এর জন্য কোনো ইনস্টল করা অ্যাপ পাওয়া যায়নি',
+  noAppsInstalled: 'এখনো কোনো অ্যাপ ইনস্টল করা হয়নি',
+  createNote: '“{q}” নোট তৈরি করুন',
+  opensNotes: 'আপনার লেখা নিয়ে Notes খুলবে',
+  setReminder: '“{q}” রিমাইন্ডার দিন',
+  opensReminders: 'আপনার লেখা নিয়ে Reminders খুলবে',
+  openRemindersBtn: 'Reminders খুলুন',
+  jumpChecklist: 'সরাসরি আপনার চেকলিস্টে যান',
+  recent: 'সাম্প্রতিক',
+  allApps: 'সব অ্যাপ',
+  searchResults: 'অনুসন্ধানের ফলাফল',
+  fromStore: 'অ্যাপ স্টোর থেকে',
+  resultCopied: 'ফলাফল কপি হয়েছে',
+  done: 'সম্পন্ন',
+
+  /* Launcher */
+  appLibrary: 'অ্যাপ লাইব্রেরি',
+  goHome: 'হোমে যান',
+  openApp: '{name} খুলুন',
+  openFolder: '{name} ফোল্ডার খুলুন',
+  pageN: 'পৃষ্ঠা {n}-এ যান',
+  pageRegion: 'পৃষ্ঠা {n}',
+  searchAppsBtn: 'অ্যাপ খুঁজুন',
+  openNotificationCenter: 'নোটিফিকেশন সেন্টার খুলুন',
+  customizeTheme: 'থিম বদলান',
+  browseStore: 'অ্যাপ স্টোর খুলুন',
+  installDevice: 'এই ডিভাইসে ToolHub ইনস্টল করুন',
+  dismissInstall: 'ইনস্টল পরামর্শ বাদ দিন',
+  storeCta: 'আরও অ্যাপ পেতে অ্যাপ স্টোর খুলুন',
+  getMoreApps: 'আরও অ্যাপ আনুন',
+  folderAria: '{name} ফোল্ডার খুলুন, {n}টি অ্যাপ',
+  appsCount: '{n}টি অ্যাপ',
+  libraryTip:
+    'টিপ: হোম স্ক্রিনের যেকোনো আইকনে লং-প্রেস করে সরান বা ফোল্ডার বানান। আরও অ্যাপের জন্য অ্যাপ স্টোর দেখুন।',
+
+  /* Quick actions menu */
+  quickActions: '{name} কুইক অ্যাকশন',
+  open: 'খুলুন',
+  addToFavorites: 'প্রিয়তে যোগ করুন',
+  appInfo: 'অ্যাপ তথ্য',
+  editHomeScreen: 'হোম স্ক্রিন সাজান',
+  uninstall: 'আনইনস্টল',
+  removeTitle: '{name} সরাবেন?',
+  removeDesc:
+    'অ্যাপ ও এর আইকন এই ডিভাইস থেকে সরে যাবে। যখনই চান অ্যাপ স্টোর থেকে আবার ইনস্টল করতে পারবেন।',
+  removeAction: 'সরান',
+  removedToast: '{name} আনইনস্টল হয়েছে',
+  reinstallAnytime: 'যখনই চান অ্যাপ স্টোর থেকে আবার ইনস্টল করুন।',
+  favAdded: 'প্রিয়তে যোগ হয়েছে ✓',
+  favAddedDesc: '{name} প্রিয় ট্রেতে যোগ হলো।',
+  favToastAdded: '{name} প্রিয়তে যোগ হয়েছে',
+  favToastRemoved: '{name} প্রিয় থেকে সরানো হয়েছে',
+  removeFavorite: 'প্রিয় থেকে সরান',
+
+  /* Widgets */
+  widgetGroup: 'উইজেট',
+  widgetClock: 'ঘড়ি',
+  widgetWeather: 'আবহাওয়া',
+  widgetNotes: 'নোট',
+  clockWidgetAria: 'ঘড়ির উইজেট — Clock খুলুন',
+  weatherWidgetAria: 'আবহাওয়ার উইজেট — Weather খুলুন',
+  notesWidgetAria: 'নোটের উইজেট — Notes খুলুন',
+  openForForecast: 'আবহাওয়া দেখুন',
+  quickNote: 'দ্রুত নোট',
+  tapToWrite: 'লিখতে ট্যাপ করুন',
+  emptyNote: 'খালি নোট',
+  untitledNote: 'শিরোনামহীন নোট',
+
+  /* Notification shade */
+  notificationCenter: 'নোটিফিকেশন সেন্টার',
+  noNotifications: 'কোনো নোটিফিকেশন নেই',
+  notifEmptyHint: 'ক্যালেন্ডারের ইভেন্ট এবং খোলা রিমাইন্ডার এখানে দেখা যাবে।',
+  clearNotifications: 'নোটিফিকেশন মুছুন',
+  closeNotifications: 'নোটিফিকেশন বন্ধ করুন',
+  openCalendar: 'Calendar খুলুন',
+  openReminders: 'Reminders খুলুন',
+  openRemindersN: '{n}টি খোলা রিমাইন্ডার',
+  allDay: 'সারাদিন',
+  today: 'আজ',
+
+  /* Install banner */
+  addToolhubHome: 'ToolHub হোম স্ক্রিনে যোগ করুন',
+  install: 'ইনস্টল',
+  installIphone: 'আপনার iPhone-এ ToolHub ইনস্টল করুন',
+  shareSafari: 'Safari-তে Share বাটনে ট্যাপ করুন',
+  chooseAddHome: 'Add to Home Screen নির্বাচন করুন',
+  twoTaps: 'মাত্র দুই ট্যাপ — সত্যিকারের অ্যাপের মতো।',
+  how: 'কীভাবে',
+  hide: 'লুকান',
+  browserMenuInstall: 'ব্রাউজার মেনু → Install App',
+
+  /* Control Center */
+  quickSettings: 'কুইক সেটিংস',
+  colorMode: 'রঙের ধরন',
+  modeLight: 'লাইট',
+  modeDark: 'ডার্ক',
+  modeAmoled: 'AMOLED',
+  modeSystem: 'সিস্টেম',
+  descLight: 'উজ্জ্বল ও পরিষ্কার',
+  descDark: 'চোখের আরামে',
+  descAmoled: 'সত্যিকারের কালো, ব্যাটারি বাঁচায়',
+  descSystem: 'ডিভাইসের সাথে মিলবে',
+  accent: 'অ্যাকসেন্ট',
+  wallpaper: 'ওয়ালপেপার',
+  rearrangeIcons: 'আইকন ও ফোল্ডার সাজান',
+
+  /* Settings */
+  language: 'ভাষা',
+  languageDesc: 'ToolHub ইংরেজি বা বাংলায় ব্যবহার করুন। অ্যাপের ভেতরের পর্দা এপর্যন্ত ইংরেজিতেই।',
+  langEn: 'English',
+  langBn: 'বাংলা',
+  colorModeDesc: 'লাইট, ডার্ক, সত্যিকারের কালো AMOLED — অথবা ডিভাইস অনুযায়ী স্বয়ংক্রিয়।',
+  accentDesc: 'প্রতিটি অ্যাপ, বাটন ও হাইলাইটের রঙ — বর্তমানে {name}।',
+  wallpaperDesc: 'হোম স্ক্রিনের ব্যাকগ্রাউন্ড বাছুন — বর্তমানে {name}।',
+  wallpaperTip: 'টিপ: স্ট্যাটাস বারের প্যালেট বাটন থেকে যেকোনো জায়গা থেকে কুইক সেটিংস খোলে।',
+  appsHeading: 'অ্যাপ',
+  appsInstalled: '{m}টির মধ্যে {n}টি অ্যাপ ইনস্টল করা আছে। স্টোর থেকে ব্রাউজ, ইনস্টল ও আনইনস্টল করুন।',
+  foldersLabel: 'ফোল্ডার',
+  availableLabel: 'উপলব্ধ',
+  openAppStore: 'অ্যাপ স্টোর খুলুন',
+  homeLayout: 'হোম স্ক্রিন লেআউট',
+  homeLayoutDesc:
+    'হোম স্ক্রিনের যেকোনো আইকনে লং-প্রেস করে সাজান, দুটি অ্যাপ একসাথে স্ট্যাক করে ফোল্ডার বানান, বা স্ক্রিনের ধারে চেপে ধরে পৃষ্ঠা বদলান।',
+  resetLayout: 'হোম স্ক্রিন লেআউট রিসেট',
+  resetLayoutTitle: 'হোম স্ক্রিন লেআউট রিসেট করবেন?',
+  resetLayoutDesc:
+    'সব ফোল্ডার ভেঙে প্রতিটি অ্যাপ আগের জায়গায় ফিরে যাবে। আপনার নোট, রিমাইন্ডার ও প্রিয় অপরিবর্তিত থাকবে।',
+  reset: 'রিসেট',
+  resetDone: 'হোম স্ক্রিন রিসেট হয়েছে ✓',
+  resetDoneDesc: 'প্রতিটি অ্যাপ আগের জায়গায় ফিরে গেছে।',
+  layoutTip: 'টিপ: কুইক সেটিংসে “আইকন ও ফোল্ডার সাজান”-এও ট্যাপ করতে পারেন।',
+  installApp: 'অ্যাপ ইনস্টল',
+  installAppDesc: 'ফুল-স্ক্রিন, অফলাইন অভিজ্ঞতার জন্য ToolHub হোম স্ক্রিনে যোগ করুন।',
+  iphoneLabel: 'iPhone / iPad:',
+  iphoneTip: 'Safari-তে খুলে Share ট্যাপ করুন, তারপর “Add to Home Screen”।',
+  androidLabel: 'Android ও ডেস্কটপ Chrome:',
+  androidTip: 'ব্রাউজার মেনু (⋮) খুলে “Install app” ট্যাপ করুন।',
+  yourData: 'আপনার ডেটা',
+  yourDataDesc: 'শুধু এই ডিভাইসেই সংরক্ষিত — মুছলে আর ফেরানো যাবে না।',
+  favorites: 'প্রিয়',
+  backupRestore: 'ব্যাকআপ ও রিস্টোর',
+  clearRecents: 'সাম্প্রতিক মুছুন',
+  clearFavorites: 'প্রিয় মুছুন',
+  recentsCleared: 'সাম্প্রতিক মুছে ফেলা হয়েছে ✓',
+  favoritesCleared: 'প্রিয় মুছে ফেলা হয়েছে ✓',
+  removedFromFavorites: '{n}টি {s} প্রিয় থেকে সরানো হয়েছে।',
+  entry: 'এন্ট্রি',
+  entries: 'এন্ট্রি',
+  appWord: 'অ্যাপ',
+  appsWord: 'অ্যাপ',
+  andCounting: '{n}টি অ্যাপ এবং বাড়ছে — ক্যালকুলেটর, কনভার্টার, জেনারেটর আরও অনেক কিছু।',
+  allYourApps: 'সব অ্যাপ, একটি হাবে',
+  pwaNote: 'প্রগ্রেসিভ ওয়েব অ্যাপ হিসেবে তৈরি — প্রতিটি ডিভাইসে অফলাইনে চলে।',
+
+  /* Account card */
+  accountTitle: 'অ্যাকাউন্ট ও ক্লাউড সিঙ্ক',
+  accountDesc:
+    'ঐচ্ছিক। অ্যাকাউন্ট ছাড়াই ToolHub পুরোপুরি চলে — সাইন-ইন শুধু নোট, রিমাইন্ডার ও লঞ্চার সেটিংসের স্পষ্ট, চাহিদামতো ব্যাকআপ আনলক করে।',
+  guestMode: 'গেস্ট মোড',
+  guestDesc: 'আপনার ডেটা কখনোই এই ডিভাইস ছাড়ে না। ক্লাউড ব্যাকআপ চাইলেই কেবল সাইন-ইন করুন।',
+  continueGoogle: 'Google দিয়ে চালিয়ে যান',
+  localAccount: 'লোকাল অ্যাকাউন্ট ব্যবহার করুন',
+  displayName: 'প্রদর্শনের নাম (ঐচ্ছিক)',
+  emailAddress: 'ইমেইল ঠিকানা',
+  emailPlaceholder: 'you@example.com',
+  signIn: 'সাইন ইন',
+  signInLocalNote:
+    'লোকাল অ্যাকাউন্ট শুধু ইমেইল দিয়ে যাচাই হয় — OAuth ছাড়া সেলফ-হোস্ট করা হাবের জন্য।',
+  syncReady: 'সিঙ্ক প্রস্তুত',
+  backUpNow: 'এখনই ব্যাকআপ করুন',
+  signOut: 'সাইন আউট',
+  cloudBackups: 'ক্লাউড ব্যাকআপ',
+  deleteAll: 'সব মুছুন',
+  deleteAllTitle: 'সব ক্লাউড ব্যাকআপ মুছে ফেলবেন?',
+  deleteAllDesc: 'সার্ভারের কপিগুলো পুরোপুরি মুছে যাবে। এই ডিভাইসের ডেটা অক্ষত থাকবে।',
+  delete: 'মুছুন',
+  notBackedUp: 'এখনো ব্যাকআপ হয়নি',
+  restore: 'রিস্টোর',
+  restoreTitle: '{name} রিস্টোর করবেন?',
+  restoreDesc: 'ক্লাউড কপি (rev {rev}, {time}) এই ডিভাইসের বর্তমান ডেটার জায়গা নেবে। বাকি সব অক্ষত থাকবে।',
+  readingCloud: 'ক্লাউড অবস্থা পড়া হচ্ছে…',
+  noBackupsYet: 'এখনো ব্যাকআপ নেই — নিচের তিনটি ডোমেনের স্ন্যাপশট রাখতে “এখনই ব্যাকআপ করুন” চাপুন।',
+  syncPrivacyNote:
+    'ব্যাকআপ ম্যানুয়াল স্ন্যাপশট (শেষ লেখা জেতে)। স্বয়ংক্রিয়ভাবে কিছু আপলোড হয় না, সার্ভারে কনটেন্ট কখনো পড়া হয় না।',
+  checkingSession: 'সেশন যাচাই হচ্ছে…',
+  invalidEmail: 'সঠিক ইমেইল ঠিকানা দিন',
+  signedInToast: 'সাইন ইন হয়েছে ✓',
+  cloudUnlocked: '{email}-এর জন্য ক্লাউড ব্যাকআপ আনলক হলো।',
+  backupComplete: 'ব্যাকআপ সম্পূর্ণ ✓ ({n}/{m})',
+  nothingToBackup: 'এখনো ব্যাকআপের কিছু নেই',
+  nothingToBackupDesc: 'এই ডিভাইসে তিনটি স্টোরই খালি — আগে কোনো অ্যাপ ব্যবহার করুন, তারপর ব্যাকআপ করুন।',
+  backupFailed: 'ব্যাকআপ ব্যর্থ',
+  restoreFailed: 'রিস্টোর ব্যর্থ',
+  restoredToast: '{name} রিস্টোর হয়েছে ✓',
+  restoredToastDesc: 'ক্লাউড কপি প্রয়োগ করতে পুনরায় লোড হচ্ছে…',
+  cloudDeleted: 'ক্লাউড ডেটা মুছে ফেলা হয়েছে ✓',
+  cloudDeletedDesc: '{n}টি ব্যাকআপ ব্লব সরানো হয়েছে।',
+  deleteFailed: 'মুছে ফেলা ব্যর্থ',
+  signInFailed: 'সাইন-ইন ব্যর্থ',
+  tryAgain: 'আবার চেষ্টা করুন।',
+  restoreFromCloud: 'ক্লাউড থেকে {name} রিস্টোর করুন',
+}
+
+const DICTS: Record<Lang, Record<TKey, string>> = { en, bn }
+
+/** Translate `key` with optional {placeholder} interpolation. */
+export function translate(
+  lang: Lang,
+  key: TKey,
+  params?: Record<string, string | number>
+): string {
+  let out: string = DICTS[lang][key] ?? DICTS.en[key] ?? key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      out = out.replaceAll(`{${k}}`, String(v))
+    }
+  }
+  return out
+}
+
+/** Bengali numeral conversion for locales that prefer it (weather, clock). */
+const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯']
+export function localizeDigits(text: string, lang: Lang): string {
+  if (lang !== 'bn') return text
+  return text.replace(/\d/g, (d) => BN_DIGITS[Number(d)])
+}

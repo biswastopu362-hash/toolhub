@@ -74,6 +74,7 @@ import { DOCK_IDS } from '@/lib/constants'
 import { setPendingTransfer } from '@/lib/transfer'
 import { useHomeDrag } from '@/components/home/use-home-drag'
 import { AuthProvider } from '@/components/auth/session-provider'
+import { useLang } from '@/hooks/use-lang'
 
 /* ================================================================== */
 /* Constants                                                           */
@@ -447,6 +448,7 @@ function HomeScreen({
   const [activePage, setActivePage] = useState(0)
   const [openFolder, setOpenFolder] = useState<OpenFolder>(null)
   const [installHint, setInstallHint] = useState(false)
+  const { t: osT } = useLang()
 
   const layout = useAppStore((s) => s.layout)
   const installed = useAppStore((s) => s.installed)
@@ -579,7 +581,7 @@ function HomeScreen({
         {pages.map((items, page) => (
           <section
             key={`page-${page}`}
-            aria-label={`Page ${page + 1}`}
+            aria-label={osT('pageRegion', { n: page + 1 })}
             onClick={(e) => {
               if (editing && e.target === e.currentTarget) setEditing(false)
             }}
@@ -630,7 +632,7 @@ function HomeScreen({
 
         {/* App Library page — always the last page */}
         <section
-          aria-label="App Library"
+          aria-label={osT('appLibrary')}
           className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-4 sm:px-10"
         >
           <AppLibrary
@@ -648,7 +650,7 @@ function HomeScreen({
           <button
             key={i}
             onClick={() => scrollToPage(i)}
-            aria-label={`Go to page ${i + 1}`}
+            aria-label={osT('pageN', { n: i + 1 })}
             aria-current={activePage === i}
             className={cn(
               'rounded-full p-1.5 focus-visible:outline-none focus-visible:ring-2',
@@ -754,6 +756,7 @@ function HomeItemView({
   onClick: (e: React.MouseEvent<HTMLElement>) => void
 }) {
   const { toast } = useToast()
+  const { t } = useLang()
   const [confirmRemove, setConfirmRemove] = useState(false)
   /* D71: long-press quick actions (context menu) */
   const [quickMenu, setQuickMenu] = useState(false)
@@ -848,7 +851,7 @@ function HomeItemView({
       onClick={onClick}
       className={cn('w-full cursor-pointer', editing && 'touch-none')}
       role="button"
-      aria-label={item.kind === 'app' ? `Open ${label}` : `Open folder ${label}`}
+      aria-label={item.kind === 'app' ? t('openApp', { name: label }) : t('openFolder', { name: label })}
       tabIndex={0}
       onKeyDown={(e) => {
         // keyboard activation reuses the keydown's currentTarget — identical element
@@ -901,26 +904,23 @@ function HomeItemView({
       <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {tool?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The app and its icon will be removed from this device. You can reinstall it anytime
-              from the App Store.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('removeTitle', { name: tool?.name ?? '' })}</AlertDialogTitle>
+            <AlertDialogDescription>{t('removeDesc')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
               onClick={() => {
                 if (!tool) return
                 useAppStore.getState().uninstallApp(tool.id)
                 toast({
-                  title: `${tool.name} uninstalled`,
-                  description: 'Reinstall it anytime from the App Store.',
+                  title: t('removedToast', { name: tool.name }),
+                  description: t('reinstallAnytime'),
                 })
               }}
             >
-              Remove
+              {t('removeAction')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -940,7 +940,7 @@ function HomeItemView({
             onPointerDown={() => setQuickMenu(false)}
             onClick={(e) => e.preventDefault()}
             role="dialog"
-            aria-label={`${tool.name} quick actions`}
+            aria-label={t('quickActions', { name: tool.name })}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 10 }}
@@ -968,7 +968,7 @@ function HomeItemView({
                   }}
                   className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-white transition-colors hover:bg-white/15 active:bg-white/20"
                 >
-                  <Play className="size-4 text-emerald-400" aria-hidden /> Open
+                  <Play className="size-4 text-emerald-400" aria-hidden /> {t('open')}
                 </button>
                 <button
                   onClick={() => {
@@ -976,7 +976,9 @@ function HomeItemView({
                     const wasFav = s.favorites.includes(tool.id)
                     s.toggleFavorite(tool.id)
                     toast({
-                      title: wasFav ? `${tool.name} removed from favorites` : `${tool.name} favorited`,
+                      title: wasFav
+                        ? t('favToastRemoved', { name: tool.name })
+                        : t('favToastAdded', { name: tool.name }),
                     })
                     setQuickMenu(false)
                   }}
@@ -989,7 +991,7 @@ function HomeItemView({
                     )}
                     aria-hidden
                   />
-                  {useAppStore.getState().favorites.includes(tool.id) ? 'Remove favorite' : 'Add to favorites'}
+                  {useAppStore.getState().favorites.includes(tool.id) ? t('removeFavorite') : t('addToFavorites')}
                 </button>
                 <button
                   onClick={() => {
@@ -998,7 +1000,7 @@ function HomeItemView({
                   }}
                   className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-white transition-colors hover:bg-white/15 active:bg-white/20"
                 >
-                  <Info className="size-4 text-sky-400" aria-hidden /> App info
+                  <Info className="size-4 text-sky-400" aria-hidden /> {t('appInfo')}
                 </button>
                 <button
                   onClick={() => {
@@ -1007,7 +1009,7 @@ function HomeItemView({
                   }}
                   className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-white transition-colors hover:bg-white/15 active:bg-white/20"
                 >
-                  <LayoutGrid className="size-4 text-violet-400" aria-hidden /> Edit Home Screen
+                  <LayoutGrid className="size-4 text-violet-400" aria-hidden /> {t('editHomeScreen')}
                 </button>
                 {!tool.system && (
                   <button
@@ -1017,7 +1019,7 @@ function HomeItemView({
                     }}
                     className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-rose-400 transition-colors hover:bg-rose-500/15 active:bg-rose-500/25"
                   >
-                    <Trash2 className="size-4" aria-hidden /> Uninstall
+                    <Trash2 className="size-4" aria-hidden /> {t('uninstall')}
                   </button>
                 )}
               </div>
@@ -1145,6 +1147,11 @@ function StatusBar({
   const [online, setOnline] = useState(() => (typeof window !== 'undefined' ? navigator.onLine : true))
   const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null)
   const [notifDot, setNotifDot] = useState(false)
+  const { t } = useLang()
+  const tNotif = t('openNotificationCenter')
+  const tTheme = t('customizeTheme')
+  const tSearch = t('searchAppsBtn')
+  const tDone = t('done')
 
   /* D73: bell dot while the feed has anything to show */
   useEffect(() => {
@@ -1250,14 +1257,14 @@ function StatusBar({
             onClick={onDone}
             className="rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground shadow-lg shadow-black/20 transition-transform active:scale-90"
           >
-            Done
+            {tDone}
           </motion.button>
         ) : (
           <>
             <button
               onClick={onOpenNotifications}
-              aria-label="Open Notification Center"
-              title="Notifications"
+              aria-label={tNotif}
+              title={tNotif}
               className={cn(
                 'relative -m-2 rounded-full p-3 transition-colors active:scale-90',
                 onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
@@ -1273,8 +1280,8 @@ function StatusBar({
             </button>
             <button
               onClick={onOpenCustomize}
-              aria-label="Customize theme"
-              title="Themes & wallpapers"
+              aria-label={tTheme}
+              title={tTheme}
               className={cn(
                 '-m-2 rounded-full p-3 transition-colors active:scale-90',
                 onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
@@ -1284,7 +1291,7 @@ function StatusBar({
             </button>
             <button
               onClick={onOpenSearch}
-              aria-label="Search apps"
+              aria-label={tSearch}
               className={cn(
                 '-m-2 rounded-full p-3 transition-colors active:scale-90',
                 onLight ? 'hover:bg-zinc-900/10' : 'hover:bg-white/15'
@@ -1442,6 +1449,7 @@ function Spotlight({
   const [query, setQuery] = useState('')
   const hydrated = useHydrated()
   const { toast } = useToast()
+  const { t: tt } = useLang()
   const recents = useAppStore((s) => s.recents)
   const installed = useAppStore((s) => s.installed)
   const externalVersion = useExternalApps((s) => s.version)
@@ -1484,7 +1492,7 @@ function Spotlight({
       className="absolute inset-0 z-40 flex flex-col bg-black/40 px-4 pt-[max(3rem,calc(env(safe-area-inset-top)+2rem))] backdrop-blur-2xl"
       onClick={onClose}
       role="dialog"
-      aria-label="Search apps"
+      aria-label={tt('searchApps')}
     >
       <div className="mx-auto w-full max-w-xl" onClick={(e) => e.stopPropagation()}>
         <motion.div
@@ -1499,16 +1507,16 @@ function Spotlight({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Search apps"
-              aria-label="Search apps"
+              placeholder={tt('searchApps')}
+              aria-label={tt('searchApps')}
               className="h-12 w-full bg-transparent text-base text-white placeholder:text-white/50 focus:outline-none"
             />
             <button
               onClick={onClose}
-              aria-label="Close search"
+              aria-label={tt('cancel')}
               className="shrink-0 rounded-full bg-white/20 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-white/30"
             >
-              Cancel
+              {tt('cancel')}
             </button>
           </div>
         </motion.div>
@@ -1516,15 +1524,15 @@ function Spotlight({
         <div className="no-scrollbar mt-4 max-h-[62vh] space-y-4 overflow-y-auto pb-8">
           {/* D74: inline answer card */}
           {searching && answer && (
-            <section aria-label="Answer">
+            <section aria-label={tt('answer')}>
               <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
-                Answer
+                {tt('answer')}
               </h2>
               {answer.kind === 'math' && (
                 <button
                   onClick={() => {
                     void navigator.clipboard.writeText(String(answer.value))
-                    toast({ title: 'Result copied', description: `${answer.expr} = ${answer.value}` })
+                    toast({ title: tt('resultCopied'), description: `${answer.expr} = ${answer.value}` })
                   }}
                   className="w-full rounded-2xl bg-white/10 p-4 text-left ring-1 ring-white/15 transition hover:bg-white/15"
                 >
@@ -1533,7 +1541,7 @@ function Spotlight({
                     {Number.isInteger(answer.value) ? answer.value : Number(answer.value.toFixed(6))}
                   </span>
                   <span className="mt-1 block text-[10px] uppercase tracking-wide text-white/40">
-                    Tap to copy
+                    {tt('tapToCopy')}
                   </span>
                 </button>
               )}
@@ -1541,7 +1549,7 @@ function Spotlight({
                 <button
                   onClick={() => {
                     void navigator.clipboard.writeText(`${answer.out}`)
-                    toast({ title: 'Result copied', description: answer.text })
+                    toast({ title: tt('resultCopied'), description: answer.text })
                   }}
                   className="w-full rounded-2xl bg-white/10 p-4 text-left ring-1 ring-white/15 transition hover:bg-white/15"
                 >
@@ -1551,7 +1559,7 @@ function Spotlight({
                     <span className="ml-1.5 text-lg font-bold text-white/70">{answer.to}</span>
                   </span>
                   <span className="mt-1 block text-[10px] uppercase tracking-wide text-white/40">
-                    Tap to copy
+                    {tt('tapToCopy')}
                   </span>
                 </button>
               )}
@@ -1583,12 +1591,12 @@ function Spotlight({
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-bold text-white">
-                      {answer.verb === 'note' ? `Create note “${answer.arg}”` : 'Open Reminders'}
+                      {answer.verb === 'note' ? tt('createNote', { q: answer.arg }) : tt('openRemindersBtn')}
                     </span>
                     <span className="block text-[11px] text-white/55">
                       {answer.verb === 'note'
-                        ? 'Opens Notes with your text ready'
-                        : 'Jump straight to your checklist'}
+                        ? tt('opensNotes')
+                        : tt('jumpChecklist')}
                     </span>
                   </span>
                 </button>
@@ -1598,9 +1606,9 @@ function Spotlight({
 
           {/* Recents (only when not searching) */}
           {!searching && recentTools.length > 0 && (
-            <section aria-label="Recent apps">
+            <section aria-label={tt('recent')}>
               <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
-                Recent
+                {tt('recent')}
               </h2>
               <div className="flex flex-wrap gap-2">
                 {recentTools.map((t) => (
@@ -1625,15 +1633,15 @@ function Spotlight({
           )}
 
           {/* Installed / matching apps */}
-          <section aria-label={searching ? 'Search results' : 'All apps'}>
+          <section aria-label={searching ? tt('searchResults') : tt('allApps')}>
             <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
-              {searching ? 'Installed' : 'All Apps'}
+              {searching ? tt('installed') : tt('allApps')}
             </h2>
             {list.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-white/70">
                 <SearchX className="h-8 w-8" aria-hidden />
                 <p className="text-sm">
-                  {searching ? `No installed apps found for “${query.trim()}”` : 'No apps installed yet'}
+                  {searching ? tt('noInstalledFor', { q: query.trim() }) : tt('noAppsInstalled')}
                 </p>
               </div>
             ) : (
@@ -1670,9 +1678,9 @@ function Spotlight({
 
           {/* Available from the store (only while searching) */}
           {searching && availableResults.length > 0 && (
-            <section aria-label="Available from the App Store">
+            <section aria-label={tt('fromStore')}>
               <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-white/60">
-                From the App Store
+                {tt('fromStore')}
               </h2>
               <div className="overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/15">
                 {availableResults.map((t, i) => (
@@ -1725,6 +1733,7 @@ function AppLibrary({
   onOpenFolder: (id: ToolCategoryId) => void
   onOpenStore: () => void
 }) {
+  const { t } = useLang()
   const folders = useMemo(
     () =>
       toolCategories
@@ -1736,14 +1745,14 @@ function AppLibrary({
   return (
     <div className="mx-auto max-w-3xl pt-6">
       <h1 className="mb-5 text-center text-lg font-bold tracking-tight text-white drop-shadow-md">
-        App Library
+        {t('appLibrary')}
       </h1>
       <div className="grid grid-cols-2 justify-items-center gap-x-3 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {folders.map(({ cat, items }) => (
           <button
             key={cat.id}
             onClick={() => onOpenFolder(cat.id)}
-            aria-label={`Open ${cat.name} folder, ${items.length} apps`}
+            aria-label={t('folderAria', { name: cat.name, n: items.length })}
             className="group flex w-full max-w-[118px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             <span className="grid w-full grid-cols-2 gap-1.5 rounded-[1.4rem] bg-white/[0.16] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20">
@@ -1760,7 +1769,7 @@ function AppLibrary({
               ))}
               {items.length > 4 && (
                 <span className="col-span-2 flex items-center justify-center gap-1 pt-0.5 text-[10px] font-semibold text-white/80">
-                  <Folder className="h-3 w-3" aria-hidden /> {items.length} apps
+                  <Folder className="h-3 w-3" aria-hidden /> {t('appsCount', { n: items.length })}
                 </span>
               )}
             </span>
@@ -1773,7 +1782,7 @@ function AppLibrary({
         {/* Get more apps */}
         <button
           onClick={onOpenStore}
-          aria-label="Open the App Store to get more apps"
+          aria-label={t('storeCta')}
           className="group flex w-full max-w-[118px] flex-col items-center gap-2 rounded-2xl p-1 transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
         >
           <span className="grid w-full place-items-center rounded-[1.4rem] bg-white/[0.16] p-2.5 shadow-lg shadow-black/5 ring-1 ring-white/20">
@@ -1782,14 +1791,11 @@ function AppLibrary({
             </span>
           </span>
           <span className="truncate text-xs font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-            Get more apps
+            {t('getMoreApps')}
           </span>
         </button>
       </div>
-      <p className="mt-6 text-center text-[11px] text-white/60">
-        Tip: long-press any icon on the home screen to rearrange it or create a folder. Visit the
-        App Store to get more apps.
-      </p>
+      <p className="mt-6 text-center text-[11px] text-white/60">{t('libraryTip')}</p>
     </div>
   )
 }
@@ -1969,6 +1975,7 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
   const favorites = useAppStore((s) => s.favorites)
   const toggleFavorite = useAppStore((s) => s.toggleFavorite)
   const isFav = favorites.includes(app.id)
+  const { t: awT } = useLang()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -2039,7 +2046,7 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
           variant="ghost"
           size="icon"
           onClick={onHome}
-          aria-label="Go home"
+          aria-label={awT('goHome')}
           className="h-11 w-11 shrink-0 rounded-xl"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -2089,7 +2096,7 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
       {/* Home indicator */}
       <button
         onClick={onHome}
-        aria-label="Go home"
+        aria-label={awT('goHome')}
         className="group absolute bottom-[max(0.4rem,env(safe-area-inset-bottom))] left-1/2 z-10 -translate-x-1/2 p-3 focus-visible:outline-none"
       >
         <span className="block h-[5px] w-32 rounded-full bg-foreground/25 transition-colors group-hover:bg-foreground/50" />

@@ -6,6 +6,7 @@ import { BellOff, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getToolById, tools } from '@/lib/tools/registry'
 import { cn } from '@/lib/utils'
+import { useLang } from '@/hooks/use-lang'
 import {
   buildLiveFeed,
   clearOsNotifications,
@@ -37,6 +38,7 @@ export function NotificationShade({
   const [items, setItems] = useState<OsNotification[]>(() =>
     typeof window === 'undefined' ? [] : buildLiveFeed()
   )
+  const { t } = useLang()
 
   useEffect(() => {
     markAllRead()
@@ -55,7 +57,7 @@ export function NotificationShade({
       className="absolute inset-0 z-40 bg-black/35 backdrop-blur-xl"
       onClick={onClose}
       role="dialog"
-      aria-label="Notification Center"
+      aria-label={t('notificationCenter')}
     >
       <motion.div
         initial={{ y: '-100%' }}
@@ -66,7 +68,7 @@ export function NotificationShade({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
-          <h2 className="text-sm font-bold text-white">Notification Center</h2>
+          <h2 className="text-sm font-bold text-white">{t('notificationCenter')}</h2>
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -75,7 +77,7 @@ export function NotificationShade({
                 clearOsNotifications()
                 refresh()
               }}
-              aria-label="Clear notifications"
+              aria-label={t('clearNotifications')}
               className="size-8 rounded-full text-white/70 hover:bg-white/15 hover:text-white"
             >
               <Trash2 className="size-4" aria-hidden />
@@ -84,7 +86,7 @@ export function NotificationShade({
               variant="ghost"
               size="icon"
               onClick={onClose}
-              aria-label="Close notifications"
+              aria-label={t('closeNotifications')}
               className="size-8 rounded-full text-white/70 hover:bg-white/15 hover:text-white"
             >
               ✕
@@ -96,10 +98,8 @@ export function NotificationShade({
           {grouped.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-white/60">
               <BellOff className="size-8" aria-hidden />
-              <p className="text-sm font-medium">No notifications</p>
-              <p className="text-[11px] text-white/40">
-                Calendar events and open reminders will appear here.
-              </p>
+              <p className="text-sm font-medium">{t('noNotifications')}</p>
+              <p className="text-[11px] text-white/40">{t('notifEmptyHint')}</p>
             </div>
           ) : (
             grouped.map((n) => {
