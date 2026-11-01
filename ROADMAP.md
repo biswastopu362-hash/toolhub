@@ -177,20 +177,20 @@ Target: **~80+ apps & features** by Day 90.
 
 ## Phase 6 — Days 76–90 · "Platform, Scale & Launch"
 
-- [ ] **D76** Accounts (platform) — optional NextAuth sign-in (Google), guest mode default
-- [ ] **D77** Cloud Sync — notes/reminders/settings sync for signed-in users (Prisma models)
-- [ ] **D78** i18n — full Bengali UI toggle (পূর্ণ বাংলা), language picker in Settings
-- [ ] **D79** Theme Engine v3 — custom accent color picker, icon shape (squircle/rounded/sharp),
+- [x] **D76** Accounts (platform) — optional NextAuth sign-in (Google), guest mode default
+- [x] **D77** Cloud Sync — notes/reminders/settings sync for signed-in users (Prisma models)
+- [x] **D78** i18n — full Bengali UI toggle (পূর্ণ বাংলা), language picker in Settings
+- [x] **D79** Theme Engine v3 — custom accent color picker, icon shape (squircle/rounded/sharp),
       density option
-- [ ] **D80** Performance pass — bundle diet, lazy everything, Lighthouse ≥90 mobile, cold-start tune
-- [ ] **D81** Accessibility pass — focus rings, aria labels sweep, reduced-motion, contrast audit
-- [ ] **D82** Offline hardening — full offline data paths, SW update flow, "works on airplane" test
+- [x] **D80** Performance pass — bundle diet, lazy everything, Lighthouse ≥90 mobile, cold-start tune
+- [x] **D81** Accessibility pass — focus rings, aria labels sweep, reduced-motion, contrast audit
+- [x] **D82** Offline hardening — full offline data paths, SW update flow, "works on airplane" test
 - [ ] **D83** Admin Console v2 — linked-platform stats (opens/hides), reorder, bulk import/export
 - [ ] **D84** Linked Platforms v2 — per-platform deep links, embed-failure diagnostics, categories
 - [ ] **D85** Onboarding — first-run welcome tour, sample-data seeding, "Add to Home Screen" coach
 - [ ] **D86** Help & About (platform) — help app (FAQ, tips), privacy page, version changelog
-- [ ] **D87** Hardening — error boundaries per app, crash recovery, storage-quota handling
-- [ ] **D88** E2E Marathon — every app × {360, 390, 430, 768, 1280} viewport sweep, fix list closed
+- [x] **D87** Hardening — error boundaries per app, crash recovery, storage-quota handling
+- [x] **D88** E2E Marathon — every app × {360, 390, 430, 768, 1280} viewport sweep, fix list closed
 - [ ] **D89** Release Candidate — **v2.0** changelog, metadata/screenshots, store description
 - [ ] **D90** Launch Day — final push, share the hub link, celebrate, draft v2.1 roadmap
 

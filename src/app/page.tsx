@@ -75,6 +75,7 @@ import { setPendingTransfer } from '@/lib/transfer'
 import { useHomeDrag } from '@/components/home/use-home-drag'
 import { AuthProvider } from '@/components/auth/session-provider'
 import { useLang } from '@/hooks/use-lang'
+import { AppErrorBoundary } from '@/components/os/app-error-boundary'
 
 /* ================================================================== */
 /* Constants                                                           */
@@ -2113,18 +2114,20 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
         </Button>
       </header>
 
-      {/* App body */}
+      {/* App body — D87: per-app crash isolation */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        {app.external ? (
-          /* linked platforms run edge-to-edge, like a native app screen */
-          <div className="h-full">
-            <app.Component />
-          </div>
-        ) : (
-          <div className="mx-auto w-full max-w-4xl px-4 pb-28 pt-5 sm:px-6">
-            <app.Component />
-          </div>
-        )}
+        <AppErrorBoundary appName={app.name} onHome={onHome}>
+          {app.external ? (
+            /* linked platforms run edge-to-edge, like a native app screen */
+            <div className="h-full">
+              <app.Component />
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-4xl px-4 pb-28 pt-5 sm:px-6">
+              <app.Component />
+            </div>
+          )}
+        </AppErrorBoundary>
       </div>
 
       {/* Home indicator */}

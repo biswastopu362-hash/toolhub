@@ -2118,3 +2118,39 @@ Gates:
 Stage Summary:
 - Phase 5 "Games & OS Delight" closed: 9 games + Game Center (37 achievements) + 5 OS platform features; catalog 84
 - Tagged v1.5; Next: Phase 6 D76 Accounts (optional NextAuth sign-in)
+
+---
+Task ID: P6-D76-79
+Agent: main (Z.ai Code)
+Task: Phase 6 Waves A-C — Accounts, Cloud Sync, i18n, Theme Engine v3
+
+Work Log:
+- D76 Accounts: NextAuth v4 (JWT sessions) — Google provider auto-activates when GOOGLE_CLIENT_ID/SECRET set, local email credentials provider otherwise; guest mode default; SessionProvider wraps the OS shell; Settings "Account & cloud sync" card (guest banner, Google/local sign-in, profile chip, sign-out); .env.example documented
+- D77 Cloud Sync: SyncAccount/SyncBlob Prisma models (db:push applied) + self-heal DDL in ensure-schema; /api/sync GET/POST/DELETE (session-gated, 2MB cap, last-write-wins, opaque payloads); client lib (3 domains: notes(+folders mirror), reminders, launcher store); Settings card with manual "Back up now" / per-domain restore / delete-all
+- D78 i18n: app-store lang field + useLang hook + 130-key EN/BN dictionary; OS chrome translated (launcher regions/page dots, StatusBar, Spotlight, Control Center, quick menu + uninstall dialog, notification shade, widgets, install banner, Settings full, Account card); Bengali numerals + bn-BD dates in widgets; language picker in Settings
+- D79 Theme Engine v3: iconShape (squircle 30% / rounded 14px / sharp 4px via --th-icon-radius), density (compact/cozy/roomy via --th-gap-y), custom accent picker overriding --primary/--ring with luminance-aware foreground; Settings "Home screen look" card
+
+Gates:
+- tsc clean · lint clean at every wave · E2E: local sign-in → backup (empty domains skipped) → destroy → restore cycle verified live (note returned from cloud); Bangla toggle persists across reloads, whole chrome renders বাংলা; shape/density/accent switches verified via computed styles (14px→4px radius, 14.4→22.4px gap, --primary #e11d48)
+
+Stage Summary:
+- Catalog 84; accounts+sync+i18n+theme v3 shipped
+- Next: Waves D-H (health/hardening/release)
+
+---
+Task ID: P6-D80-88
+Agent: main (Z.ai Code)
+Task: Phase 6 Waves D-G — performance/a11y/offline health, per-app crash isolation, E2E marathon
+
+Work Log:
+- D80 Performance: verified all 84 apps are lazy chunks (shell carries only framer-motion + lucide + registry), wallpaper blob pause under app windows already shipped; documented sandbox dev-server instability (process killed ~6× mid-session — environment OOM, not app bugs; each restart verified clean)
+- D81 Accessibility: dynamic <html lang> sync (en/bn) for screen readers; audit confirmed aria-label coverage on all shell controls, focus-visible rings, MotionConfig reducedMotion="user", 44px targets
+- D82 Offline: airplane test PASSED — network cut, reload, full shell renders from SW cache (cache-first shell v3 + skipWaiting/clients.claim update flow); NOTE: dev-only hazard — offline reload poisons SW cache with stale chunks (fixed by SW unregister + browser restart); production unaffected
+- D87 Hardening: AppErrorBoundary isolates every app window (recovery card: Try again / Go home, crash logged with stack); proven live when it caught a ChunkLoadError on workout-planner (server-down artifact) — launcher stayed alive, boundary recovered after restart
+- D88 E2E Marathon: full-catalog hash-router sweep — 84/84 apps render, zero error boundaries triggered, zero console errors (360×740 pass; 390×844 covered by all interactive E2E above; earlier D75 sweep covered 1280×800)
+
+Gates:
+- tsc clean · lint clean · marathon 84/84 OK · offline test OK · boundary recovery verified
+
+Stage Summary:
+- Phase 5 remainder + Phase 6 core shipped; D83-D86 (Admin Console v2, Linked Platforms v2, Onboarding, Help & About) remain for the next session before the v2.0 tag
