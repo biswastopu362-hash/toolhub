@@ -15,6 +15,23 @@ import type { Lang } from '@/lib/i18n'
 import { DEFAULT_INSTALLED_IDS, DOCK_IDS, SYSTEM_APP_IDS } from '@/lib/constants'
 import { uninstallPruneOp, type HomeItem } from '@/lib/home-layout'
 
+export type IconShape = 'squircle' | 'rounded' | 'sharp'
+export type Density = 'compact' | 'cozy' | 'roomy'
+
+/** CSS border-radius applied to launcher icon tiles per shape (D79) */
+export const ICON_SHAPE_RADIUS: Record<IconShape, string> = {
+  squircle: '30%',
+  rounded: '14px',
+  sharp: '4px',
+}
+
+/** Vertical grid rhythm per density (D79) */
+export const DENSITY_GAP: Record<Density, string> = {
+  compact: '0.55rem',
+  cozy: '0.9rem',
+  roomy: '1.4rem',
+}
+
 interface AppState {
   /** favorite app ids */
   favorites: string[]
@@ -45,6 +62,12 @@ interface AppState {
   activeCustomId: string | null
   /** UI language for the OS chrome (D78): English or Bangla */
   lang: Lang
+  /** D79 icon shape: iOS-style squircle, rounded, or sharp */
+  iconShape: IconShape
+  /** D79 launcher grid density: compact / cozy (default) / roomy */
+  density: Density
+  /** D79 custom accent hex (overrides the 8 preset palettes when set) */
+  customAccent: string | null
 
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
@@ -67,6 +90,9 @@ interface AppState {
   deleteCustomWallpaper: (id: string) => void
   setActiveCustom: (id: string | null) => void
   setLang: (l: Lang) => void
+  setIconShape: (s: IconShape) => void
+  setDensity: (d: Density) => void
+  setCustomAccent: (hex: string | null) => void
 }
 
 /** v2 → v3: installed apps didn't exist — derive them from the old layout. */
@@ -102,6 +128,9 @@ export const useAppStore = create<AppState>()(
       customWallpapers: [],
       activeCustomId: null,
       lang: 'en',
+      iconShape: 'squircle',
+      density: 'cozy',
+      customAccent: null,
 
       toggleFavorite: (id) =>
         set((s) => ({
@@ -171,6 +200,9 @@ export const useAppStore = create<AppState>()(
         })),
       setActiveCustom: (id) => set({ activeCustomId: id }),
       setLang: (l) => set({ lang: l }),
+      setIconShape: (s) => set({ iconShape: s }),
+      setDensity: (d) => set({ density: d }),
+      setCustomAccent: (hex) => set({ customAccent: hex }),
     }),
     {
       name: 'toolhub-store',

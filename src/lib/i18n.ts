@@ -224,6 +224,22 @@ const en = {
   signInFailed: 'Sign-in failed',
   tryAgain: 'Please try again.',
   restoreFromCloud: 'Restore {name} from cloud',
+
+  /* Theme Engine v3 (D79) */
+  homeLook: 'Home screen look',
+  homeLookDesc: 'Icon shape, grid density and a custom accent color — applied instantly.',
+  iconShape: 'Icon shape',
+  shapeSquircle: 'Squircle',
+  shapeRounded: 'Rounded',
+  shapeSharp: 'Sharp',
+  densityLabel: 'Grid density',
+  densityCompact: 'Compact',
+  densityCozy: 'Cozy',
+  densityRoomy: 'Roomy',
+  customAccent: 'Custom accent',
+  customAccentDesc: 'Pick any color — it overrides the preset palettes for buttons and highlights.',
+  usePreset: 'Use preset',
+  colorInput: 'Pick a custom accent color',
 } as const
 
 export type TKey = keyof typeof en
@@ -438,6 +454,22 @@ const bn: Record<TKey, string> = {
   signInFailed: 'সাইন-ইন ব্যর্থ',
   tryAgain: 'আবার চেষ্টা করুন।',
   restoreFromCloud: 'ক্লাউড থেকে {name} রিস্টোর করুন',
+
+  /* Theme Engine v3 (D79) */
+  homeLook: 'হোম স্ক্রিনের চেহারা',
+  homeLookDesc: 'আইকনের আকৃতি, গ্রিডের ঘনত্ব এবং কাস্টম অ্যাকসেন্ট রঙ — সাথে সাথে প্রয়োগ হয়।',
+  iconShape: 'আইকনের আকৃতি',
+  shapeSquircle: 'স্কুইর্কল',
+  shapeRounded: 'গোল কোণা',
+  shapeSharp: 'ধারালো কোণা',
+  densityLabel: 'গ্রিড ঘনত্ব',
+  densityCompact: 'কমপ্যাক্ট',
+  densityCozy: 'আরামদায়ক',
+  densityRoomy: 'প্রশস্ত',
+  customAccent: 'কাস্টম অ্যাকসেন্ট',
+  customAccentDesc: 'যেকোনো রঙ বাছুন — বাটন ও হাইলাইটে প্রিসেট প্যালেটের জায়গা নেবে।',
+  usePreset: 'প্রিসেট ব্যবহার করুন',
+  colorInput: 'কাস্টম অ্যাকসেন্ট রঙ বাছুন',
 }
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, bn }

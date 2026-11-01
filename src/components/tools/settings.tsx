@@ -91,6 +91,12 @@ export default function SettingsTool() {
   const resetLayout = useAppStore((s) => s.resetLayout)
   const installed = useAppStore((s) => s.installed)
   const folderCount = useAppStore((s) => s.layout.filter((i) => i.kind === 'folder').length)
+  const iconShape = useAppStore((s) => s.iconShape)
+  const setIconShape = useAppStore((s) => s.setIconShape)
+  const density = useAppStore((s) => s.density)
+  const setDensity = useAppStore((s) => s.setDensity)
+  const customAccent = useAppStore((s) => s.customAccent)
+  const setCustomAccent = useAppStore((s) => s.setCustomAccent)
 
   const clearFavorites = () => {
     if (favorites.length === 0) return
@@ -279,6 +285,106 @@ export default function SettingsTool() {
           })}
         </div>
         <p className="text-xs text-muted-foreground">{t('wallpaperTip')}</p>
+      </Card>
+
+      {/* ---------------- Home screen look (D79 Theme Engine v3) ---------------- */}
+      <Card className="gap-4 p-4">
+        <div>
+          <h3 className="font-semibold">{t('homeLook')}</h3>
+          <p className="text-sm text-muted-foreground">{t('homeLookDesc')}</p>
+        </div>
+
+        {/* Icon shape */}
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('iconShape')}
+          </h4>
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label={t('iconShape')}>
+            {(['squircle', 'rounded', 'sharp'] as const).map((shape) => {
+              const active = iconShape === shape
+              const radius = shape === 'squircle' ? '30%' : shape === 'rounded' ? '14px' : '4px'
+              return (
+                <button
+                  key={shape}
+                  type="button"
+                  onClick={() => setIconShape(shape)}
+                  aria-pressed={active}
+                  className={cn(
+                    'flex h-20 flex-col items-center justify-center gap-2 rounded-xl border text-xs font-medium transition-all active:scale-95',
+                    active
+                      ? 'border-transparent bg-primary text-primary-foreground shadow-md shadow-primary/25'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className="size-8 bg-gradient-to-br from-emerald-400 to-teal-600 shadow"
+                    style={{ borderRadius: radius }}
+                  />
+                  {t(shape === 'squircle' ? 'shapeSquircle' : shape === 'rounded' ? 'shapeRounded' : 'shapeSharp')}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Grid density */}
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('densityLabel')}
+          </h4>
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label={t('densityLabel')}>
+            {(['compact', 'cozy', 'roomy'] as const).map((d) => {
+              const active = density === d
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDensity(d)}
+                  aria-pressed={active}
+                  className={cn(
+                    'flex h-14 items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-all active:scale-95',
+                    active
+                      ? 'border-transparent bg-primary text-primary-foreground shadow-md shadow-primary/25'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {t(d === 'compact' ? 'densityCompact' : d === 'cozy' ? 'densityCozy' : 'densityRoomy')}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Custom accent */}
+        <div>
+          <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('customAccent')}
+          </h4>
+          <p className="mb-2 text-xs text-muted-foreground">{t('customAccentDesc')}</p>
+          <div className="flex items-center gap-2">
+            <label
+              className="relative grid size-12 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border-2 border-border shadow-inner"
+              style={{ background: customAccent ?? 'conic-gradient(from 0deg, #f43f5e, #f59e0b, #10b981, #06b6d4, #8b5cf6, #f43f5e)' }}
+            >
+              <input
+                type="color"
+                value={customAccent ?? '#10b981'}
+                onChange={(e) => setCustomAccent(e.target.value)}
+                aria-label={t('colorInput')}
+                className="absolute inset-0 cursor-pointer opacity-0"
+              />
+            </label>
+            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+              {customAccent ? customAccent.toUpperCase() : '—'}
+            </span>
+            {customAccent && (
+              <Button variant="outline" className="h-11 shrink-0 gap-2" onClick={() => setCustomAccent(null)}>
+                <RotateCcw className="size-4" /> {t('usePreset')}
+              </Button>
+            )}
+          </div>
+        </div>
       </Card>
 
       {/* ---------------- Apps ---------------- */}

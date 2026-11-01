@@ -44,7 +44,7 @@ import { WidgetStrip } from '@/components/os/home-widgets'
 import { NotificationShade } from '@/components/os/notification-shade'
 import { useHashRoute } from '@/hooks/use-hash-route'
 import { useHydrated } from '@/hooks/use-hydrated'
-import { useAppStore } from '@/lib/store/app-store'
+import { useAppStore, ICON_SHAPE_RADIUS, DENSITY_GAP } from '@/lib/store/app-store'
 import { DEFAULT_WALLPAPER, getWallpaper, wallpaperIsDark, type WallpaperId } from '@/lib/theme'
 import { setPendingShare } from '@/lib/share'
 import { buildLiveFeed } from '@/lib/os/notifications'
@@ -116,6 +116,25 @@ function OsShell() {
   const [hash, navigate] = useHashRoute()
   const hydrated = useHydrated()
   const wallpaper = useAppStore((s) => s.wallpaper)
+  /* D79: custom accent overrides the preset --primary tokens app-wide */
+  const customAccent = useAppStore((s) => s.customAccent)
+  useEffect(() => {
+    const root = document.documentElement
+    if (!customAccent) {
+      root.style.removeProperty('--primary')
+      root.style.removeProperty('--primary-foreground')
+      root.style.removeProperty('--ring')
+      return
+    }
+    const rgb = customAccent.replace('#', '')
+    const r = parseInt(rgb.slice(0, 2), 16) || 0
+    const g = parseInt(rgb.slice(2, 4), 16) || 0
+    const b = parseInt(rgb.slice(4, 6), 16) || 0
+    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    root.style.setProperty('--primary', customAccent)
+    root.style.setProperty('--primary-foreground', lum < 0.55 ? '#ffffff' : '#18181b')
+    root.style.setProperty('--ring', customAccent)
+  }, [customAccent])
   /* D39: active user-designed wallpaper (stable ref; null when none) */
   const activeCustom = useAppStore(
     (s) => s.customWallpapers.find((c) => c.id === s.activeCustomId) ?? null
@@ -449,6 +468,8 @@ function HomeScreen({
   const [openFolder, setOpenFolder] = useState<OpenFolder>(null)
   const [installHint, setInstallHint] = useState(false)
   const { t: osT } = useLang()
+  const iconShape = useAppStore((s) => s.iconShape)
+  const density = useAppStore((s) => s.density)
 
   const layout = useAppStore((s) => s.layout)
   const installed = useAppStore((s) => s.installed)
@@ -570,13 +591,19 @@ function HomeScreen({
       {/* One-tap PWA install (hidden while rearranging icons) */}
       <InstallBanner suppressed={editing} onVisibleChange={setInstallHint} />
 
-      {/* Pages (horizontal scroll-snap) */}
+      {/* Pages (horizontal scroll-snap) — D79 shape/density CSS vars */}
       <div
         ref={pagesRef}
         onScroll={onScroll}
         onContextMenu={(e) => e.preventDefault()}
         className="no-scrollbar absolute inset-0 flex snap-x snap-mandatory select-none overflow-x-auto overflow-y-hidden pb-32 pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.5rem))]"
         aria-label="Home screen pages"
+        style={
+          {
+            '--th-icon-radius': ICON_SHAPE_RADIUS[iconShape],
+            '--th-gap-y': DENSITY_GAP[density],
+          } as CSSProperties
+        }
       >
         {pages.map((items, page) => (
           <section
@@ -599,8 +626,11 @@ function HomeScreen({
                   if (el) gridEls.current.set(page, el)
                   else gridEls.current.delete(page)
                 }}
-                className="mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-2 gap-y-4 sm:gap-y-5"
-                style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
+                className="mx-auto grid w-full max-w-[1080px] content-start justify-items-center gap-x-2"
+                style={{
+                  gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))`,
+                  rowGap: 'var(--th-gap-y, 1rem)',
+                }}
               >
               {items.map((item, slot) => (
                 <HomeItemView
@@ -1039,10 +1069,9 @@ function IconTile({ tool, hinted = false }: { tool: Tool; hinted?: boolean }) {
   return (
     <span
       data-tile-id={tool.id}
-      style={{ '--glow': tool.glow } as CSSProperties}
+      style={{ '--glow': tool.glow, borderRadius: 'var(--th-icon-radius, 26%)' } as CSSProperties}
       className={cn(
         'relative block aspect-square w-full overflow-hidden bg-gradient-to-br text-white ring-1 ring-white/20',
-        '[border-radius:26%]',
         tool.gradient,
         'shadow-[0_10px_24px_-12px_var(--glow),0_4px_12px_-6px_rgb(0_0_0/0.32),inset_0_1px_1px_rgb(255_255_255/0.38),inset_0_-10px_18px_rgb(0_0_0/0.10)]',
         hinted && 'scale-[1.08] ring-2 ring-white/90'
@@ -1071,11 +1100,11 @@ function FolderTile({ item, hinted = false }: { item: HomeFolderItem; hinted?: b
   return (
     <span
       data-tile-id={item.id}
+      style={{ borderRadius: 'var(--th-icon-radius, 26%)' } as CSSProperties}
       className={cn(
         /* no backdrop-blur here — a blur per folder tile made page swipes
            janky on phones; the glass read comes from the alpha + gloss */
         'relative grid aspect-square w-full grid-cols-2 place-items-center gap-[7%] overflow-hidden bg-white/[0.2] p-[9%] ring-1 ring-white/25',
-        '[border-radius:26%]',
         'shadow-[0_10px_24px_-12px_rgb(0_0_0/0.32),inset_0_1px_1px_rgb(255_255_255/0.35)]',
         hinted && 'scale-[1.08] ring-2 ring-white/90'
       )}
