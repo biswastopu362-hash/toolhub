@@ -73,6 +73,7 @@ import { cn } from '@/lib/utils'
 import { DOCK_IDS } from '@/lib/constants'
 import { setPendingTransfer } from '@/lib/transfer'
 import { useHomeDrag } from '@/components/home/use-home-drag'
+import { AuthProvider } from '@/components/auth/session-provider'
 
 /* ================================================================== */
 /* Constants                                                           */
@@ -101,6 +102,16 @@ function tileRectOf(el: HTMLElement | null | undefined): IconRect | null {
 /* ================================================================== */
 
 export default function Home() {
+  /* D76: session context wraps the whole OS shell — guest mode default,
+   * sign-in only unlocks the optional cloud backup (D77). */
+  return (
+    <AuthProvider>
+      <OsShell />
+    </AuthProvider>
+  )
+}
+
+function OsShell() {
   const [hash, navigate] = useHashRoute()
   const hydrated = useHydrated()
   const wallpaper = useAppStore((s) => s.wallpaper)

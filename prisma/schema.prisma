@@ -43,3 +43,36 @@ model ExternalApp {
 
   @@index([active, createdAt])
 }
+
+/**
+ * D76/D77 Cloud Sync — optional per-account backup for signed-in users.
+ *
+ * One SyncAccount per email (created on first sign-in), holding SyncBlob
+ * rows per data domain ('notes' | 'reminders' | 'launcher'). Payloads are
+ * opaque JSON snapshots of the on-device stores — last write wins, nothing
+ * is read server-side beyond (accountId, domain, rev, updatedAt).
+ */
+model SyncAccount {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String     @default("")
+  provider  String     @default("credentials")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  blobs     SyncBlob[]
+
+  @@index([email])
+}
+
+model SyncBlob {
+  id        String      @id @default(cuid())
+  accountId String
+  domain    String
+  payload   String
+  rev       Int         @default(1)
+  updatedAt DateTime    @updatedAt
+  account   SyncAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, domain])
+  @@index([accountId])
+}

@@ -39,6 +39,7 @@ import { defaultLayout } from '@/lib/home-layout'
 import { DOCK_IDS } from '@/lib/constants'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { AppLockCard } from '@/components/os/app-lock-card'
+import { AccountCard } from '@/components/os/account-card'
 import { tools } from '@/lib/tools/registry'
 
 /* ================================================================== */
@@ -266,6 +267,9 @@ export default function SettingsTool() {
           <Store className="size-4" /> Open App Store
         </Button>
       </Card>
+
+      {/* ---------------- Account & Cloud Sync (D76/D77) ---------------- */}
+      <AccountCard />
 
       {/* ---------------- App Lock (D9) ---------------- */}
       <AppLockCard />

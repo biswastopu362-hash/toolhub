@@ -37,6 +37,33 @@ const SCHEMA_STATEMENTS = [
   ON "ExternalApp"("slug")`,
   `CREATE INDEX IF NOT EXISTS "ExternalApp_active_createdAt_idx"
   ON "ExternalApp"("active", "createdAt")`,
+  /* D77 Cloud Sync — optional per-account backup blobs */
+  `CREATE TABLE IF NOT EXISTS "SyncAccount" (
+  "id"        TEXT     NOT NULL PRIMARY KEY,
+  "email"     TEXT     NOT NULL,
+  "name"      TEXT     NOT NULL DEFAULT '',
+  "provider"  TEXT     NOT NULL DEFAULT 'credentials',
+  "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "SyncAccount_email_key"
+  ON "SyncAccount"("email")`,
+  `CREATE INDEX IF NOT EXISTS "SyncAccount_email_idx"
+  ON "SyncAccount"("email")`,
+  `CREATE TABLE IF NOT EXISTS "SyncBlob" (
+  "id"        TEXT     NOT NULL PRIMARY KEY,
+  "accountId" TEXT     NOT NULL,
+  "domain"    TEXT     NOT NULL,
+  "payload"   TEXT     NOT NULL,
+  "rev"       INTEGER  NOT NULL DEFAULT 1,
+  "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "SyncBlob_accountId_fkey" FOREIGN KEY ("accountId")
+    REFERENCES "SyncAccount" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "SyncBlob_accountId_domain_key"
+  ON "SyncBlob"("accountId", "domain")`,
+  `CREATE INDEX IF NOT EXISTS "SyncBlob_accountId_idx"
+  ON "SyncBlob"("accountId")`,
 ]
 
 /** Create the Linked Platforms schema once per serverless instance. */
