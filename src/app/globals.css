@@ -293,6 +293,21 @@ html.amoled {
   }
   html {
     scroll-behavior: smooth;
+    /* kill the gray tap flash on mobile — the shell paints its own states */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Remove the double-tap-zoom delay on every interactive element. Composited
+     by the browser (no listeners involved) — measurably snappier taps on
+     mid-range phones. */
+  button,
+  [role='button'],
+  a,
+  input,
+  select,
+  textarea,
+  label,
+  summary {
+    touch-action: manipulation;
   }
   ::selection {
     background-color: oklch(var(--pr-l) var(--pr-c) var(--hue) / 0.28);
@@ -329,6 +344,20 @@ html.amoled {
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+  /* Render-skip helpers (mobile smoothness):
+     · cv-page  — launcher pages outside the viewport skip layout+paint until
+       swiped near; the scroller itself keeps its explicit w/h so snap math is
+       untouched. Toggled OFF while editing (drag engine measures children).
+     · cv-auto  — long list rows (Spotlight etc.) skip offscreen rendering;
+       contain-intrinsic-size keeps scrollbar math stable. */
+  .cv-page {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 100% auto 640px;
+  }
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 56px;
   }
 }
 

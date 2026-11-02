@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, memo, type CSSProperties } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import {
   ArrowLeft,
@@ -315,6 +315,17 @@ function OsShell() {
 
   const goHome = useCallback(() => navigate('#/'), [navigate])
 
+  /*
+   * Once the app window has fully covered the launcher, hide the home
+   * subtree entirely (visibility:hidden). The opaque window sits above it,
+   * but without this the compositor keeps rasterizing the scaled-down
+   * launcher every frame the app scrolls — a constant tax on mid-range
+   * phones. visibility (unlike opacity/transform) removes it from paint
+   * AND hit-testing. Toggle points are the zoom animation's own lifecycle:
+   * covered on complete, restored the instant the return animation starts.
+   */
+  const [homeCovered, setHomeCovered] = useState(false)
+
   const [spotlightOpen, setSpotlightOpen] = useState(false)
   const [ccOpen, setCcOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -364,6 +375,13 @@ function OsShell() {
           className="absolute inset-0"
           animate={showApp ? { scale: 0.92, opacity: 0.4 } : { scale: 1, opacity: 1 }}
           transition={{ duration: 0.42, ease: [0.32, 0.72, 0, 1] }}
+          onAnimationStart={() => {
+            if (!showApp) setHomeCovered(false)
+          }}
+          onAnimationComplete={() => {
+            if (showApp) setHomeCovered(true)
+          }}
+          style={{ visibility: homeCovered ? 'hidden' : 'visible' }}
         >
           <HomeScreen
             onOpenApp={openApp}
@@ -519,9 +537,12 @@ function HomeScreen({
     el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
   }, [])
 
+  /* Bail out when the rounded page index hasn't changed — momentum scrolls
+     fire hundreds of scroll events and this keeps them allocation-free. */
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
-    setActivePage(Math.max(0, Math.round(el.scrollLeft / Math.max(1, el.clientWidth))))
+    const next = Math.max(0, Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+    setActivePage((prev) => (prev === next ? prev : next))
   }, [])
 
   /* ---------------- drag engine ---------------- */
@@ -559,6 +580,18 @@ function HomeScreen({
   /* D71: suppress the drag engine's edit-mode entry while a quick-actions
      menu is opening — long-press means "context menu", not jiggle mode */
   const suppressEditRef = useRef(0)
+
+  /* Stable handlers — HomeItemView is memoized, so every callback below
+     must keep its identity across renders or the whole grid re-renders
+     on unrelated store updates (recents/favorites/etc.). */
+  const openUserFolder = useCallback((id: string) => {
+    setOpenFolder({ kind: 'user', id })
+  }, [])
+  const enterEdit = useCallback(() => setEditing(true), [])
+  const onQuickMenuOpened = useCallback(() => {
+    suppressEditRef.current = Date.now() + 2000
+  }, [])
+
   const { view, ghostRef, onItemPointerDown, shouldSuppressClick, armedRef } = useHomeDrag({
     scrollerRef: pagesRef,
     gridEls,
@@ -577,7 +610,6 @@ function HomeScreen({
     onDrop: handleDrop,
     scrollToPage,
   })
-
   /* Escape exits edit mode */
   useEffect(() => {
     if (!editing) return
@@ -605,12 +637,14 @@ function HomeScreen({
       {/* One-tap PWA install (hidden while rearranging icons) */}
       <InstallBanner suppressed={editing} onVisibleChange={setInstallHint} />
 
-      {/* Pages (horizontal scroll-snap) — D79 shape/density CSS vars */}
+      {/* Pages (horizontal scroll-snap) — D79 shape/density CSS vars.
+          overscroll-x-contain keeps horizontal swipes from chaining into
+          the page's own vertical scrollers. */}
       <div
         ref={pagesRef}
         onScroll={onScroll}
         onContextMenu={(e) => e.preventDefault()}
-        className="no-scrollbar absolute inset-0 flex snap-x snap-mandatory select-none overflow-x-auto overflow-y-hidden pb-32 pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.5rem))]"
+        className="no-scrollbar absolute inset-0 flex snap-x snap-mandatory select-none overflow-x-auto overflow-y-hidden overscroll-x-contain pb-32 pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.5rem))]"
         aria-label="Home screen pages"
         style={
           {
@@ -626,7 +660,13 @@ function HomeScreen({
             onClick={(e) => {
               if (editing && e.target === e.currentTarget) setEditing(false)
             }}
-            className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-4 sm:px-10"
+            className={cn(
+              'no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-4 sm:px-10',
+              /* Off-screen pages skip layout+paint (content-visibility).
+                 Disabled while editing — the drag engine hit-tests tiles
+                 across pages during edge flips. */
+              !editing && 'cv-page'
+            )}
           >
             {/* banner clears + D72 widgets + grid share one padding wrapper */}
             <div
@@ -657,16 +697,12 @@ function HomeScreen({
                   onLight={onLight}
                   onPointerDown={onItemPointerDown}
                   armedRef={armedRef}
+                  shouldSuppressClick={shouldSuppressClick}
+                  onOpenApp={onOpenApp}
+                  onOpenFolder={openUserFolder}
                   onOpenInStore={onOpenInStore}
-                  onEnterEditMode={() => setEditing(true)}
-                  onQuickMenuOpen={() => {
-                    suppressEditRef.current = Date.now() + 2000
-                  }}
-                  onClick={(e) => {
-                    if (editing || shouldSuppressClick()) return
-                    if (item.kind === 'app') onOpenApp(item.id, e.currentTarget)
-                    else setOpenFolder({ kind: 'user', id: item.id })
-                  }}
+                  onEnterEditMode={enterEdit}
+                  onQuickMenuOpen={onQuickMenuOpened}
                 />
               ))}
               </div>
@@ -677,7 +713,10 @@ function HomeScreen({
         {/* App Library page — always the last page */}
         <section
           aria-label={osT('appLibrary')}
-          className="no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-4 sm:px-10"
+          className={cn(
+            'no-scrollbar h-full w-full shrink-0 snap-center overflow-y-auto px-4 sm:px-10',
+            !editing && 'cv-page'
+          )}
         >
           <AppLibrary
             installedTools={installedTools}
@@ -703,7 +742,7 @@ function HomeScreen({
           >
             <span
               className={cn(
-                'block h-1.5 w-1.5 rounded-full transition-all duration-300',
+                'block h-1.5 w-1.5 rounded-full transition-[width,background-color] duration-300',
                 activePage === i
                   ? onLight
                     ? 'w-4 bg-zinc-900/90'
@@ -721,7 +760,7 @@ function HomeScreen({
       <div className="absolute inset-x-0 bottom-0 z-20 select-none pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div
           className={cn(
-            'mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-[1.9rem] px-3.5 py-3 backdrop-blur-2xl sm:px-5 sm:py-3.5',
+            'mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-[1.9rem] px-3.5 py-3 backdrop-blur-xl sm:backdrop-blur-2xl sm:px-5 sm:py-3.5',
             onLight
               ? 'bg-white/60 ring-1 ring-black/[0.08] shadow-[0_16px_36px_-14px_rgb(0_0_0/0.28),inset_0_1px_1px_rgb(255_255_255/0.7)]'
               : 'bg-white/10 ring-1 ring-white/15 shadow-[0_16px_36px_-14px_rgb(0_0_0/0.45),inset_0_1px_1px_rgb(255_255_255/0.15)]'
@@ -769,10 +808,13 @@ function HomeScreen({
 }
 
 /* ================================================================== */
-/* Home item — app icon or folder, with jiggle + drag states           */
+/* Home item — app icon or folder, with jiggle + drag states.          */
+/* memo(): the grid is ~40 of these; without it every unrelated store  */
+/* update (recents, favorites, clock ticks elsewhere) reconciled all   */
+/* of them — the exact moment the app-open spring is running.          */
 /* ================================================================== */
 
-function HomeItemView({
+const HomeItemView = memo(function HomeItemView({
   item,
   index,
   editing,
@@ -781,10 +823,12 @@ function HomeItemView({
   onLight,
   onPointerDown,
   armedRef,
+  shouldSuppressClick,
+  onOpenApp,
+  onOpenFolder,
   onOpenInStore,
   onEnterEditMode,
   onQuickMenuOpen,
-  onClick,
 }: {
   item: HomeItem
   index: number
@@ -794,16 +838,25 @@ function HomeItemView({
   onLight: boolean
   onPointerDown: (e: React.PointerEvent<HTMLElement>, id: string) => void
   armedRef: React.RefObject<boolean>
+  shouldSuppressClick: () => boolean
+  onOpenApp: (id: string, origin?: HTMLElement | null) => void
+  onOpenFolder: (id: string) => void
   onOpenInStore: (id: string) => void
   onEnterEditMode: () => void
   onQuickMenuOpen: () => void
-  onClick: (e: React.MouseEvent<HTMLElement>) => void
 }) {
   const { toast } = useToast()
   const { t } = useLang()
   const [confirmRemove, setConfirmRemove] = useState(false)
   /* D71: long-press quick actions (context menu) */
   const [quickMenu, setQuickMenu] = useState(false)
+  /* A long-press that turns into a drag (finger moves past the threshold)
+     arms the drag engine while the menu is still animating in — dismiss the
+     menu the instant this tile is the one being dragged so the gesture reads
+     as "reorder", not "menu floating over a live drag". */
+  useEffect(() => {
+    if (dragging) setQuickMenu(false)
+  }, [dragging])
   const lpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lpStartRef = useRef<{ x: number; y: number } | null>(null)
   const tool = item.kind === 'app' ? getToolById(item.id) : undefined
@@ -818,19 +871,41 @@ function HomeItemView({
         )
 
   /*
-   * While a drag is armed (edit mode active), cancel the browser's scroll
-   * gesture on touchmove so the very first drag attempt works on mobile.
-   * Requires a non-passive listener, hence the manual addEventListener.
+   * Gesture-scoped scroll cancellation. The non-passive touchmove listener
+   * now exists ONLY while a finger is down on this tile (pointerdown →
+   * attach, pointerup/cancel → detach). Keeping ~40 always-on non-passive
+   * listeners in the scroll path used to route every home swipe through
+   * the main thread; with this the idle launcher scrolls fully on the
+   * compositor while the long-press→drag behavior stays byte-identical
+   * (the listener is in place before the first touchmove can fire).
    */
   const elRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = elRef.current
     if (!el) return
+    let attached = false
     const onTouchMove = (e: TouchEvent) => {
       if (armedRef.current) e.preventDefault()
     }
-    el.addEventListener('touchmove', onTouchMove, { passive: false })
-    return () => el.removeEventListener('touchmove', onTouchMove)
+    const attach = () => {
+      if (attached) return
+      attached = true
+      el.addEventListener('touchmove', onTouchMove, { passive: false })
+    }
+    const detach = () => {
+      if (!attached) return
+      attached = false
+      el.removeEventListener('touchmove', onTouchMove)
+    }
+    el.addEventListener('pointerdown', attach, true)
+    window.addEventListener('pointerup', detach)
+    window.addEventListener('pointercancel', detach)
+    return () => {
+      el.removeEventListener('pointerdown', attach, true)
+      window.removeEventListener('pointerup', detach)
+      window.removeEventListener('pointercancel', detach)
+      detach()
+    }
   }, [armedRef])
 
   /* long-press → quick actions (cancels on move/release/edit mode) */
@@ -869,6 +944,14 @@ function HomeItemView({
     clearLpTimer()
   }
 
+  /* Activation (tap / keyboard) — depends only on stable callbacks +
+     primitives, so it never forces a parent re-render through memo. */
+  const handleActivate = (e: React.MouseEvent<HTMLElement>) => {
+    if (editing || shouldSuppressClick()) return
+    if (item.kind === 'app') onOpenApp(item.id, e.currentTarget)
+    else onOpenFolder(item.id)
+  }
+
   return (
     <motion.div
       /* FLIP reflow only matters while rearranging icons — keeping `layout`
@@ -877,10 +960,12 @@ function HomeItemView({
       layout={editing ? true : undefined}
       data-item-id={item.id}
       data-item-index={index}
-      initial={{ opacity: 0, scale: 0.55 }}
-      animate={{ opacity: dragging ? 0.25 : 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.5 }}
-      transition={{ type: 'spring', stiffness: 480, damping: 34, mass: 0.9 }}
+      /* Opacity-only entrance: the previous scale-spring ran ~40 concurrent
+         JS springs on mount (hydration burst). A plain fade reads the same
+         and costs a fraction of the main-thread time. */
+      initial={{ opacity: 0 }}
+      animate={{ opacity: dragging ? 0.25 : 1 }}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
       onPointerDown={(e) => {
         onLpPointerDown(e)
         onPointerDown(e, item.id)
@@ -892,14 +977,14 @@ function HomeItemView({
         e.preventDefault()
         if (item.kind === 'app' && !editing) setQuickMenu(true)
       }}
-      onClick={onClick}
+      onClick={handleActivate}
       className={cn('w-full cursor-pointer', editing && 'touch-none')}
       role="button"
       aria-label={item.kind === 'app' ? t('openApp', { name: label }) : t('openFolder', { name: label })}
       tabIndex={0}
       onKeyDown={(e) => {
         // keyboard activation reuses the keydown's currentTarget — identical element
-        if (e.key === 'Enter' && !editing) onClick(e as unknown as React.MouseEvent<HTMLElement>)
+        if (e.key === 'Enter' && !editing) handleActivate(e as unknown as React.MouseEvent<HTMLElement>)
       }}
     >
       {/* jiggle lives on an inner wrapper so framer's FLIP transform is untouched */}
@@ -978,7 +1063,7 @@ function HomeItemView({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-6 backdrop-blur-xl"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-6 backdrop-blur-lg sm:backdrop-blur-xl"
             /* close on pointerdown — the long-press release synthesizes a click
                on the backdrop that must NOT close the freshly opened menu */
             onPointerDown={() => setQuickMenu(false)}
@@ -991,7 +1076,7 @@ function HomeItemView({
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.92, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-              className="w-full max-w-xs overflow-hidden rounded-3xl bg-white/[0.14] p-4 ring-1 ring-white/25 backdrop-blur-2xl"
+              className="w-full max-w-xs overflow-hidden rounded-3xl bg-white/[0.14] p-4 ring-1 ring-white/25 backdrop-blur-xl"
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
@@ -1073,7 +1158,7 @@ function HomeItemView({
       </AnimatePresence>
     </motion.div>
   )
-}
+})
 
 /* ================================================================== */
 /* Premium icon tile — squircle, gloss, per-app glow shadow            */
@@ -1527,11 +1612,14 @@ function Spotlight({
   }
 
   return (
+    /* Static blur + opacity fade only — animating backdropFilter re-blurred
+       the entire viewport every frame on open AND close; a pre-set blur with
+       an opacity ramp looks nearly identical and composites once. */
     <motion.div
-      initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
-      animate={{ opacity: 1, backdropFilter: 'blur(24px)' }}
-      exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
-      transition={{ duration: 0.22 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
       className="absolute inset-0 z-40 flex flex-col bg-black/40 px-4 pt-[max(3rem,calc(env(safe-area-inset-top)+2rem))] backdrop-blur-2xl"
       onClick={onClose}
       role="dialog"
@@ -1694,7 +1782,7 @@ function Spotlight({
                     key={t.id}
                     onClick={(e) => onOpenApp(t.id, e.currentTarget)}
                     className={cn(
-                      'flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/15 active:bg-white/20',
+                      'cv-auto flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/15 active:bg-white/20',
                       i > 0 && 'border-t border-white/10'
                     )}
                   >
@@ -1731,7 +1819,7 @@ function Spotlight({
                     key={t.id}
                     onClick={() => onOpenInStore(t.id)}
                     className={cn(
-                      'flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/15 active:bg-white/20',
+                      'cv-auto flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/15 active:bg-white/20',
                       i > 0 && 'border-t border-white/10'
                     )}
                   >
@@ -1917,7 +2005,7 @@ function FolderOverlay({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 p-6 backdrop-blur-2xl"
+      className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 p-6 backdrop-blur-xl sm:backdrop-blur-2xl"
       onClick={() => {
         if (pick) setPick(false)
         else onClose()
@@ -1930,7 +2018,7 @@ function FolderOverlay({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.92, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-        className="w-full max-w-md rounded-3xl bg-white/[0.14] p-4 ring-1 ring-white/20 backdrop-blur-2xl sm:p-5"
+        className="w-full max-w-md rounded-3xl bg-white/[0.14] p-4 ring-1 ring-white/20 backdrop-blur-xl sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -2084,7 +2172,9 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
       aria-label={app.name}
     >
       {/* App header */}
-      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b bg-background/85 px-3 backdrop-blur md:rounded-t-[1.75rem]">
+      {/* Solid bar on phones (no per-frame blur while app content scrolls
+         underneath); the glass look returns on tablet/desktop. */}
+      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b bg-background px-3 md:bg-background/85 md:backdrop-blur md:rounded-t-[1.75rem]">
         <Button
           variant="ghost"
           size="icon"

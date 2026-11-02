@@ -2208,3 +2208,24 @@ Gates:
 Stage Summary:
 - PHASE 6 "Platform, Scale & Launch" CLOSED: 90/90 days complete — catalog 85 built-ins + linked-platform platform (admin v2 + diagnostics), accounts/cloud-sync, full Bengali, theme v3, onboarding, Help Center
 - Tagged v2.0; Phase 7 draft queued in ROADMAP
+
+---
+Task ID: P7-Smoothness
+Agent: main (Z.ai Code)
+Task: Post-launch Mobile Smoothness Pass — "improve the smoothness of this site for mobile"
+
+Work Log:
+- Scroll path: replaced ~40 always-on non-passive touchmove listeners (one per home tile) with gesture-scoped attachment (pointerdown → attach, pointerup/cancel → detach). Non-passive listeners in the scroll path routed every home swipe through the main thread on mid-range phones; the idle launcher now scrolls fully on the compositor while the long-press→drag cancel behavior stays identical (listener is in place before the first touchmove can fire)
+- Re-render diet: HomeItemView wrapped in React.memo; all grid callbacks (open folder / edit mode / quick-menu suppression / activation) stabilized with useCallback so unrelated store updates (recents on app open, favorites toggles) no longer reconcile the ~40-tile grid during the app-open zoom. Item entrance switched from 40 concurrent JS scale-springs to a single opacity tween (0.22s)
+- Compositing: home launcher flips to visibility:hidden once the app window settles (onAnimationComplete → homeCovered; restored on the return animation's start) — the scaled-down launcher no longer paints under the opaque window while apps scroll. Page-level content-visibility (cv-page, toggled off while editing) skips layout+paint of off-screen launcher pages; Spotlight result rows use cv-auto with intrinsic sizing
+- backdrop-filter diet: Spotlight no longer animates backdropFilter 0→24px (viewport re-blur per frame on open AND close — static blur + opacity ramp instead); dock 2xl→xl on phones; FolderOverlay/QuickMenu backdrop + card blur radii trimmed on mobile; AppWindow header is solid on phones (per-frame blur under scrolling app content), glass restored md+
+- Touch latency: global touch-action: manipulation on interactive elements (removes double-tap-zoom delay, compositor-only) + tap-highlight transparent; pager gains overscroll-x-contain; page-dot transition narrowed to width/background-color; onScroll now bails out when the rounded page index is unchanged (momentum-scroll event storm)
+- UX fix found during QA: a long-press that turns into a drag used to leave the quick-actions menu floating over the live drag — menu now dismisses the instant its tile starts dragging
+- Incident (environment, not app): mid-verification the sandbox dev server died + the PWA service worker served a stale bundle (clock stuck at --:--, effects never ran). Recovered via SW unregister + caches.clear + dev restart; deep links, hydration and all flows verified clean afterwards
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean · agent-browser 390×844: open→home-hidden→home-restored→second app, deep-link #/app/notes in/out, Spotlight search + row open, App Library folder, CC edit mode (jiggle 8 → Escape 0), long-press→quick menu→drag (menu auto-close, ghost tracks, reorder persists) · 360/390/1280 zero horizontal overflow · zero page errors · git core.fileMode=false to silence sandbox permission-bit noise
+
+Stage Summary:
+- Mobile smoothness pass shipped: compositor-driven launcher scrolling, memoized grid, blur diet, touch-latency globals, one drag/menu UX fix
+- Next: Phase 7 (v2.1 "Reach & Rituals") per ROADMAP draft
