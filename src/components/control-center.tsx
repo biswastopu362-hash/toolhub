@@ -108,7 +108,7 @@ export function ControlCenter({
         onDragEnd={(_, info) => {
           if (info.offset.y > 120 || info.velocity.y > 500) onClose()
         }}
-        className="w-full rounded-t-[1.75rem] bg-background/90 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl ring-1 ring-border backdrop-blur-2xl"
+        className="w-full rounded-t-[1.75rem] bg-background/90 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl ring-1 ring-border backdrop-blur-md sm:backdrop-blur-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* grabber */}

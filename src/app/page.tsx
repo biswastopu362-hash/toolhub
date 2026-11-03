@@ -36,7 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useToast } from '@/hooks/use-toast'
+import { toast, useToast } from '@/hooks/use-toast'
 import { ControlCenter } from '@/components/control-center'
 import { InstallBanner } from '@/components/pwa/install-banner'
 import { LockGate } from '@/components/os/lock-gate'
@@ -760,7 +760,10 @@ function HomeScreen({
       <div className="absolute inset-x-0 bottom-0 z-20 select-none pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div
           className={cn(
-            'mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-[1.9rem] px-3.5 py-3 backdrop-blur-xl sm:backdrop-blur-2xl sm:px-5 sm:py-3.5',
+            /* lg on phones: page content slides under the dock on every
+               scroll frame, so this blur re-renders per-frame — the alpha
+               glass reads the same at 16px, at half the GPU cost. */
+            'mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-[1.9rem] px-3.5 py-3 backdrop-blur-lg sm:backdrop-blur-2xl sm:px-5 sm:py-3.5',
             onLight
               ? 'bg-white/60 ring-1 ring-black/[0.08] shadow-[0_16px_36px_-14px_rgb(0_0_0/0.28),inset_0_1px_1px_rgb(255_255_255/0.7)]'
               : 'bg-white/10 ring-1 ring-white/15 shadow-[0_16px_36px_-14px_rgb(0_0_0/0.45),inset_0_1px_1px_rgb(255_255_255/0.15)]'
@@ -845,7 +848,10 @@ const HomeItemView = memo(function HomeItemView({
   onEnterEditMode: () => void
   onQuickMenuOpen: () => void
 }) {
-  const { toast } = useToast()
+  /* Smoothness: this tile renders ~40–100× on the launcher. Calling the
+   * standalone toast() (same store) instead of useToast() keeps every tile
+   * OFF the toast listener list — a toast no longer re-renders the grid
+   * mid-gesture. Only the singleton <Toaster> subscribes. */
   const { t } = useLang()
   const [confirmRemove, setConfirmRemove] = useState(false)
   /* D71: long-press quick actions (context menu) */
@@ -1063,7 +1069,7 @@ const HomeItemView = memo(function HomeItemView({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-6 backdrop-blur-lg sm:backdrop-blur-xl"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-6 backdrop-blur-md sm:backdrop-blur-xl"
             /* close on pointerdown — the long-press release synthesizes a click
                on the backdrop that must NOT close the freshly opened menu */
             onPointerDown={() => setQuickMenu(false)}
@@ -1620,7 +1626,10 @@ function Spotlight({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
-      className="absolute inset-0 z-40 flex flex-col bg-black/40 px-4 pt-[max(3rem,calc(env(safe-area-inset-top)+2rem))] backdrop-blur-2xl"
+      /* md on phones — a 40px full-screen blur is one of the priciest GPU
+         ops on mid-range devices; behind a 40% scrim the visual delta
+         vs. 12px is imperceptible. Desktop keeps the 2xl glass. */
+      className="absolute inset-0 z-40 flex flex-col bg-black/40 px-4 pt-[max(3rem,calc(env(safe-area-inset-top)+2rem))] backdrop-blur-md sm:backdrop-blur-2xl"
       onClick={onClose}
       role="dialog"
       aria-label={tt('searchApps')}
@@ -2005,7 +2014,7 @@ function FolderOverlay({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 p-6 backdrop-blur-xl sm:backdrop-blur-2xl"
+      className="absolute inset-0 z-40 flex items-center justify-center bg-black/45 p-6 backdrop-blur-md sm:backdrop-blur-2xl"
       onClick={() => {
         if (pick) setPick(false)
         else onClose()

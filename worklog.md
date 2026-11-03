@@ -2229,3 +2229,28 @@ Gates:
 Stage Summary:
 - Mobile smoothness pass shipped: compositor-driven launcher scrolling, memoized grid, blur diet, touch-latency globals, one drag/menu UX fix
 - Next: Phase 7 (v2.1 "Reach & Rituals") per ROADMAP draft
+
+---
+Task ID: P7-Smoothness-2
+Agent: main (Z.ai Code)
+Task: Second Mobile Smoothness Pass — "improve the smoothness of this side for mobile" (user follow-up)
+
+Work Log:
+- Re-render storm fix: every HomeItemView tile (~40–100 on the launcher) subscribed to the toast context via useToast(); any toast dispatch (install/uninstall/favorite bursts) re-rendered the whole grid mid-gesture. Tiles now call the standalone toast() store function (identical dispatch, zero subscriptions) — only the singleton <Toaster> listens
+- Mobile blur budget (GPU cost scales with radius × area; full-screen scrims are the priciest surfaces):
+  · Spotlight scrim 2xl (40px) → md (12px) on phones, 2xl kept sm+ — the 40% black scrim makes the delta imperceptible at ~1/3 the GPU cost
+  · FolderOverlay scrim xl → md on phones; QuickMenu scrim lg → md
+  · NotificationShade scrim xl → md on phones (re-composites through the whole open/close opacity ramp)
+  · ControlCenter sheet 2xl → md on phones — panel is bg-background/90 (nearly opaque), blur was paying full price for a barely-visible effect
+  · Dock xl → lg on phones — page content slides under the dock on every scroll frame, so this blur re-renders per-frame; 16px reads identically at the 60% alpha
+  · Widget strip cards xl → md on phones — the fixed wallpaper behind them forces a backdrop re-composite on every scroll frame (3 cards)
+- Desktop/tablet (sm+) untouched: full 2xl/xl glass preserved everywhere
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- agent-browser 360×780: onboarding skip → home render, Spotlight open (md glass verified visually) → Calculator open via row → home return, Notification Shade open/close, Control Center open, favorite toggle from quick menu fires toast with zero page errors, horizontal page swipe (scrollLeft lands exactly one page width), scripted scroll probe worst frame 17ms (no long tasks)
+- agent-browser 1280×800: desktop home + shade keep the full 2xl/xl glass; zero console/page errors
+
+Stage Summary:
+- Launcher-grid toast subscription removed + phone-tier blur budget trimmed across 7 surfaces; visual parity preserved on desktop
+- Ad-hoc polish pass (no ROADMAP day consumed); Phase 6 D83–D90 roadmap execution still pending per ROADMAP.md

@@ -49,12 +49,14 @@ export function NotificationShade({
   const grouped = useMemo(() => items.slice(0, 40), [items])
 
   return (
+    /* md blur on phones — a full-screen backdrop blur re-composites while
+       the open/close opacity ramp runs; 12px reads the same behind 35%. */
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
-      className="absolute inset-0 z-40 bg-black/35 backdrop-blur-xl"
+      className="absolute inset-0 z-40 bg-black/35 backdrop-blur-md sm:backdrop-blur-xl"
       onClick={onClose}
       role="dialog"
       aria-label={t('notificationCenter')}

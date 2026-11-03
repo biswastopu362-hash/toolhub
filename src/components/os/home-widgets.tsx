@@ -154,8 +154,10 @@ export function WidgetStrip({ onOpenApp, onLight }: WidgetStripProps) {
     : ''
   const wd = weather ? describeCode(weather.code) : null
 
+  /* md blur on phones: the fixed wallpaper behind these cards forces a
+     backdrop re-composite on every scroll frame — 12px reads the same. */
   const card = cn(
-    'relative overflow-hidden rounded-[1.4rem] p-3 text-left ring-1 backdrop-blur-xl transition-transform active:scale-[0.97]',
+    'relative overflow-hidden rounded-[1.4rem] p-3 text-left ring-1 backdrop-blur-md sm:backdrop-blur-xl transition-transform active:scale-[0.97]',
     onLight
       ? 'bg-white/55 ring-black/[0.08] shadow-[0_10px_26px_-14px_rgb(0_0_0/0.3)]'
       : 'bg-white/[0.12] ring-white/20 shadow-[0_10px_26px_-14px_rgb(0_0_0/0.5)]'
