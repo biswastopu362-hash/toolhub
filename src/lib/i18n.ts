@@ -315,6 +315,9 @@ const en = {
   widgetGoalProgress: '{done} of {target} so far',
   widgetNoGoals: 'No goals yet',
   widgetTapToSet: 'Tap to set a goal',
+
+  /* Spotlight plugins (v2.1) */
+  offlineRates: 'Offline snapshot rates',
 } as const
 
 export type TKey = keyof typeof en
@@ -620,6 +623,9 @@ const bn: Record<TKey, string> = {
   widgetGoalProgress: 'এখন পর্যন্ত {done}/{target}',
   widgetNoGoals: 'এখনও কোনো লক্ষ্য নেই',
   widgetTapToSet: 'লক্ষ্য ঠিক করতে ট্যাপ করুন',
+
+  /* Spotlight plugins (v2.1) */
+  offlineRates: 'অফলাইন রেট স্ন্যাপশট',
 }
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, bn }

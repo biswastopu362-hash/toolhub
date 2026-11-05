@@ -44,6 +44,7 @@ import Onboarding from '@/components/os/onboarding'
 import { LaunchCelebration } from '@/components/os/launch-celebration'
 import { AutoSync } from '@/components/os/auto-sync'
 import { recordAppOpen } from '@/lib/telemetry'
+import { evalCurrency, evalColor, evalUnitChain } from '@/lib/spotlight-plugins'
 import { WidgetStrip } from '@/components/os/home-widgets'
 import { NotificationShade } from '@/components/os/notification-shade'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -1567,6 +1568,9 @@ function evalUnit(raw: string): { value: number; from: string; to: string; out: 
 type SpotlightAnswer =
   | { kind: 'math'; expr: string; value: number }
   | { kind: 'unit'; text: string; value: number; from: string; to: string; out: number }
+  | { kind: 'currency'; text: string; amount: number; from: string; to: string; out: number }
+  | { kind: 'color'; hex: string; r: number; g: number; b: number; h: number; s: number; l: number }
+  | { kind: 'chain'; text: string; value: number; unit: string }
   | { kind: 'action'; verb: 'note' | 'reminder'; arg: string }
   | null
 
@@ -1579,6 +1583,16 @@ function computeAnswer(query: string): SpotlightAnswer {
 
   const unit = evalUnit(q)
   if (unit) return { kind: 'unit', text: q, ...unit }
+
+  /* v2.1 Spotlight plugins — offline currency, color preview, unit chains */
+  const currency = evalCurrency(q)
+  if (currency) return { kind: 'currency', text: q, ...currency }
+
+  const color = evalColor(q)
+  if (color) return { kind: 'color', ...color }
+
+  const chain = evalUnitChain(q, UNIT_TABLE, UNIT_ALIASES)
+  if (chain) return { kind: 'chain', text: chain.text, value: chain.value, unit: chain.unit }
 
   if (SAFE_MATH.test(q) && /[0-9]/.test(q) && /[+\-*\/^%]/.test(q)) {
     const v = evalMath(q)
@@ -1717,6 +1731,66 @@ function Spotlight({
                   <span className="mt-0.5 block text-3xl font-black tabular-nums text-white">
                     {Number(answer.out.toFixed(4))}
                     <span className="ml-1.5 text-lg font-bold text-white/70">{answer.to}</span>
+                  </span>
+                  <span className="mt-1 block text-[10px] uppercase tracking-wide text-white/40">
+                    {tt('tapToCopy')}
+                  </span>
+                </button>
+              )}
+              {answer.kind === 'currency' && (
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(`${Number(answer.out.toFixed(2))}`)
+                    toast({ title: tt('resultCopied'), description: answer.text })
+                  }}
+                  className="w-full rounded-2xl bg-white/10 p-4 text-left ring-1 ring-white/15 transition hover:bg-white/15"
+                >
+                  <span className="block text-xs text-white/55">{answer.text}</span>
+                  <span className="mt-0.5 block text-3xl font-black tabular-nums text-white">
+                    {Number(answer.out.toFixed(2))}
+                    <span className="ml-1.5 text-lg font-bold uppercase text-white/70">{answer.to}</span>
+                  </span>
+                  <span className="mt-1 block text-[10px] uppercase tracking-wide text-white/40">
+                    {tt('offlineRates')} · {tt('tapToCopy')}
+                  </span>
+                </button>
+              )}
+              {answer.kind === 'color' && (
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(answer.hex)
+                    toast({ title: tt('resultCopied'), description: answer.hex })
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white/10 p-4 text-left ring-1 ring-white/15 transition hover:bg-white/15"
+                >
+                  <span
+                    className="size-12 shrink-0 rounded-xl ring-1 ring-white/30"
+                    style={{ backgroundColor: answer.hex }}
+                    aria-hidden
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-2xl font-black uppercase tabular-nums text-white">{answer.hex}</span>
+                    <span className="block truncate text-[11px] text-white/60">
+                      rgb({answer.r}, {answer.g}, {answer.b}) · hsl({answer.h}, {answer.s}%, {answer.l}%)
+                    </span>
+                    <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-white/40">
+                      {tt('tapToCopy')}
+                    </span>
+                  </span>
+                </button>
+              )}
+              {answer.kind === 'chain' && (
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(`${Number(answer.value.toFixed(4))} ${answer.unit}`)
+                    toast({ title: tt('resultCopied'), description: answer.text })
+                  }}
+                  className="w-full rounded-2xl bg-white/10 p-4 text-left ring-1 ring-white/15 transition hover:bg-white/15"
+                >
+                  <span className="block text-xs text-white/55">{answer.text} =</span>
+                  <span className="mt-0.5 block text-3xl font-black tabular-nums text-white">
+                    {Number(answer.value.toFixed(4))}
+                    <span className="ml-1.5 text-lg font-bold text-white/70">{answer.unit}</span>
                   </span>
                   <span className="mt-1 block text-[10px] uppercase tracking-wide text-white/40">
                     {tt('tapToCopy')}

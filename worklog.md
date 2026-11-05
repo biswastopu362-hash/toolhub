@@ -2316,3 +2316,26 @@ Gates:
 Stage Summary:
 - Widget packs shipped: 6-widget registry + user reorder; launcher page 1 now a real dashboard
 - Next: Wave 4 — Spotlight plugins (offline currency, hex preview, unit chaining)
+---
+Task ID: P7-W4
+Agent: main (Z.ai Code)
+Task: Phase 7 Wave 4 — Spotlight plugins (offline currency, color hex preview, unit math chaining)
+
+Work Log:
+- src/lib/spotlight-plugins.ts: three pure evaluators, zero deps —
+  · evalCurrency: `100 usd to eur` / `1200 taka to usd` — 50+ currency table (USD base, offline snapshot, labeled as such in the UI) + 30 aliases (dollar/taka/yen/€/£/¥…); rejects unknown codes and same-code pairs
+  · evalColor: `#ff5500` / `f50` → swatch + hex + rgb() + hsl() (full conversion math), 3- and 6-digit forms, strict 3/6 hex validation
+  · evalUnitChain: `2m + 30cm`, `1kg - 200g`, `3km + 2mi` — strict token walk (TERM OP TERM…), converts every term into the FIRST term's unit via the existing UNIT_TABLE dimension factors; mixed dimensions and garbage rejected; leading signs absorbed
+- computeAnswer pipeline: action → unit → currency → color → chain → math (chain runs before bare math but rejects anything without a unit term, so `2+2*3` still hits evalMath)
+- Renderer: three new answer rows (currency shows "Offline snapshot rates" note; color shows a live swatch + rgb/hsl; chain shows `= value unit`) — all tap-to-copy like existing rows
+- i18n: offlineRates key (EN+BN)
+
+Gates:
+- Function tests: usd→eur=92, taka→usd, eur→inr; #f50≡#ff5500 rgb(255,85,0) hsl(20,100%,50%); 2m+30cm=2.3m, 1kg−200g=0.8kg, 3km+2mi=6.2187km; mixed-dim/garbage/unknown-currency all null
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser): currency/color/chain rows render live in Spotlight; regressions clean (5 km to mi = 3.1069 mi, 2+2*3 = 8); zero page errors
+- Fixed during QA: subtraction-only chains (1kg − 200g) were rejected by an over-strict fast-reject guard; leading-negative handling added
+
+Stage Summary:
+- Spotlight is now a 3-plugin quick-answer engine (math/units/currency/color/chain/actions) — all offline
+- Next: Wave 5 — App Lock v2 (WebAuthn biometric + per-folder locks)
