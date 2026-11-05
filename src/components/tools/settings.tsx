@@ -42,6 +42,7 @@ import { DOCK_IDS, APP_VERSION } from '@/lib/constants'
 import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { AppLockCard } from '@/components/os/app-lock-card'
 import { AccountCard } from '@/components/os/account-card'
+import { WidgetsCard } from '@/components/os/widgets-card'
 import { useLang } from '@/hooks/use-lang'
 import type { TKey } from '@/lib/i18n'
 import { tools } from '@/lib/tools/registry'
@@ -420,6 +421,9 @@ export default function SettingsTool() {
 
       {/* ---------------- Account & Cloud Sync (D76/D77) ---------------- */}
       <AccountCard />
+
+      {/* ---------------- Home widgets (v2.1) ---------------- */}
+      <WidgetsCard />
 
       {/* ---------------- App Lock (D9) ---------------- */}
       <AppLockCard />

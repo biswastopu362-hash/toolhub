@@ -2297,3 +2297,22 @@ Gates:
 Stage Summary:
 - Telemetry v2 shipped: local per-day opens → 14-day admin chart; embed diagnostics now self-running with broken-platform alerts
 - Next: Wave 3 — Widget packs (calendar/habit/goal widgets + reorderable strip)
+---
+Task ID: P7-W3
+Agent: main (Z.ai Code)
+Task: Phase 7 Wave 3 — Widget packs (calendar/habits/goals widgets + reorderable strip)
+
+Work Log:
+- Widget system rebuilt as a registry: store.widgets (WidgetId[], additive state, default clock/weather/notes — zustand shallow merge backfills existing profiles) drives which cards render on launcher page 1 and in what order
+- 3 new widgets: Calendar (next 2 events from toolhub.calendar.events, color dots, Today/Tomorrow labels), Habits (today's done/total in the habit's accent color + best streak, reads toolhub-habits IndexedDB), Goals (SVG progress ring for the first goal's day/week target from toolhub-goals:v1) — all with premium empty states
+- Settings → "Home widgets" card: 6 rows with Switch + up/down reorder among enabled (position badges), disabled rows stay visible; strip re-renders instantly
+- WidgetStrip refactored into per-widget components sharing the glass card chrome (mobile blur budget preserved: backdrop-blur-md on phones)
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser, seeded calendar/goal/habit data): settings card toggles + reorder (Calendar → #2 persists), launcher renders 6 cards with live data (Team sync Today 15:00 · habits 1/2 cyan + Best streak 1 · goals violet ring 2 of 3), widget taps deep-open habit-tracker + calendar; zero page errors
+- Fixed during QA: goals card leaked a raw {period} placeholder — copy changed to "{done} of {target} so far" (EN+BN)
+
+Stage Summary:
+- Widget packs shipped: 6-widget registry + user reorder; launcher page 1 now a real dashboard
+- Next: Wave 4 — Spotlight plugins (offline currency, hex preview, unit chaining)

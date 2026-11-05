@@ -17,6 +17,9 @@ import { uninstallPruneOp, type HomeItem } from '@/lib/home-layout'
 
 export type IconShape = 'squircle' | 'rounded' | 'sharp'
 export type Density = 'compact' | 'cozy' | 'roomy'
+/** v2.1 home-widget ids (ordered enabled list, rendered on launcher page 1) */
+export type WidgetId = 'clock' | 'weather' | 'notes' | 'calendar' | 'habits' | 'goals'
+export const ALL_WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'notes', 'calendar', 'habits', 'goals']
 
 /** CSS border-radius applied to launcher icon tiles per shape (D79) */
 export const ICON_SHAPE_RADIUS: Record<IconShape, string> = {
@@ -72,6 +75,8 @@ interface AppState {
   autoSync: boolean
   /** v2.1 end-to-end encryption — seal sync blobs with AES-GCM on-device */
   e2eEnabled: boolean
+  /** v2.1 ordered list of enabled home widgets (page-1 strip) */
+  widgets: WidgetId[]
 
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
@@ -99,6 +104,7 @@ interface AppState {
   setCustomAccent: (hex: string | null) => void
   setAutoSync: (on: boolean) => void
   setE2eEnabled: (on: boolean) => void
+  setWidgets: (ids: WidgetId[]) => void
 }
 
 /** v2 → v3: installed apps didn't exist — derive them from the old layout. */
@@ -139,6 +145,7 @@ export const useAppStore = create<AppState>()(
       customAccent: null,
       autoSync: false,
       e2eEnabled: false,
+      widgets: ['clock', 'weather', 'notes'],
 
       toggleFavorite: (id) =>
         set((s) => ({
@@ -213,6 +220,7 @@ export const useAppStore = create<AppState>()(
       setCustomAccent: (hex) => set({ customAccent: hex }),
       setAutoSync: (on) => set({ autoSync: on }),
       setE2eEnabled: (on) => set({ e2eEnabled: on }),
+      setWidgets: (ids) => set({ widgets: ids }),
     }),
     {
       name: 'toolhub-store',

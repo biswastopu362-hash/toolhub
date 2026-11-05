@@ -295,6 +295,26 @@ const en = {
   e2eNeedPassDesc: 'Enter your encryption passphrase for this session to back up encrypted data.',
   e2eEnabledToast: 'End-to-end encryption on',
   e2eEnabledToastDesc: 'New backups are sealed on-device before upload.',
+
+  /* Widget packs (v2.1) */
+  widgetCalendar: 'Calendar',
+  widgetHabits: 'Habits',
+  widgetGoals: 'Goals',
+  widgetSettingsTitle: 'Home widgets',
+  widgetSettingsDesc: 'Choose which cards live on the first home page and in what order.',
+  widgetMoveUp: 'Move {name} up',
+  widgetMoveDown: 'Move {name} down',
+  calendarWidgetAria: 'Open Calendar',
+  habitsWidgetAria: 'Open Habit Tracker',
+  goalsWidgetAria: 'Open Goal Tracker',
+  widgetNoEvents: 'No events yet',
+  widgetTapToPlan: 'Tap to plan your day',
+  widgetBestStreak: 'Best streak: {n} days',
+  widgetNoHabits: 'No habits yet',
+  widgetTapToStart: 'Tap to build a streak',
+  widgetGoalProgress: '{done} of {target} so far',
+  widgetNoGoals: 'No goals yet',
+  widgetTapToSet: 'Tap to set a goal',
 } as const
 
 export type TKey = keyof typeof en
@@ -580,6 +600,26 @@ const bn: Record<TKey, string> = {
   e2eNeedPassDesc: 'এনক্রিপ্টেড ডেটা ব্যাকআপ করতে এই সেশনের পাসফ্রেজ দিন।',
   e2eEnabledToast: 'এন্ড-টু-এন্ড এনক্রিপশন চালু',
   e2eEnabledToastDesc: 'আপলোডের আগে নতুন ব্যাকআপ ডিভাইসেই সিল হবে।',
+
+  /* Widget packs (v2.1) */
+  widgetCalendar: 'ক্যালেন্ডার',
+  widgetHabits: 'অভ্যাস',
+  widgetGoals: 'লক্ষ্য',
+  widgetSettingsTitle: 'হোম উইজেট',
+  widgetSettingsDesc: 'প্রথম হোম পেজে কোন কার্ড থাকবে আর কোন ক্রমে তা বেছে নিন।',
+  widgetMoveUp: '{name} উপরে সরান',
+  widgetMoveDown: '{name} নিচে সরান',
+  calendarWidgetAria: 'ক্যালেন্ডার খুলুন',
+  habitsWidgetAria: 'হ্যাবিট ট্র্যাকার খুলুন',
+  goalsWidgetAria: 'গোল ট্র্যাকার খুলুন',
+  widgetNoEvents: 'এখনও কোনো ইভেন্ট নেই',
+  widgetTapToPlan: 'দিন সাজাতে ট্যাপ করুন',
+  widgetBestStreak: 'সেরা ধারা: {n} দিন',
+  widgetNoHabits: 'এখনও কোনো অভ্যাস নেই',
+  widgetTapToStart: 'ধারা শুরু করতে ট্যাপ করুন',
+  widgetGoalProgress: 'এখন পর্যন্ত {done}/{target}',
+  widgetNoGoals: 'এখনও কোনো লক্ষ্য নেই',
+  widgetTapToSet: 'লক্ষ্য ঠিক করতে ট্যাপ করুন',
 }
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, bn }
