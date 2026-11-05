@@ -196,16 +196,16 @@ Target: **~80+ apps & features** by Day 90.
 
 ---
 
-## Phase 7 (draft) — v2.1 · "Reach & Rituals" (post-launch backlog, pulled per week)
+## Phase 7 — v2.1 · "Reach & Rituals" (post-launch, pulled per week)
 
-- Richer cloud sync: automatic (debounced) backup, sync across folders + game scores, end-to-end encryption option
-- Platform telemetry v2: per-day open chart in Admin Console, embed-check auto-run on save, broken-platform alerts
-- Widget packs: calendar/agenda widget, habit-streak widget, goal progress ring — user-reorderable widget strip
-- Spotlight plugins: currency conversion (offline rates table), color hex preview, unit math chaining
-- App Lock v2: biometric (WebAuthn) unlock, per-folder locks
-- Localization wave 2: Hindi + Spanish dictionaries, app-internal screens graduate key-by-key
-- Store v2: editorial collections, "similar apps" on detail pages, update-badges with changelog popups
-- Performance: route-level prefetch warming, SW navigation preload, image CDN variants for wallpapers
+- [x] **P7-W1** Richer cloud sync: automatic (debounced) backup, games-scores domain, end-to-end encryption (AES-GCM, passphrase stays on device)
+- [ ] **P7-W2** Platform telemetry v2: per-day open chart in Admin Console, embed-check auto-run on save, broken-platform alerts
+- [ ] **P7-W3** Widget packs: calendar/agenda widget, habit-streak widget, goal progress ring — user-reorderable widget strip
+- [ ] **P7-W4** Spotlight plugins: currency conversion (offline rates table), color hex preview, unit math chaining
+- [ ] **P7-W5** App Lock v2: biometric (WebAuthn) unlock, per-folder locks
+- [ ] **P7-W6** Localization wave 2: Hindi + Spanish dictionaries
+- [ ] **P7-W7** Store v2: editorial collections, "similar apps" on detail pages, update-badges with changelog popups
+- [ ] **P7-W8** Performance: route-level prefetch warming, SW navigation preload + Phase 7 QA Day, tag **v2.1**
 
 ---
 

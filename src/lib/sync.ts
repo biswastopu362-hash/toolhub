@@ -1,20 +1,25 @@
 'use client'
 
 /* ================================================================== */
-/* Cloud Sync client (D77) — optional backup for signed-in users.      */
+/* Cloud Sync client (D77 + v2.1 "Reach & Rituals") — optional backup  */
+/* for signed-in users.                                                */
 /*                                                                     */
-/* Three domains mirror the on-device stores:                          */
+/* Four domains mirror the on-device stores:                           */
 /*   notes     → localStorage 'toolhub-notes'                          */
 /*   reminders → localStorage 'toolhub-reminders'                      */
 /*   launcher  → localStorage 'toolhub-store' (zustand persisted JSON) */
+/*   games     → localStorage 'toolhub.games.v1' (scores + badges)     */
 /*                                                                     */
 /* Backup = read here, POST blob. Restore = write here, reload.        */
 /* Last write wins; nothing is uploaded unless the user signs in and   */
-/* presses "Back up now" (privacy stance unchanged).                   */
+/* presses "Back up now" — or enables Automatic backup, which pushes   */
+/* a domain ~5s after it changes. With end-to-end encryption enabled   */
+/* the payload is sealed with AES-GCM on-device (see crypto-e2e.ts)    */
+/* and the server only ever holds ciphertext.                          */
 /* ================================================================== */
 
 export interface SyncDomain {
-  id: 'notes' | 'reminders' | 'launcher'
+  id: 'notes' | 'reminders' | 'launcher' | 'games'
   label: string
   description: string
   /** primary localStorage key holding the domain's JSON snapshot */
@@ -43,6 +48,12 @@ export const SYNC_DOMAINS: SyncDomain[] = [
     description: 'Layout, wallpaper, accent, theme',
     storageKey: 'toolhub-store',
   },
+  {
+    id: 'games',
+    label: 'Game scores',
+    description: 'High scores, plays, achievements',
+    storageKey: 'toolhub.games.v1',
+  },
 ]
 
 export interface SyncBlobMeta {
@@ -50,6 +61,8 @@ export interface SyncBlobMeta {
   rev: number
   updatedAt: string
   size: number
+  /** v2.1: true when the stored payload is an E2E-encrypted envelope */
+  enc?: boolean
 }
 
 interface BlobResponse {
@@ -68,10 +81,19 @@ export function readDomainPayload(domain: SyncDomain): string | null {
 }
 
 /** Push one domain's local snapshot to the cloud. Returns the stored rev.
- *  Resolves with null when the on-device store is empty (nothing to push). */
-export async function pushDomain(domain: SyncDomain): Promise<SyncBlobMeta | null> {
-  const payload = readDomainPayload(domain)
+ *  Resolves with null when the on-device store is empty (nothing to push).
+ *  When `passphrase` is provided the payload is sealed on-device (E2E) —
+ *  the server receives ciphertext only. */
+export async function pushDomain(
+  domain: SyncDomain,
+  opts?: { passphrase?: string }
+): Promise<SyncBlobMeta | null> {
+  let payload = readDomainPayload(domain)
   if (!payload) return null
+  if (opts?.passphrase) {
+    const { encryptString } = await import('@/lib/crypto-e2e')
+    payload = await encryptString(payload, opts.passphrase)
+  }
   const res = await fetch('/api/sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -93,14 +115,24 @@ export async function listCloudBlobs(): Promise<SyncBlobMeta[]> {
 }
 
 /** Fetch one domain's payload and write it into localStorage (no reload).
- *  Handles both the composed {v:1, main, extra} envelope and legacy plain
- *  snapshots. Returns the primary payload size. */
-export async function restoreDomain(domain: SyncDomain): Promise<number> {
+ *  Handles the encrypted v2 envelope, the composed {v:1, main, extra}
+ *  envelope, and legacy plain snapshots. Returns the primary payload size.
+ *  Throws Error('wrong-passphrase') when an encrypted blob cannot be
+ *  opened with the supplied passphrase. */
+export async function restoreDomain(
+  domain: SyncDomain,
+  opts?: { passphrase?: string }
+): Promise<number> {
   const res = await fetch(`/api/sync?domain=${domain.id}`, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Restore failed (${res.status})`)
   const body = (await res.json()) as { blobs: Array<{ payload?: string }> }
-  const payload = body.blobs[0]?.payload
+  let payload = body.blobs[0]?.payload
   if (!payload) throw new Error(`No cloud backup found for ${domain.label}`)
+
+  const { isEncryptedEnvelope, decryptString } = await import('@/lib/crypto-e2e')
+  if (isEncryptedEnvelope(payload)) {
+    payload = await decryptString(payload, opts?.passphrase ?? '')
+  }
 
   let main = payload
   try {

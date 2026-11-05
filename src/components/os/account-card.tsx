@@ -12,12 +12,15 @@ import {
   ShieldCheck,
   Trash2,
   UserRound,
+  Lock,
+  LockOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +35,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { useLang } from '@/hooks/use-lang'
 import { cn } from '@/lib/utils'
+import { useAppStore } from '@/lib/store/app-store'
 import {
   SYNC_DOMAINS,
   deleteCloudBlobs,
@@ -40,6 +44,12 @@ import {
   restoreDomain,
   type SyncBlobMeta,
 } from '@/lib/sync'
+import {
+  AutoSyncStatus,
+  getAutoSyncStatus,
+  getSessionPassphrase,
+  setSessionPassphrase,
+} from '@/components/os/auto-sync'
 
 /* ================================================================== */
 /* D76 Accounts + D77 Cloud Sync settings card.                        */
@@ -59,6 +69,10 @@ export function AccountCard() {
   const { data: session, status } = useSession()
   const { toast } = useToast()
   const { t } = useLang()
+  const autoSync = useAppStore((s) => s.autoSync)
+  const e2eEnabled = useAppStore((s) => s.e2eEnabled)
+  const setAutoSync = useAppStore((s) => s.setAutoSync)
+  const setE2eEnabled = useAppStore((s) => s.setE2eEnabled)
 
   const [providers, setProviders] = useState<ProvidersShape | null>(null)
   const [email, setEmail] = useState('')
@@ -70,6 +84,60 @@ export function AccountCard() {
   const [cloud, setCloud] = useState<SyncBlobMeta[] | null>(null)
 
   const signedIn = status === 'authenticated' && Boolean(session?.user?.email)
+
+  /* v2.1: E2E passphrase entry + auto-sync live status */
+  const [passInput, setPassInput] = useState('')
+  const [e2eBusy, setE2eBusy] = useState(false)
+  const [syncTick, setSyncTick] = useState(0)
+  const syncStatus: AutoSyncStatus | null = signedIn && autoSync ? getAutoSyncStatus() : null
+
+  useEffect(() => {
+    if (!signedIn) return
+    const onTick = () => setSyncTick((n) => n + 1)
+    window.addEventListener('toolhub:autosync', onTick)
+    return () => window.removeEventListener('toolhub:autosync', onTick)
+  }, [signedIn])
+
+  /** passphrase to seal pushes with — only when E2E is on AND unlocked for this session */
+  const activePass = (): string | undefined => {
+    if (!e2eEnabled) return undefined
+    const pass = getSessionPassphrase()
+    if (!pass) {
+      toast({ title: t('e2eNeedPassTitle'), description: t('e2eNeedPassDesc') })
+      return undefined
+    }
+    return pass
+  }
+
+  /** Turn E2E on: verify the passphrase with an encrypt/decrypt roundtrip,
+   *  keep it in sessionStorage (never persisted), flip the store flag. */
+  const enableE2e = async () => {
+    const pass = passInput
+    if (pass.length < 8) {
+      toast({ title: t('e2eTooShort') })
+      return
+    }
+    setE2eBusy(true)
+    try {
+      const { encryptString, decryptString } = await import('@/lib/crypto-e2e')
+      const probe = `toolhub-e2e-probe:${Date.now()}`
+      const round = await decryptString(await encryptString(probe, pass), pass)
+      if (round !== probe) throw new Error('roundtrip')
+      setSessionPassphrase(pass)
+      setE2eEnabled(true)
+      setPassInput('')
+      toast({ title: t('e2eEnabledToast'), description: t('e2eEnabledToastDesc') })
+    } catch {
+      toast({ title: t('e2eWrongPass') })
+    } finally {
+      setE2eBusy(false)
+    }
+  }
+
+  const disableE2e = () => {
+    setE2eEnabled(false)
+    setSessionPassphrase(null)
+  }
 
   const refreshCloud = useCallback(async () => {
     if (!signedIn) {
@@ -142,10 +210,15 @@ export function AccountCard() {
   const backupAll = async () => {
     setBusy('backup')
     try {
+      const pass = activePass()
+      if (e2eEnabled && !pass) {
+        setBusy(null)
+        return
+      }
       const results: string[] = []
       let pushed = 0
       for (const d of SYNC_DOMAINS) {
-        const meta = await pushDomain(d)
+        const meta = await pushDomain(d, pass ? { passphrase: pass } : undefined)
         if (meta) {
           pushed += 1
           results.push(`${d.label} · rev ${meta.rev}`)
@@ -177,7 +250,12 @@ export function AccountCard() {
     if (!domain) return
     setBusy('restore')
     try {
-      await restoreDomain(domain)
+      const pass = activePass()
+      if (e2eEnabled && !pass) {
+        setBusy(null)
+        return
+      }
+      await restoreDomain(domain, pass ? { passphrase: pass } : undefined)
       toast({
         title: t('restoredToast', { name: domain.label }),
         description: t('restoredToastDesc'),
@@ -185,8 +263,8 @@ export function AccountCard() {
       setTimeout(() => window.location.reload(), 700)
     } catch (err) {
       toast({
-        title: t('restoreFailed'),
-        description: err instanceof Error ? err.message : t('tryAgain'),
+        title: err instanceof Error && err.message === 'wrong-passphrase' ? t('e2eWrongPass') : t('restoreFailed'),
+        description: err instanceof Error && err.message !== 'wrong-passphrase' ? err.message : t('tryAgain'),
       })
       setBusy(null)
     }
@@ -324,6 +402,87 @@ export function AccountCard() {
             </Button>
           </div>
 
+          {/* v2.1: automatic, debounced backup */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t('autoBackup')}</p>
+              <p className="text-xs text-muted-foreground">{t('autoBackupDesc')}</p>
+            </div>
+            <Switch
+              checked={autoSync}
+              onCheckedChange={setAutoSync}
+              aria-label={t('autoBackup')}
+            />
+          </div>
+          {autoSync && syncStatus && (
+            <p
+              className="-mt-1.5 px-1 text-xs text-muted-foreground"
+              data-tick={syncTick}
+              role="status"
+            >
+              {syncStatus.pushing
+                ? t('autoBackupPushing')
+                : syncStatus.lastError === 'passphrase'
+                  ? t('autoBackupWaiting')
+                  : syncStatus.lastError
+                    ? t('autoBackupError', { msg: syncStatus.lastError })
+                    : syncStatus.lastPushAt
+                      ? t('autoBackupLast', {
+                          time: fmtTime(new Date(syncStatus.lastPushAt).toISOString()),
+                        })
+                      : t('autoBackupIdle')}
+            </p>
+          )}
+
+          {/* v2.1: end-to-end encryption for cloud blobs */}
+          <div className="space-y-2 rounded-xl border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  <Lock className="size-3.5 shrink-0" aria-hidden /> {t('e2eTitle')}
+                  {e2eEnabled && (
+                    <Badge variant="secondary" className="ml-1 gap-1 px-1.5">
+                      <Lock className="size-2.5" aria-hidden /> {t('e2eEnabledBadge')}
+                    </Badge>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">{t('e2eDesc')}</p>
+              </div>
+              <Switch
+                checked={e2eEnabled}
+                disabled={!e2eEnabled || e2eBusy}
+                onCheckedChange={(on) => {
+                  if (!on) disableE2e()
+                }}
+                aria-label={t('e2eTitle')}
+              />
+            </div>
+            {e2eEnabled && <p className="text-xs text-emerald-600 dark:text-emerald-400">{t('e2eOnNote')}</p>}
+            {(!e2eEnabled || !getSessionPassphrase()) && (
+              <div className="space-y-2">
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  placeholder={e2eEnabled ? t('e2eSessionPass') : t('e2eNewPass')}
+                  value={passInput}
+                  onChange={(e) => setPassInput(e.target.value)}
+                  aria-label={e2eEnabled ? t('e2eSessionPass') : t('e2eNewPass')}
+                  className="h-11"
+                />
+                <Button size="sm" className="h-10 gap-2" onClick={() => void enableE2e()} disabled={e2eBusy || passInput.length === 0}>
+                  {e2eBusy ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : e2eEnabled ? (
+                    <LockOpen className="size-4" aria-hidden />
+                  ) : (
+                    <Lock className="size-4" aria-hidden />
+                  )}
+                  {e2eEnabled ? t('e2eUnlockBtn') : t('e2eEnableBtn')}
+                </Button>
+              </div>
+            )}
+          </div>
+
           <Separator />
 
           <div>
@@ -375,7 +534,14 @@ export function AccountCard() {
                       className="flex items-center gap-3 rounded-xl border p-2.5"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{d.label}</span>
+                        <span className="block truncate text-sm font-medium">
+                          {d.label}
+                          {blob?.enc && (
+                            <Badge variant="secondary" className="ml-1.5 px-1.5 align-middle text-[10px]">
+                              {t('e2eEnabledBadge')}
+                            </Badge>
+                          )}
+                        </span>
                         <span className="block truncate text-xs text-muted-foreground">
                           {blob
                             ? `rev ${blob.rev} · ${fmtSize(blob.size)} · ${fmtTime(blob.updatedAt)}`

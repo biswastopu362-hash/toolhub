@@ -2254,3 +2254,26 @@ Gates:
 Stage Summary:
 - Launcher-grid toast subscription removed + phone-tier blur budget trimmed across 7 surfaces; visual parity preserved on desktop
 - Ad-hoc polish pass (no ROADMAP day consumed); Phase 6 D83–D90 roadmap execution still pending per ROADMAP.md
+---
+Task ID: P7-W1
+Agent: main (Z.ai Code)
+Task: Phase 7 Wave 1 — Cloud Sync v2 (automatic debounced backup + E2E encryption + games domain)
+
+Work Log:
+- New domain 'games' (scores/achievements, localStorage toolhub.games.v1) added to SYNC_DOMAINS + API DOMAINS whitelist — folders were already covered via the launcher domain
+- src/lib/crypto-e2e.ts: WebCrypto E2E layer — PBKDF2-SHA256 (250k iters) → AES-GCM-256; self-describing {v:2, enc:'A256GCM'} envelope; wrong-passphrase surfaces as Error('wrong-passphrase'); zero server-side interpretation (server stores ciphertext, GET list exposes only a cheap prefix-probe enc flag)
+- pushDomain/restoreDomain gained {passphrase} opts; restore handles v2-encrypted + v1-composed + legacy plain envelopes
+- AutoSync watcher component (no UI, mounted in OsShell): 4s poll of the 4 domain localStorage keys → 5s debounce → push only changed domains; flush-on-hidden for mobile; pauses when E2E on but session passphrase missing (never uploads plaintext); status broadcast via 'toolhub:autosync' event + getAutoSyncStatus()
+- AccountCard v2: Automatic-backup switch with live status line (watching/backing up/last run/waiting for passphrase/error); End-to-end encryption panel — enable via encrypt/decrypt roundtrip probe, passphrase kept in sessionStorage only (never persisted), per-session unlock flow, Encrypted badges on cloud rows; manual backup/restore pass the session passphrase
+- Store: additive autoSync/e2eEnabled flags (zustand shallow merge applies defaults to old persisted states — no migration bump needed)
+- i18n: 22 new keys EN+BN (autoBackup*, e2e*)
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser, signed-in owner@toolhub.app): E2E enable roundtrip OK → manual "Back up now" → launcher blob enc:true; automatic push of notes + reminders domains fired with zero manual action (enc:true each); live status "Last auto backup …"; games domain POST accepted (rev 1, cleaned up after); zero page errors
+- FIXED DURING QA: debounce starvation bug — poll re-armed the 5s timer every 4s tick (dirty never cleared between polls) so the auto push postponed forever; timer now armed once per pending round
+- Sandbox note: recurring SW stale-chunk loop (cache-first static chunks under stable Turbopack URLs) — recovered via caches.clear + SW unregister + reload after every code edit; dev server OOM restart ×3 (environment only)
+
+Stage Summary:
+- Cloud Sync v2 shipped: automatic debounced backup, 4th domain (games), AES-GCM end-to-end encryption
+- Next: Wave 2 — Telemetry v2 (per-day opens chart, embed-check auto-run, broken-platform alerts)

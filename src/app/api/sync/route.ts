@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic'
  * never parsed server-side. 2 MB cap per blob keeps the free Turso tier safe.
  */
 
-const DOMAINS = new Set(['notes', 'reminders', 'launcher'])
+const DOMAINS = new Set(['notes', 'reminders', 'launcher', 'games'])
 const MAX_BYTES = 2 * 1024 * 1024
 
 interface SessionUser {
@@ -59,6 +59,9 @@ export async function GET(request: Request): Promise<NextResponse> {
           rev: b.rev,
           updatedAt: b.updatedAt.toISOString(),
           size: b.payload.length,
+          /* v2.1: cheap prefix probe so clients can badge encrypted blobs —
+           * the payload itself is never interpreted server-side. */
+          enc: b.payload.startsWith('{"v":2'),
           ...(domain ? { payload: b.payload } : {}),
         })),
       },

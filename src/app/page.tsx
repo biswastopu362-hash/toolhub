@@ -42,6 +42,7 @@ import { InstallBanner } from '@/components/pwa/install-banner'
 import { LockGate } from '@/components/os/lock-gate'
 import Onboarding from '@/components/os/onboarding'
 import { LaunchCelebration } from '@/components/os/launch-celebration'
+import { AutoSync } from '@/components/os/auto-sync'
 import { WidgetStrip } from '@/components/os/home-widgets'
 import { NotificationShade } from '@/components/os/notification-shade'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -467,6 +468,9 @@ function OsShell() {
 
         {/* D90 launch day — one-time v2.0 celebration toast */}
         <LaunchCelebration />
+
+        {/* v2.1 automatic cloud backup watcher (no UI; gated by session + setting) */}
+        <AutoSync />
       </div>
     </MotionConfig>
   )

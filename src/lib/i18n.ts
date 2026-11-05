@@ -272,6 +272,29 @@ const en = {
   launchToastTitle: 'ToolHub {v} is here 🎉',
   launchToastDesc:
     'Accounts & cloud backup, full Bengali, theme engine v3, Help Center and a brand-new onboarding. Open Help Center for the full story.',
+
+  /* Cloud Sync v2 (v2.1) — automatic backup + end-to-end encryption */
+  autoBackup: 'Automatic backup',
+  autoBackupDesc: 'Pushes changed data to the cloud a few seconds after you edit. Runs while you are signed in.',
+  autoBackupPushing: 'Backing up…',
+  autoBackupLast: 'Last auto backup {time}',
+  autoBackupIdle: 'Watching for changes…',
+  autoBackupWaiting: 'Waiting for your encryption passphrase — unlock below to resume.',
+  autoBackupError: 'Auto backup hit a problem: {msg}',
+  e2eTitle: 'End-to-end encryption',
+  e2eDesc: 'Seal backups with AES-GCM on this device using a passphrase. The server stores ciphertext only. If you lose the passphrase the backup cannot be recovered.',
+  e2eNewPass: 'Choose a passphrase (8+ characters)',
+  e2eSessionPass: 'Enter your passphrase for this session',
+  e2eEnableBtn: 'Enable encryption',
+  e2eUnlockBtn: 'Unlock this session',
+  e2eEnabledBadge: 'Encrypted',
+  e2eOnNote: 'Backups are encrypted on this device before upload.',
+  e2eTooShort: 'Use at least 8 characters',
+  e2eWrongPass: 'Wrong passphrase',
+  e2eNeedPassTitle: 'Encryption locked',
+  e2eNeedPassDesc: 'Enter your encryption passphrase for this session to back up encrypted data.',
+  e2eEnabledToast: 'End-to-end encryption on',
+  e2eEnabledToastDesc: 'New backups are sealed on-device before upload.',
 } as const
 
 export type TKey = keyof typeof en
@@ -534,6 +557,29 @@ const bn: Record<TKey, string> = {
   launchToastTitle: 'ToolHub {v} এসে গেছে 🎉',
   launchToastDesc:
     'অ্যাকাউন্ট ও ক্লাউড ব্যাকআপ, পূর্ণ বাংলা, থিম ইঞ্জিন v3, হেল্প সেন্টার আর নতুন অনবোর্ডিং। পুরো গল্প জানতে Help Center খুলুন।',
+
+  /* Cloud Sync v2 (v2.1) */
+  autoBackup: 'অটোমেটিক ব্যাকআপ',
+  autoBackupDesc: 'আপনি এডিট করার কয়েক সেকেন্ড পরে বদলানো ডেটা ক্লাউডে পাঠানো হয়। সাইন-ইন থাকলে চলে।',
+  autoBackupPushing: 'ব্যাকআপ হচ্ছে…',
+  autoBackupLast: 'শেষ অটো ব্যাকআপ {time}',
+  autoBackupIdle: 'পরিবর্তনের অপেক্ষায়…',
+  autoBackupWaiting: 'আপনার এনক্রিপশন পাসফ্রেজের অপেক্ষায় — চালু করতে নিচে আনলক করুন।',
+  autoBackupError: 'অটো ব্যাকআপে সমস্যা: {msg}',
+  e2eTitle: 'এন্ড-টু-এন্ড এনক্রিপশন',
+  e2eDesc: 'একটি পাসফ্রেজ দিয়ে এই ডিভাইসে AES-GCM এনক্রিপশনে ব্যাকআপ সিল করুন। সার্ভারে শুধু সাইফারটেক্সট থাকে। পাসফ্রেজ হারালে ব্যাকআপ আর ফেরানো যাবে না।',
+  e2eNewPass: 'একটি পাসফ্রেজ দিন (৮+ অক্ষর)',
+  e2eSessionPass: 'এই সেশনের জন্য পাসফ্রেজ দিন',
+  e2eEnableBtn: 'এনক্রিপশন চালু করুন',
+  e2eUnlockBtn: 'এই সেশন আনলক করুন',
+  e2eEnabledBadge: 'এনক্রিপ্টেড',
+  e2eOnNote: 'আপলোডের আগে এই ডিভাইসেই ব্যাকআপ এনক্রিপ্ট হয়।',
+  e2eTooShort: 'কমপক্ষে ৮ অক্ষর দিন',
+  e2eWrongPass: 'ভুল পাসফ্রেজ',
+  e2eNeedPassTitle: 'এনক্রিপশন লকড',
+  e2eNeedPassDesc: 'এনক্রিপ্টেড ডেটা ব্যাকআপ করতে এই সেশনের পাসফ্রেজ দিন।',
+  e2eEnabledToast: 'এন্ড-টু-এন্ড এনক্রিপশন চালু',
+  e2eEnabledToastDesc: 'আপলোডের আগে নতুন ব্যাকআপ ডিভাইসেই সিল হবে।',
 }
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, bn }

@@ -68,6 +68,10 @@ interface AppState {
   density: Density
   /** D79 custom accent hex (overrides the 8 preset palettes when set) */
   customAccent: string | null
+  /** v2.1 Automatic backup — push changed domains ~5s after they change (signed-in only) */
+  autoSync: boolean
+  /** v2.1 end-to-end encryption — seal sync blobs with AES-GCM on-device */
+  e2eEnabled: boolean
 
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
@@ -93,6 +97,8 @@ interface AppState {
   setIconShape: (s: IconShape) => void
   setDensity: (d: Density) => void
   setCustomAccent: (hex: string | null) => void
+  setAutoSync: (on: boolean) => void
+  setE2eEnabled: (on: boolean) => void
 }
 
 /** v2 → v3: installed apps didn't exist — derive them from the old layout. */
@@ -131,6 +137,8 @@ export const useAppStore = create<AppState>()(
       iconShape: 'squircle',
       density: 'cozy',
       customAccent: null,
+      autoSync: false,
+      e2eEnabled: false,
 
       toggleFavorite: (id) =>
         set((s) => ({
@@ -203,6 +211,8 @@ export const useAppStore = create<AppState>()(
       setIconShape: (s) => set({ iconShape: s }),
       setDensity: (d) => set({ density: d }),
       setCustomAccent: (hex) => set({ customAccent: hex }),
+      setAutoSync: (on) => set({ autoSync: on }),
+      setE2eEnabled: (on) => set({ e2eEnabled: on }),
     }),
     {
       name: 'toolhub-store',
