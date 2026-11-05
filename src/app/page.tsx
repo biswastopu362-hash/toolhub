@@ -43,6 +43,7 @@ import { LockGate } from '@/components/os/lock-gate'
 import Onboarding from '@/components/os/onboarding'
 import { LaunchCelebration } from '@/components/os/launch-celebration'
 import { AutoSync } from '@/components/os/auto-sync'
+import { recordAppOpen } from '@/lib/telemetry'
 import { WidgetStrip } from '@/components/os/home-widgets'
 import { NotificationShade } from '@/components/os/notification-shade'
 import { useHashRoute } from '@/hooks/use-hash-route'
@@ -158,6 +159,21 @@ function OsShell() {
   const app = getToolById(appId)
   const showApp = hydrated && Boolean(app)
   const wallpaperId = hydrated ? wallpaper : DEFAULT_WALLPAPER
+
+  /* v2.1 telemetry: every app session start (UI tap OR deep link) bumps the
+   * local per-day counter — single funnel at the hash level, so opens are
+   * counted exactly once no matter how the app was launched. */
+  const lastOpenedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!appId) {
+      lastOpenedRef.current = null
+      return
+    }
+    if (appId !== lastOpenedRef.current) {
+      lastOpenedRef.current = appId
+      recordAppOpen(appId)
+    }
+  }, [appId])
 
   /* one-time consistency pass for the persisted home layout (installed only) */
   useEffect(() => {

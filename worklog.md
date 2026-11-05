@@ -2277,3 +2277,23 @@ Gates:
 Stage Summary:
 - Cloud Sync v2 shipped: automatic debounced backup, 4th domain (games), AES-GCM end-to-end encryption
 - Next: Wave 2 — Telemetry v2 (per-day opens chart, embed-check auto-run, broken-platform alerts)
+---
+Task ID: P7-W2
+Agent: main (Z.ai Code)
+Task: Phase 7 Wave 2 — Telemetry v2 (per-day opens chart, embed-check auto-run, broken-platform alerts)
+
+Work Log:
+- src/lib/telemetry.ts: local-only opens telemetry (toolhub.telemetry.v1) — {date: {appId: count}}, 30-day retention, recorded at the hash-route level in OsShell (single funnel: UI taps AND deep links/shortcuts count exactly once; lastOpenedRef prevents double-fire, resets when the window closes). Privacy: never uploaded
+- Admin Console: "Opens · last 14 days" bar chart in the owner hero card (CSS bars, today highlighted emerald, per-bar tooltips, "N today" readout); zero-config — reads local telemetry on unlock
+- Embed-check auto-run on save: PlatformFormDialog.onSaved now passes the saved URL; the console reloads the list and probes the saved platform automatically (URL comparison normalized for server-side trailing slashes)
+- Broken-platform alerts: once per unlock, all live platforms are probed (staggered 250ms) so embed verdicts appear without any clicks; platforms with verdict 'no' surface an amber "N platforms block embedding" alert + red "Broken" badge on their row
+- Fixed during QA: deep links (#/app/x) bypassed openApp() so initial telemetry design missed them — moved recording to the hash funnel; handleSaved missed the saved platform because the API normalizes URLs (trailing slash)
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser): opened notes/clock/store → telemetry {"2026-11-05":{clock:5,notes:1,store:1}}; admin chart renders with "8 today" emerald bar; auto-sweep populated "Embeds fine" on a live platform without clicks; published frame-blocking platform → amber banner + "Broken" badge + "Blocks embedding" verdict all rendered; test platforms removed after verification; zero page errors
+- Sandbox: dev-server OOM restarts ×4, SW stale-chunk purges after every edit (environment)
+
+Stage Summary:
+- Telemetry v2 shipped: local per-day opens → 14-day admin chart; embed diagnostics now self-running with broken-platform alerts
+- Next: Wave 3 — Widget packs (calendar/habit/goal widgets + reorderable strip)

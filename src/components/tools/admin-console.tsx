@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   ArrowDown,
   ArrowUp,
+  BarChart3,
   Check,
   Copy,
   DatabaseZap,
@@ -57,6 +58,7 @@ import { cn } from '@/lib/utils'
 import { useExternalApps } from '@/lib/tools/external'
 import type { ExternalAppPayload } from '@/lib/tools/external'
 import { EXTERNAL_GRADIENTS, EXTERNAL_ICONS, externalIcon } from '@/lib/tools/external-icons'
+import { getDailyOpens, type DailyOpens } from '@/lib/telemetry'
 
 /* ------------------------------------------------------------------ */
 /* Local metadata                                                      */
@@ -158,27 +160,30 @@ export default function AdminConsole() {
   }, [checkSession])
 
   /* ---------------- list ---------------- */
-  const loadList = useCallback(async () => {
+  const loadList = useCallback(async (): Promise<ExternalAppPayload[]> => {
     setLoadingList(true)
     try {
       const res = await fetch('/api/admin/external-apps', { cache: 'no-store' })
       if (res.status === 401) {
         setPhase('locked')
-        return
+        return []
       }
       const data = (await res.json().catch(() => ({}))) as {
         apps?: ExternalAppPayload[]
         error?: string
       }
-      setApps(Array.isArray(data?.apps) ? data.apps : [])
+      const list = Array.isArray(data?.apps) ? data.apps : []
+      setApps(list)
       setListError(
         Array.isArray(data?.apps)
           ? null
           : data.error ||
               'The platform database is not connected on this deployment. In Vercel open your project → Storage → Create Database → Postgres, connect it to this project, then redeploy.'
       )
+      return list
     } catch {
       setListError('Network error — the platform list could not be loaded.')
+      return []
     } finally {
       setLoadingList(false)
     }
@@ -261,6 +266,14 @@ export default function AdminConsole() {
     [apps, busySlug, loadList, reloadExternals, toast]
   )
 
+  /* v2.1 telemetry — per-day opens, read once per unlock (local-only data) */
+  const [dailyOpens, setDailyOpens] = useState<DailyOpens[]>([])
+  useEffect(() => {
+    if (phase === 'unlocked') setDailyOpens(getDailyOpens(14))
+  }, [phase])
+  const maxDaily = useMemo(() => Math.max(1, ...dailyOpens.map((d) => d.total)), [dailyOpens])
+  const opensToday = dailyOpens.length > 0 ? dailyOpens[dailyOpens.length - 1].total : 0
+
   /* ---------------- D84 embed diagnostics ---------------- */
   const checkEmbed = useCallback(
     async (slug: string, url: string) => {
@@ -283,6 +296,49 @@ export default function AdminConsole() {
       }
     },
     [embedChecking, toast]
+  )
+
+  /* v2.1 — auto sweep: probe every live platform once per unlock so the
+   * owner sees broken embeds without pressing anything (staggered). */
+  const sweptRef = useRef(false)
+  useEffect(() => {
+    if (phase !== 'unlocked' || apps.length === 0 || sweptRef.current) return
+    sweptRef.current = true
+    void (async () => {
+      for (const a of apps.filter((x) => x.active)) {
+        await new Promise((r) => setTimeout(r, 250))
+        const res = await fetch(`/api/embed-check?url=${encodeURIComponent(a.url)}`, {
+          cache: 'no-store',
+        }).catch(() => null)
+        if (res && res.ok) {
+          const data = (await res.json().catch(() => null)) as EmbedReport | null
+          if (data?.verdict) {
+            setEmbedReports((m) => ({ ...m, [a.id]: data }))
+          }
+        }
+      }
+    })()
+  }, [phase, apps])
+
+  /* v2.1 — platforms whose latest probe says they cannot embed */
+  const brokenPlatforms = useMemo(
+    () => apps.filter((a) => embedReports[a.id]?.verdict === 'no'),
+    [apps, embedReports]
+  )
+
+  /* v2.1 — after a save, auto-run the embed check on the saved platform */
+  const handleSaved = useCallback(
+    async (savedUrl?: string) => {
+      const list = await loadList()
+      await reloadExternals()
+      if (savedUrl) {
+        /* the server normalizes URLs (e.g. adds a trailing slash) — compare loosely */
+        const norm = (u: string) => u.replace(/\/+$/, '')
+        const saved = list.find((a) => norm(a.url) === norm(savedUrl))
+        if (saved) void checkEmbed(saved.id, saved.url)
+      }
+    },
+    [loadList, reloadExternals, checkEmbed]
   )
 
   /* ---------------- D84 per-platform deep link ---------------- */
@@ -397,6 +453,41 @@ export default function AdminConsole() {
             {topPlatform.openCount.toLocaleString('en-US')} opens
           </p>
         )}
+
+        {/* v2.1 — per-day opens, last 14 days (local telemetry, this device) */}
+        {dailyOpens.some((d) => d.total > 0) && (
+          <div className="mt-4">
+            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-white/60">
+              <BarChart3 className="size-3" aria-hidden /> Opens · last 14 days
+              <span className="ml-auto font-semibold normal-case text-white/80">
+                {opensToday} today
+              </span>
+            </p>
+            <div className="mt-2 flex h-14 items-end gap-1" role="img" aria-label="Opens per day, last 14 days">
+              {dailyOpens.map((d) => (
+                <div
+                  key={d.date}
+                  title={`${d.label}: ${d.total} open${d.total === 1 ? '' : 's'}`}
+                  className="flex h-full flex-1 flex-col justify-end"
+                >
+                  <div
+                    className={cn(
+                      'w-full rounded-t-[3px] transition-[height] duration-300',
+                      d.isToday
+                        ? 'bg-gradient-to-t from-emerald-400 to-teal-300'
+                        : 'bg-white/25',
+                      d.total === 0 && 'opacity-40'
+                    )}
+                    style={{ height: `${Math.max((d.total / maxDaily) * 100, 6)}%` }}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="mt-1 text-[10px] text-white/40">
+              Oldest → today · counts opens on this device
+            </p>
+          </div>
+        )}
       </div>
 
       {/* list */}
@@ -434,6 +525,25 @@ export default function AdminConsole() {
             <Plus className="size-4" aria-hidden /> Add platform
           </Button>
         </div>
+
+        {/* v2.1 — broken-platform alert (auto sweep results) */}
+        {brokenPlatforms.length > 0 && (
+          <div
+            role="alert"
+            className="mb-3 flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-200"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <div>
+              <p className="font-bold">
+                {brokenPlatforms.length} platform{brokenPlatforms.length === 1 ? '' : 's'} block{' '}
+                embedding
+              </p>
+              <p className="mt-0.5 text-amber-200/80">
+                These open in a new tab instead of inside the hub — details on each row below.
+              </p>
+            </div>
+          </div>
+        )}
 
         {loadingList && apps.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
@@ -506,6 +616,14 @@ export default function AdminConsole() {
                         >
                           <MousePointerClick className="size-3" aria-hidden />
                           {(a.openCount ?? 0).toLocaleString('en-US')}
+                        </Badge>
+                      )}
+                      {report?.verdict === 'no' && (
+                        <Badge
+                          variant="outline"
+                          className="h-5 gap-1 border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+                        >
+                          <TriangleAlert className="size-3" aria-hidden /> Broken
                         </Badge>
                       )}
                       <span className="text-[10px] text-muted-foreground/70">
@@ -650,7 +768,7 @@ export default function AdminConsole() {
         open={formOpen}
         editing={editing}
         onOpenChange={setFormOpen}
-        onSaved={() => void afterMutation()}
+        onSaved={(savedUrl) => void handleSaved(savedUrl)}
       />
 
       {/* D83 bulk import dialog */}
@@ -954,7 +1072,8 @@ function PlatformFormDialog({
   open: boolean
   editing: ExternalAppPayload | null
   onOpenChange: (v: boolean) => void
-  onSaved: () => void
+  /** called after a successful save with the saved platform URL (v2.1 auto embed-check hook) */
+  onSaved: (savedUrl?: string) => void
 }) {
   const { toast } = useToast()
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
@@ -1031,7 +1150,7 @@ function PlatformFormDialog({
           : 'Users can now install it from the App Store.',
       })
       onOpenChange(false)
-      onSaved()
+      onSaved(form.url.trim())
     } catch {
       setFieldError('Network error — try again.')
     } finally {
