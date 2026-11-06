@@ -76,6 +76,8 @@ const MODE_DESC_KEY: Record<ModeId, TKey> = {
 /* Component                                                           */
 /* ================================================================== */
 
+const LANG_LABELS = { en: 'English', bn: 'বাংলা', hi: 'हिन्दी', es: 'Español' } as const
+
 export default function SettingsTool() {
   const { toast } = useToast()
   const { t, lang, setLang } = useLang()
@@ -137,7 +139,7 @@ export default function SettingsTool() {
           <p className="text-sm text-muted-foreground">{t('languageDesc')}</p>
         </div>
         <div className="grid grid-cols-2 gap-2" role="group" aria-label={t('language')}>
-          {(['en', 'bn'] as const).map((l) => {
+          {(['en', 'bn', 'hi', 'es'] as const).map((l) => {
             const active = lang === l
             return (
               <button
@@ -145,7 +147,7 @@ export default function SettingsTool() {
                 type="button"
                 onClick={() => setLang(l)}
                 aria-pressed={active}
-                aria-label={l === 'en' ? 'English' : 'বাংলা'}
+                aria-label={LANG_LABELS[l]}
                 className={cn(
                   'flex h-14 items-center justify-center gap-2 rounded-xl border px-2 text-sm font-semibold transition-all active:scale-95',
                   active
@@ -154,7 +156,7 @@ export default function SettingsTool() {
                 )}
               >
                 <Languages className="size-4" aria-hidden="true" />
-                {l === 'en' ? 'English' : 'বাংলা'}
+                {LANG_LABELS[l]}
                 {active && <Check className="size-4" aria-hidden="true" />}
               </button>
             )

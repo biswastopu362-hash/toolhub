@@ -2360,3 +2360,21 @@ Gates:
 Stage Summary:
 - App Lock v2 shipped: biometric unlock (platform authenticator) + per-folder locks alongside per-app PIN
 - Next: Wave 6 — i18n wave 2 (Hindi + Spanish dictionaries)
+---
+Task ID: P7-W6
+Agent: main (Z.ai Code) + i18n subagent
+Task: Phase 7 Wave 6 — Localization wave 2 (Hindi + Spanish dictionaries)
+
+Work Log:
+- src/lib/i18n.ts: Lang widened to 'en'|'bn'|'hi'|'es'; full 262-key Hindi (Devanagari) + Spanish dicts added (Record<TKey,string> compile-proves zero missing keys); DICTS extended; en/bn untouched except a stale languageDesc copy refreshed in all four languages ("English, Bengali, Hindi or Spanish")
+- Settings language picker: 2×2 grid now English/বাংলা/हिन्दी/Español (LANG_LABELS map)
+- page.tsx: <html lang> sync now passes every lang through (hi/es are valid BCP47) — was bn-vs-en only
+- Translation rules honored: {placeholder} tokens verbatim, product names Latin-script, emoji preserved; localizeDigits stays bn-only (hi/es use standard digits; date formatting falls back to en-US for hi/es by design this wave)
+
+Gates:
+- bunx tsc --noEmit clean (proves full key coverage) · bun run lint clean
+- E2E (agent-browser): picker renders 4 options; हिन्दी → full chrome translation live (भाषा/संग मोड/एक्सेंट cards verified in screenshot); html[lang] flips to 'es' for Español and back to 'en' for English; store persistence verified
+
+Stage Summary:
+- 4-language OS chrome (EN/BN/HI/ES); app-internal screens stay English per roadmap (key-by-key graduation is a future wave)
+- Next: Wave 7 — Store v2 (editorial collections, similar apps, update badges)
