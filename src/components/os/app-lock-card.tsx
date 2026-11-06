@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { KeyRound, Lock, ShieldOff, Trash2 } from 'lucide-react'
+import { Fingerprint, KeyRound, Lock, ShieldOff, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/lib/store/app-store'
 import { tools } from '@/lib/tools/registry'
 import { hashPin } from '@/lib/pin-hash'
+import { biometricAvailable, registerBiometric } from '@/lib/webauthn'
 import { cn } from '@/lib/utils'
 
 const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'c', '0', 'del'] as const
@@ -154,29 +155,75 @@ function PinSetupDialog({
   )
 }
 
-/** Settings card for the D9 App Lock feature. */
+/** Settings card for the D9 App Lock feature (extended v2.1). */
 export function AppLockCard() {
   const { toast } = useToast()
   const appLock = useAppStore((s) => s.appLock)
   const setAppLock = useAppStore((s) => s.setAppLock)
   const installed = useAppStore((s) => s.installed)
+  const layout = useAppStore((s) => s.layout)
 
   const [setupOpen, setSetupOpen] = useState(false)
   const [changeOpen, setChangeOpen] = useState(false)
+  const [bioBusy, setBioBusy] = useState(false)
 
   const installedTools = tools.filter((t) => installed.includes(t.id))
   const lockedCount = appLock?.lockedApps.length ?? 0
+  const userFolders = layout.filter((i) => i.kind === 'folder')
+  const lockedFolders = appLock?.lockedFolders ?? []
+  const bioOn = Boolean(appLock?.webauthnCredId)
+  const bioSupported = biometricAvailable()
+
+  /** Always read the CURRENT lock config — async flows (e.g. a pending
+   *  WebAuthn create()) must never clobber toggles made meanwhile. */
+  const patchLock = (patch: Partial<NonNullable<ReturnType<typeof useAppStore.getState>['appLock']>>) => {
+    const cur = useAppStore.getState().appLock
+    if (!cur) return
+    setAppLock({ ...cur, ...patch })
+  }
 
   const toggleApp = (id: string) => {
     if (!appLock) return
     const locked = appLock.lockedApps.includes(id)
-    setAppLock({
-      ...appLock,
+    patchLock({
       lockedApps: locked ? appLock.lockedApps.filter((a) => a !== id) : [...appLock.lockedApps, id],
     })
     try {
       navigator.vibrate?.(8)
     } catch {}
+  }
+
+  const toggleFolder = (id: string) => {
+    if (!appLock) return
+    const locked = lockedFolders.includes(id)
+    patchLock({
+      lockedFolders: locked ? lockedFolders.filter((f) => f !== id) : [...lockedFolders, id],
+    })
+    try {
+      navigator.vibrate?.(8)
+    } catch {}
+  }
+
+  /** v2.1: register a platform-authenticator credential for biometric unlock */
+  const enableBiometric = async () => {
+    if (!appLock || bioBusy) return
+    setBioBusy(true)
+    const credId = await registerBiometric()
+    setBioBusy(false)
+    if (credId) {
+      patchLock({ webauthnCredId: credId })
+      toast({ title: 'Biometric unlock on ✓', description: 'Look for the fingerprint button on locked apps and folders.' })
+    } else {
+      toast({
+        title: 'Biometric unlock not available',
+        description: 'Your device or browser refused the request — the PIN still works.',
+      })
+    }
+  }
+
+  const disableBiometric = () => {
+    patchLock({ webauthnCredId: null })
+    toast({ title: 'Biometric unlock off' })
   }
 
   return (
@@ -234,6 +281,61 @@ export function AppLockCard() {
             </Button>
           </div>
 
+          {/* v2.1: biometric unlock via the platform authenticator */}
+          {bioSupported && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/40 px-4 py-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  <Fingerprint className="size-4 shrink-0" aria-hidden="true" /> Biometric unlock
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {bioOn
+                    ? 'Face/fingerprint unlocks locked apps and folders — the PIN still works.'
+                    : 'Use your device face/fingerprint instead of typing the PIN.'}
+                </p>
+              </div>
+              <Switch
+                checked={bioOn}
+                disabled={bioBusy}
+                onCheckedChange={(v) => (v ? void enableBiometric() : disableBiometric())}
+                aria-label="Biometric unlock"
+              />
+            </div>
+          )}
+
+          {/* v2.1: per-folder locks */}
+          {userFolders.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Locked folders
+              </p>
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border p-2">
+                {userFolders.map((f) => {
+                  const name = f.kind === 'folder' ? (f.name ?? 'Folder') : 'Folder'
+                  const count = f.kind === 'folder' ? f.appIds.length : 0
+                  const locked = lockedFolders.includes(f.id)
+                  return (
+                    <label
+                      key={f.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-muted"
+                    >
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Lock className="size-4" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {name}
+                        <span className="ml-1.5 text-xs text-muted-foreground">
+                          {count} {count === 1 ? 'app' : 'apps'}
+                        </span>
+                      </span>
+                      <Switch checked={locked} onCheckedChange={() => toggleFolder(f.id)} aria-label={`Lock folder ${name}`} />
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Locked apps
@@ -269,7 +371,7 @@ export function AppLockCard() {
         onOpenChange={setSetupOpen}
         title="Set your PIN"
         onDone={(pinHash) => {
-          setAppLock({ enabled: true, pinHash, lockedApps: [] })
+          setAppLock({ enabled: true, pinHash, lockedApps: [], lockedFolders: [] })
           toast({
             title: 'App Lock is on ✓',
             description: 'Now choose which apps should ask for the PIN.',
@@ -281,7 +383,8 @@ export function AppLockCard() {
         onOpenChange={setChangeOpen}
         title="Change your PIN"
         onDone={(pinHash) => {
-          if (appLock) setAppLock({ ...appLock, pinHash })
+          const cur = useAppStore.getState().appLock
+          if (cur) setAppLock({ ...cur, pinHash })
           toast({ title: 'PIN updated ✓' })
         }}
       />

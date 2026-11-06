@@ -519,6 +519,8 @@ function HomeScreen({
   const grid = useGridMetrics(pagesRef)
   const [activePage, setActivePage] = useState(0)
   const [openFolder, setOpenFolder] = useState<OpenFolder>(null)
+  /* v2.1 App Lock: folder gate — id of the user folder awaiting its PIN */
+  const [lockFolderId, setLockFolderId] = useState<string | null>(null)
   const [installHint, setInstallHint] = useState(false)
   const { t: osT } = useLang()
   const iconShape = useAppStore((s) => s.iconShape)
@@ -606,6 +608,12 @@ function HomeScreen({
      must keep its identity across renders or the whole grid re-renders
      on unrelated store updates (recents/favorites/etc.). */
   const openUserFolder = useCallback((id: string) => {
+    /* v2.1 App Lock: guarded folders open the gate instead of the folder */
+    const lock = useAppStore.getState().appLock
+    if (lock?.enabled && (lock.lockedFolders ?? []).includes(id)) {
+      setLockFolderId(id)
+      return
+    }
     setOpenFolder({ kind: 'user', id })
   }, [])
   const enterEdit = useCallback(() => setEditing(true), [])
@@ -818,6 +826,28 @@ function HomeScreen({
               onOpenApp(id, el)
             }}
             onClose={() => setOpenFolder(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* v2.1 App Lock: PIN gate guarding a user folder */}
+      <AnimatePresence>
+        {lockFolderId && (
+          <LockGate
+            key="folder-lock"
+            appId="files"
+            folderName={
+              (() => {
+                const f = layout.find((i) => i.kind === 'folder' && i.id === lockFolderId)
+                return f?.kind === 'folder' ? f.name ?? 'Folder' : 'Folder'
+              })()
+            }
+            onUnlock={() => {
+              const id = lockFolderId
+              setLockFolderId(null)
+              if (id) setOpenFolder({ kind: 'user', id })
+            }}
+            onCancel={() => setLockFolderId(null)}
           />
         )}
       </AnimatePresence>

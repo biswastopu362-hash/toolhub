@@ -2339,3 +2339,24 @@ Gates:
 Stage Summary:
 - Spotlight is now a 3-plugin quick-answer engine (math/units/currency/color/chain/actions) — all offline
 - Next: Wave 5 — App Lock v2 (WebAuthn biometric + per-folder locks)
+---
+Task ID: P7-W5
+Agent: main (Z.ai Code)
+Task: Phase 7 Wave 5 — App Lock v2 (WebAuthn biometric + per-folder locks)
+
+Work Log:
+- src/lib/webauthn.ts: device-local WebAuthn — registerBiometric() creates a platform-authenticator credential (userVerification:'required', ES256/RS256) and returns its base64 rawId; unlockBiometric() resolves true only after the authenticator verifies the user (a resolved get() IS the check); biometricAvailable() feature-detects
+- Store: appLock gains optional lockedFolders[] + webauthnCredId (additive — old profiles' locks keep working, folders default empty)
+- LockGate: biometric button (fingerprint) above the keypad when a credential is registered — pulse-while-verifying, toast + PIN fallback on refusal; folderName prop renders a Folder-icon gate ("Secret stash is locked"); aria-label synced
+- Shell: openUserFolder intercepts locked folders → folder LockGate → unlock opens the folder; app-gate path unchanged
+- Settings AppLockCard: Biometric unlock switch (hidden when unsupported, disabled while the create() prompt is pending) + "Locked folders" list (name + app count + switch); PIN flows unchanged
+- FIXED DURING QA: stale-closure race — a slow WebAuthn create() resolving late overwrote appLock with a stale snapshot, erasing lock toggles made in between; all appLock writes now go through patchLock() which reads fresh state via useAppStore.getState()
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser): PIN setup (1234) → biometric section renders (headless refuses gracefully, switch stays off) → folder lock + Notes lock persist → folder tap shows "Secret stash is locked" gate → PIN opens the folder (overlay aria "Secret stash apps") → Notes tap shows "Notes is locked" → PIN opens the app; test folder/locks cleaned after verification
+- Sandbox: dev-server OOM restarts continue (environment)
+
+Stage Summary:
+- App Lock v2 shipped: biometric unlock (platform authenticator) + per-folder locks alongside per-app PIN
+- Next: Wave 6 — i18n wave 2 (Hindi + Spanish dictionaries)

@@ -2,25 +2,30 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Delete, ShieldCheck, X } from 'lucide-react'
+import { Delete, Fingerprint, Folder, ShieldCheck, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { getToolById } from '@/lib/tools/registry'
 import { useAppStore } from '@/lib/store/app-store'
 import { hashPin } from '@/lib/pin-hash'
+import { unlockBiometric } from '@/lib/webauthn'
 import { cn } from '@/lib/utils'
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'] as const
 
 /**
- * Full-screen PIN gate (D9 App Lock). Shown instead of the app whenever the
- * user opens a locked app. Unlocks with the 4-digit PIN or a "forgot" wipe.
+ * Full-screen PIN gate (D9, extended v2.1). Shown instead of the app/folder
+ * whenever the user opens something locked. Unlocks with the 4-digit PIN,
+ * the device biometric (when registered), or a "forgot" wipe.
  */
 export function LockGate({
   appId,
+  folderName,
   onUnlock,
   onCancel,
 }: {
   appId: string
+  /** v2.1: when set, the gate guards a user folder instead of an app */
+  folderName?: string
   onUnlock: () => void
   onCancel: () => void
 }) {
@@ -29,9 +34,11 @@ export function LockGate({
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
   const [checking, setChecking] = useState(false)
+  const [bioBusy, setBioBusy] = useState(false)
   const busy = useRef(false)
 
   const appLock = useAppStore((s) => s.appLock)
+  const credId = appLock?.webauthnCredId ?? null
 
   /* verify the 4th digit — async, event-driven (no setState-in-effect) */
   const verify = (code: string) => {
@@ -85,6 +92,23 @@ export function LockGate({
     }
   }
 
+  /** v2.1 — device biometric path: a resolved get() means the platform
+   *  authenticator verified the user. */
+  const bio = async () => {
+    if (!credId || bioBusy || busy.current) return
+    setBioBusy(true)
+    const ok = await unlockBiometric(credId)
+    setBioBusy(false)
+    if (ok) {
+      try {
+        navigator.vibrate?.(16)
+      } catch {}
+      onUnlock()
+    } else {
+      toast({ title: 'Biometric unlock didn’t complete', description: 'Use your PIN instead.' })
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -93,7 +117,7 @@ export function LockGate({
       transition={{ duration: 0.2 }}
       className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-zinc-950/80 px-6 backdrop-blur-2xl"
       role="dialog"
-      aria-label={`${tool?.name ?? 'App'} is locked`}
+      aria-label={folderName ? `${folderName} is locked` : `${tool?.name ?? 'App'} is locked`}
     >
       <button
         onClick={onCancel}
@@ -111,13 +135,22 @@ export function LockGate({
         className={cn(
           'flex size-16 items-center justify-center rounded-[1.2rem] bg-gradient-to-br text-white ring-1 ring-white/20',
           'shadow-[0_12px_30px_-10px_var(--glow),inset_0_1px_1px_rgb(255_255_255/0.4)]',
-          tool?.gradient
+          !folderName && tool?.gradient
         )}
       >
-        {tool ? <tool.icon className="h-7 w-7" aria-hidden /> : <ShieldCheck className="h-7 w-7" aria-hidden />}
+        {folderName ? (
+          <Folder className="h-7 w-7" aria-hidden />
+        ) : tool ? (
+          <tool.icon className="h-7 w-7" aria-hidden />
+        ) : (
+          <ShieldCheck className="h-7 w-7" aria-hidden />
+        )}
       </motion.span>
 
-      <h1 className="mt-4 text-lg font-bold text-white">{tool?.name ?? 'App'} is locked</h1>
+      <h1 className="mt-4 text-lg font-bold text-white">
+        {folderName ?? `${tool?.name ?? 'App'} is locked`}
+        {folderName && ' is locked'}
+      </h1>
       <p className="mt-1 text-sm text-white/60">Enter your 4-digit PIN to continue</p>
 
       {/* PIN dots */}
@@ -141,6 +174,18 @@ export function LockGate({
           />
         ))}
       </motion.div>
+
+      {/* v2.1: biometric shortcut above the keypad */}
+      {credId && (
+        <button
+          onClick={() => void bio()}
+          disabled={bioBusy}
+          className="mt-5 flex items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/20 active:scale-95 disabled:opacity-60"
+        >
+          <Fingerprint className={cn('size-5', bioBusy && 'animate-pulse')} aria-hidden />
+          {bioBusy ? 'Verifying…' : 'Unlock with biometrics'}
+        </button>
+      )}
 
       {/* keypad */}
       <div className="mt-8 grid w-full max-w-[264px] grid-cols-3 gap-3">

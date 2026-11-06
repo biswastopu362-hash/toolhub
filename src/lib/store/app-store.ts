@@ -55,10 +55,18 @@ interface AppState {
   /** app id the App Store should deep-link to on next open, or null */
   storeDeepLink: string | null
   /**
-   * App Lock configuration (D9). null = never set up.
+   * App Lock configuration (D9, extended v2.1). null = never set up.
    * pinHash is a SHA-256 hex of the 4-digit PIN (never the PIN itself).
+   * lockedFolders (v2.1) guards user folders; webauthnCredId (v2.1) enables
+   * biometric unlock via the device platform authenticator.
    */
-  appLock: { enabled: boolean; pinHash: string; lockedApps: string[] } | null
+  appLock: {
+    enabled: boolean
+    pinHash: string
+    lockedApps: string[]
+    lockedFolders?: string[]
+    webauthnCredId?: string | null
+  } | null
   /** user-designed wallpapers from Wallpaper Studio (D39) */
   customWallpapers: CustomWallpaper[]
   /** id of the custom wallpaper currently applied to the launcher, or null */
