@@ -2398,3 +2398,20 @@ Gates:
 Stage Summary:
 - Store v2 shipped: editorial collections, keyword-scored similar apps, real-changelog update badges
 - Next: Wave 8 — Performance (prefetch warming, SW navigation preload) + Phase 7 QA Day, tag v2.1
+---
+Task ID: P7-W8
+Agent: main (Z.ai Code)
+Task: Phase 7 Wave 8 — Performance + Phase 7 QA Day (v2.1 release)
+
+Work Log:
+- SW v4: navigationPreload enabled in activate; navigation fetch handler prefers event.preloadResponse → network → cached shell; CACHE_NAME bumped toolhub-v3→v4
+- Prefetch warming: registry exports prefetchTool(id) (next/dynamic components expose preload()); OsShell warms dock + featured app chunks on requestIdleCallback, staggered 120ms to keep the main thread free
+- Release: APP_VERSION 2.1.0; CHANGELOG.md v2.1.0 entry (mirrors the six shipped waves)
+- QA Day: 85/85-app sweep at 390×844 (auto-restarting sweep harness — the sandbox dev server died mid-run twice and was transparently recovered); one "Files crashed" investigated → stale-SW chunk poisoning after a mid-sweep server death, resolved by the standard purge+reload, app healthy; horizontal overflow 0px at 360/390/1280 on home + store + settings; SW verified live (controller up, cache toolhub-v4, navigationPreload enabled); zero page errors after idle (prefetch pass clean)
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean · 85/85 sweep · 3-viewport overflow sweep · SW live checks · zero page errors
+
+Stage Summary:
+- PHASE 7 "Reach & Rituals" CLOSED at v2.1: cloud sync v2 (auto + E2E), telemetry v2, widget packs, Spotlight plugins, App Lock v2, 4 languages, Store v2, SW nav-preload + prefetch warming
+- Tagged v2.1; Phase 8 would pull from the Phase 7 leftovers (app-internal i18n graduation, hi/es date locales, per-week backlog pool)

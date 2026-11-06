@@ -4,6 +4,30 @@ One hub, every tool. A phone-OS style PWA super-app: an app-store launcher, 85 b
 offline apps, your own linked platforms, themes, widgets and search that thinks.
 Everything runs on your device — zero uploads.
 
+## 2.1.0 — Reach & Rituals (Phase 7)
+
+**Cloud Sync v2**
+
+- Automatic backup: changed data lands in the cloud a few seconds after you edit (debounced watcher, flush-on-background) — sign-in + one switch
+- End-to-end encryption: backups sealed on-device with AES-GCM (PBKDF2, 250k iterations); the passphrase never leaves this session and the server stores ciphertext only
+- New sync domain: game scores & achievements ride the same backup
+
+**OS & telemetry**
+
+- Widget packs: Calendar, Habits (streak card) and Goals (progress ring) join Clock/Weather/Notes on the launcher — pick and reorder them from Settings
+- Telemetry v2: local per-day open counts with a 14-day bar chart in the Admin Console ("8 today" glance); embed diagnostics now self-run on save and sweep live platforms, flagging broken embeds with an amber alert
+- App Lock v2: biometric unlock (platform authenticator WebAuthn, PIN still works) and per-folder locks
+- Spotlight v3 plugins: offline currency conversion (50+ currencies), color hex preview (RGB/HSL), and unit math chaining ("2m + 30cm")
+
+**Store & languages**
+
+- Store v2: editorial collections (Creator's Studio, Focus & Rituals, Game Night, Dev Toolkit), keyword-scored "similar apps", and update badges driven by real changelogs
+- Localization wave 2: full Hindi and Spanish UI — four languages side by side
+
+**Performance**
+
+- Service Worker navigation preload + cache v4; featured & dock app chunks warmed during idle time
+
 ## 2.0.0 — Platform, Scale & Launch (90-day build complete)
 
 **Accounts & platform**

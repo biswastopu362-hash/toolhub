@@ -4,7 +4,7 @@
  */
 
 /** Current app version — shown in Settings, Help Center and the changelog. */
-export const APP_VERSION = '2.0.0'
+export const APP_VERSION = '2.1.0'
 
 /** Apps pinned to the dock (fixed, not draggable). */
 export const DOCK_IDS = ['store', 'files', 'calculator', 'clock', 'settings'] as const

@@ -1372,6 +1372,18 @@ export function getToolById(id: string | null): Tool | undefined {
   return tools.find((t) => t.id === id) ?? getExternalToolById(id)
 }
 
+/** v2.1 prefetch warming: next/dynamic components expose preload() —
+ *  pull a lazy app chunk into the cache before the first open. */
+export function prefetchTool(id: string): void {
+  const t = tools.find((x) => x.id === id)
+  const c = t?.Component as unknown as { preload?: () => Promise<unknown> } | undefined
+  try {
+    void c?.preload?.()?.catch(() => {})
+  } catch {
+    /* preload unsupported — harmless */
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Deterministic store metadata — stable per app, no manual upkeep      */
 /* ------------------------------------------------------------------ */

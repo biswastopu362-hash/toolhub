@@ -1,5 +1,7 @@
 /* ToolHub Service Worker — offline-first app shell */
-const CACHE_NAME = 'toolhub-v3'
+/* v2.1: cache v4 — adds navigation preload (parallel start of the network
+ * request while the SW boots, shaving cold-start latency on mobile) */
+const CACHE_NAME = 'toolhub-v4'
 
 /* Precache the app shell; every tool runs fully client-side */
 const PRECACHE = [
@@ -28,6 +30,13 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
       )
+      .then(() =>
+        /* v2.1: navigation preload — the browser starts the navigation
+         * request while this SW is still activating */
+        self.registration.navigationPreload
+          ? self.registration.navigationPreload.enable()
+          : Promise.resolve()
+      )
       .then(() => self.clients.claim())
   )
 })
@@ -41,16 +50,31 @@ self.addEventListener('fetch', (event) => {
   /* Never cache API responses */
   if (url.pathname.startsWith('/api/')) return
 
-  /* App navigations: network-first, fall back to cached shell (offline) */
+  /* App navigations: prefer the preloaded response, then network, then
+   * fall back to the cached shell (offline) */
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
+      (async () => {
+        try {
+          const preloaded = await event.preloadResponse
+          if (preloaded) {
+            const copy = preloaded.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put('/', copy))
+            return preloaded
+          }
+        } catch {
+          /* preload unsupported/failed — fall through to plain fetch */
+        }
+        try {
+          const response = await fetch(request)
           const copy = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put('/', copy))
           return response
-        })
-        .catch(() => caches.match('/').then((r) => r || Response.error()))
+        } catch {
+          const cached = await caches.match('/')
+          return cached || Response.error()
+        }
+      })()
     )
     return
   }

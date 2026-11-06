@@ -67,6 +67,7 @@ import {
 } from '@/lib/home-layout'
 import {
   getToolById,
+  prefetchTool,
   searchTools,
   toolCategories,
   tools,
@@ -191,6 +192,44 @@ function OsShell() {
   useEffect(() => {
     if (!hydrated) return
     void useExternalApps.getState().reload()
+  }, [hydrated])
+
+  /* v2.1 prefetch warming: pull the featured + dock app chunks while the
+   * launcher is idle, so first opens don't wait on the network */
+  useEffect(() => {
+    if (!hydrated) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const warm = () => {
+      const ids = [
+        ...new Set([...DOCK_IDS, ...tools.filter((t) => t.featured).map((t) => t.id)]),
+      ]
+      let i = 0
+      const tick = () => {
+        if (cancelled || i >= ids.length) return
+        prefetchTool(ids[i])
+        i += 1
+        timer = setTimeout(tick, 120)
+      }
+      tick()
+    }
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void) => number
+      cancelIdleCallback?: (h: number) => void
+    }
+    let handle: number | undefined
+    if (typeof w.requestIdleCallback === 'function') {
+      handle = w.requestIdleCallback(warm)
+    } else {
+      timer = setTimeout(warm, 2500)
+    }
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      if (handle !== undefined && typeof w.cancelIdleCallback === 'function') {
+        w.cancelIdleCallback(handle)
+      }
+    }
   }, [hydrated])
 
   /*
