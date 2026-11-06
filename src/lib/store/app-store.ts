@@ -85,6 +85,8 @@ interface AppState {
   e2eEnabled: boolean
   /** v2.1 ordered list of enabled home widgets (page-1 strip) */
   widgets: WidgetId[]
+  /** v2.1 store update badges: appId → last version the user acknowledged */
+  seenVersions: Record<string, string>
 
   toggleFavorite: (id: string) => void
   isFavorite: (id: string) => boolean
@@ -113,6 +115,8 @@ interface AppState {
   setAutoSync: (on: boolean) => void
   setE2eEnabled: (on: boolean) => void
   setWidgets: (ids: WidgetId[]) => void
+  /** v2.1: acknowledge an app's current version (clears its update badge) */
+  markVersionSeen: (id: string, version: string) => void
 }
 
 /** v2 → v3: installed apps didn't exist — derive them from the old layout. */
@@ -154,6 +158,7 @@ export const useAppStore = create<AppState>()(
       autoSync: false,
       e2eEnabled: false,
       widgets: ['clock', 'weather', 'notes'],
+      seenVersions: {},
 
       toggleFavorite: (id) =>
         set((s) => ({
@@ -229,6 +234,8 @@ export const useAppStore = create<AppState>()(
       setAutoSync: (on) => set({ autoSync: on }),
       setE2eEnabled: (on) => set({ e2eEnabled: on }),
       setWidgets: (ids) => set({ widgets: ids }),
+      markVersionSeen: (id, version) =>
+        set((s) => ({ seenVersions: { ...s.seenVersions, [id]: version } })),
     }),
     {
       name: 'toolhub-store',

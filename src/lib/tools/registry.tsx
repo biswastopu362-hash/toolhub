@@ -377,7 +377,12 @@ export const tools: Tool[] = [
     gradient: 'from-red-400 via-rose-500 to-pink-600',
     glow: '#f43f5e',
     keywords: ['calendar', 'events', 'schedule', 'plan', 'month', 'date', 'agenda'],
-    version: '1.0.0',
+    version: '1.4.0',
+    changelog: [
+      'Home-screen widget: your next events at a glance',
+      'Feeds the new widget strip and Spotlight answers',
+      'Smoother month swiping',
+    ],
     Component: CalendarApp,
   },
   {
@@ -391,7 +396,11 @@ export const tools: Tool[] = [
     glow: '#2dd4bf',
     keywords: ['goal', 'tracker', 'habit', 'streak', 'routine', 'target', 'productivity', 'daily', 'heatmap'],
     featured: true,
-    version: '1.0.0',
+    version: '1.3.0',
+    changelog: [
+      'Progress-ring widget on the home screen',
+      'Day and week targets surface at a glance',
+    ],
     Component: GoalTrackerApp,
   },
   {
@@ -579,7 +588,11 @@ export const tools: Tool[] = [
     gradient: 'from-orange-300 via-amber-500 to-yellow-600',
     glow: '#f59e0b',
     keywords: ['2048', 'game', 'puzzle', 'tiles', 'merge', 'numbers', 'swipe'],
-    version: '1.0.0',
+    version: '1.4.1',
+    changelog: [
+      'Scores and achievements now ride cloud sync',
+      'Fixed a rare swipe-while-animating desync',
+    ],
     Component: Game2048App,
   },
   {
@@ -971,7 +984,12 @@ export const tools: Tool[] = [
     gradient: 'from-amber-300 via-amber-400 to-yellow-600',
     glow: '#fbbf24',
     keywords: ['notes', 'write', 'memo', 'diary', 'notepad', 'text', 'folder', 'pin', 'markdown', 'export', 'color', 'notebook'],
-    version: '2.0.0',
+    version: '2.1.0',
+    changelog: [
+      'Your pinned note now lives on the home screen as a sticky widget',
+      'Folders ride the cloud-sync launcher domain',
+      'Create notes straight from Spotlight with "note: …"',
+    ],
     Component: NotesTool,
   },
   {
@@ -1043,7 +1061,13 @@ export const tools: Tool[] = [
     glow: '#9ca3af',
     keywords: ['settings', 'theme', 'dark mode', 'wallpaper', 'install', 'about', 'preferences'],
     system: true,
-    version: '3.0.0',
+    version: '3.1.0',
+    changelog: [
+      'Automatic cloud backup with optional end-to-end encryption',
+      'Home widgets picker with drag-free reorder',
+      'Biometric unlock and per-folder App Lock',
+      'Four UI languages: English, বাংলা, हिन्दी, Español',
+    ],
     Component: SettingsTool,
   },
   {
@@ -1099,7 +1123,11 @@ export const tools: Tool[] = [
     glow: '#f97316',
     keywords: ['habit', 'streak', 'routine', 'tracker', 'heatmap', 'daily', 'checklist', 'consistency', 'discipline'],
     featured: true,
-    version: '1.0.0',
+    version: '1.3.0',
+    changelog: [
+      'Home-screen widget: today at a glance + best streak',
+      'Habit color now tints the widget card',
+    ],
     Component: HabitTrackerApp,
   },
   {

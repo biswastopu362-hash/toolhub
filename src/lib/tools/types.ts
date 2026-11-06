@@ -52,6 +52,8 @@ export interface Tool {
   system?: boolean
   /** app store version string */
   version?: string
+  /** v2.1: release notes shown on the store detail page + update popups */
+  changelog?: string[]
   /**
    * Linked platform (admin-curated external PWA/site). The component embeds
    * `url` in a window instead of shipping local functionality.

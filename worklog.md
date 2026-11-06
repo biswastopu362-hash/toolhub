@@ -2378,3 +2378,23 @@ Gates:
 Stage Summary:
 - 4-language OS chrome (EN/BN/HI/ES); app-internal screens stay English per roadmap (key-by-key graduation is a future wave)
 - Next: Wave 7 — Store v2 (editorial collections, similar apps, update badges)
+---
+Task ID: P7-W7
+Agent: main (Z.ai Code)
+Task: Phase 7 Wave 7 — Store v2 (editorial collections, similar apps, update badges)
+
+Work Log:
+- Tool type: optional changelog: string[]; registry: 6 apps that genuinely changed in v2.1 got version bumps + honest release notes (settings 3.1.0, notes 2.1.0, calendar 1.4.0, habit/goal-tracker 1.3.0, game-2048 1.4.1)
+- Update badges: store keeps seenVersions (appId → acknowledged version, additive state + markVersionSeen) — badge shows when the registry version differs from the acknowledged one; first-run seeding marks everything current EXCEPT the v2.1-updated set (UPDATED_IN_21) so the badges reflect the real changelog, and future version bumps light up automatically
+- Store home: "Updates available" strip (icon, version chip, first changelog line, Update button → toast + badge clears) above four editorial collection cards (Creator's Studio / Focus & Rituals / Game Night / Dev Toolkit) with mini-icon previews and counts
+- Collection view: gradient editorial banner + full AppRow list; header title + back wired
+- AppDetail: What's new renders the app's real changelog (generic fallback kept) with an inline Update button when an update is pending; "You may also like" upgraded from same-category slice to keyword-overlap scoring (2 pts/keyword + 1 same-category, alphabetical tiebreak)
+- FIXED DURING QA: updates memo inverted never-seen logic — apps without a seen entry now count as updates only when they're in the release's updated set (fresh installs read as current)
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser): collections strip renders 4 cards; Dev Toolkit view lists its 8 tools with GET pills; updates strip shows exactly Notes+Settings (the installed subset of the 6); Notes detail shows "Version 2.1.0" + real changelog + Update → badge clears, strip drops to 1, toast fires; zero page errors
+
+Stage Summary:
+- Store v2 shipped: editorial collections, keyword-scored similar apps, real-changelog update badges
+- Next: Wave 8 — Performance (prefetch warming, SW navigation preload) + Phase 7 QA Day, tag v2.1

@@ -5,17 +5,21 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft,
   BadgeCheck,
+  Braces,
   ChevronRight,
   Copy,
   Download,
+  Gamepad2,
   Globe,
   LayoutGrid,
   Link2,
+  Palette,
   Search,
   SearchX,
   ShieldCheck,
   Sparkles,
   Star,
+  Target,
   Trash2,
   TrendingUp,
   X,
@@ -38,6 +42,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/lib/store/app-store'
 import {
+  getToolById,
   storeStats,
   toolCategories,
   tools,
@@ -53,9 +58,69 @@ import { useExternalApps } from '@/lib/tools/external'
 type View =
   | { type: 'home' }
   | { type: 'category'; id: ToolCategoryId }
+  | { type: 'collection'; id: string }
   | { type: 'app'; id: string }
   | { type: 'myapps' }
   | { type: 'search' }
+
+/* ================================================================== */
+/* v2.1 Store v2 — editorial collections + update badges               */
+/* ================================================================== */
+
+interface Collection {
+  id: string
+  title: string
+  blurb: string
+  icon: LucideIcon
+  gradient: string
+  appIds: string[]
+}
+
+const COLLECTIONS: Collection[] = [
+  {
+    id: 'creators',
+    title: 'Creator’s Studio',
+    blurb: 'Design, film, edit — a pocket studio',
+    icon: Palette,
+    gradient: 'from-fuchsia-500 via-purple-600 to-indigo-600',
+    appIds: ['design-studio', 'video-studio', 'image-tools', 'paint-studio', 'audio-studio', 'sticker-studio', 'collage-maker', 'meme-maker', 'wallpaper-studio'],
+  },
+  {
+    id: 'focus',
+    title: 'Focus & Rituals',
+    blurb: 'Habits, goals and gentle structure',
+    icon: Target,
+    gradient: 'from-emerald-500 via-teal-600 to-cyan-600',
+    appIds: ['habit-tracker', 'goal-tracker', 'flashcards', 'task-board', 'notes', 'reminders', 'calendar', 'shopping-list'],
+  },
+  {
+    id: 'game-night',
+    title: 'Game Night',
+    blurb: 'Nine classics, zero loading screens',
+    icon: Gamepad2,
+    gradient: 'from-amber-500 via-orange-600 to-rose-600',
+    appIds: ['game-2048', 'sudoku', 'minesweeper', 'snake', 'memory-match', 'bangla-wordle', '2p-arcade', 'solitaire', 'trivia-quiz'],
+  },
+  {
+    id: 'dev-toolkit',
+    title: 'Dev Toolkit',
+    blurb: 'JSON, regex, diffs — all offline',
+    icon: Braces,
+    gradient: 'from-sky-500 via-blue-600 to-violet-600',
+    appIds: ['json-formatter', 'regex-tester', 'diff-checker', 'hash-uuid', 'jwt-decoder', 'cron-timestamp', 'code-editor', 'base64-tool'],
+  },
+]
+
+/** Apps that genuinely shipped changes in the v2.1 release — seeded as
+ *  “unseen” so the update badges reflect the real changelog. */
+const UPDATED_IN_21 = new Set([
+  'notes',
+  'settings',
+  'calendar',
+  'habit-tracker',
+  'goal-tracker',
+  'game-2048',
+])
 
 /** Ask the OS shell to open an app window. */
 function requestOpenApp(id: string) {
@@ -63,7 +128,9 @@ function requestOpenApp(id: string) {
 }
 
 function viewKey(v: View): string {
-  return v.type === 'category' ? `category-${v.id}` : v.type === 'app' ? `app-${v.id}` : v.type
+  if (v.type === 'category') return `category-${v.id}`
+  if (v.type === 'collection') return `collection-${v.id}`
+  return v.type === 'app' ? `app-${v.id}` : v.type
 }
 
 /** "12.3 MB" → 12.3 (fallback 0) */
@@ -386,6 +453,8 @@ function AppDetail({
   onShow,
   installedIds,
   catalog,
+  updateAvailable,
+  onUpdate,
 }: {
   tool: Tool
   installed: boolean
@@ -397,12 +466,29 @@ function AppDetail({
   onShow: (id: string) => void
   installedIds: string[]
   catalog: Tool[]
+  /** v2.1: registry version differs from the acknowledged one */
+  updateAvailable?: boolean
+  /** v2.1: acknowledge the new version */
+  onUpdate?: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const s = storeStats(tool)
-  const related = catalog
-    .filter((t) => t.category === tool.category && t.id !== tool.id)
-    .slice(0, 8)
+  /* v2.1 — keyword-overlap scored "similar apps" (same-category fallback) */
+  const related = useMemo(() => {
+    const kw = new Set((tool.keywords ?? []).map((k) => k.toLowerCase()))
+    return catalog
+      .filter((t) => t.id !== tool.id)
+      .map((t) => {
+        let score = 0
+        for (const k of t.keywords ?? []) if (kw.has(k.toLowerCase())) score += 2
+        if (t.category === tool.category) score += 1
+        return { t, score }
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.t.name.localeCompare(b.t.name))
+      .slice(0, 8)
+      .map((x) => x.t)
+  }, [catalog, tool])
   const catName = toolCategories.find((c) => c.id === tool.category)?.name ?? 'App'
 
   return (
@@ -525,11 +611,23 @@ function AppDetail({
       <div>
         <SectionHead title="What's new" />
         <div className="rounded-2xl border border-border/70 bg-card p-4 text-sm shadow-sm">
-          <p className="mb-1 font-semibold">Version {s.version}</p>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <p className="font-semibold">Version {s.version}</p>
+            {/* v2.1 — acknowledge the update straight from the detail page */}
+            {installed && updateAvailable && onUpdate && (
+              <Button size="sm" className="h-8 rounded-full px-3.5" onClick={onUpdate}>
+                Update
+              </Button>
+            )}
+          </div>
           <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-            <li>Refreshed visuals with smoother, native-feeling animations</li>
-            <li>Improved responsiveness across phones, tablets and desktops</li>
-            <li>Performance optimizations and bug fixes</li>
+            {(tool.changelog ?? [
+              'Refreshed visuals with smoother, native-feeling animations',
+              'Improved responsiveness across phones, tablets and desktops',
+              'Performance optimizations and bug fixes',
+            ]).map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
           </ul>
         </div>
       </div>
@@ -667,6 +765,36 @@ export default function AppStoreApp() {
   const [pendingUninstall, setPendingUninstall] = useState<string | null>(null)
   /* D84 — category filter inside the My Platforms rail */
   const [platformFilter, setPlatformFilter] = useState<string>('all')
+  /* v2.1 — update badges: appId → last acknowledged version */
+  const seenVersions = useAppStore((s) => s.seenVersions)
+  const markVersionSeen = useAppStore((s) => s.markVersionSeen)
+
+  /* seed the seen-version map: everything current EXCEPT the apps that
+   * genuinely changed in this release — those surface as real updates */
+  const [seenSeeded, setSeenSeeded] = useState(false)
+  useEffect(() => {
+    if (seenSeeded) return
+    setSeenSeeded(true)
+    const s = useAppStore.getState()
+    for (const t of tools) {
+      if (t.version && s.seenVersions[t.id] === undefined && !UPDATED_IN_21.has(t.id)) {
+        s.markVersionSeen(t.id, t.version)
+      }
+    }
+  }, [seenSeeded])
+
+  const updates = useMemo(
+    () =>
+      tools.filter((t) => {
+        if (!t.version || !installed.includes(t.id)) return false
+        const seen = seenVersions[t.id]
+        if (seen !== undefined) return seen !== t.version
+        /* never-seen apps count as updates only when this release really
+           shipped changes for them (v2.1 set) — fresh installs are current */
+        return UPDATED_IN_21.has(t.id)
+      }),
+    [installed, seenVersions]
+  )
 
   /* linked platforms live server-side — make sure the catalog is fresh */
   useEffect(() => {
@@ -809,9 +937,15 @@ export default function AppStoreApp() {
   const availableResults = searchResults.filter((t) => !installedIds.includes(t.id))
   const currentApp = view.type === 'app' ? allTools.find((t) => t.id === view.id) : undefined
   const currentCategory = view.type === 'category' ? toolCategories.find((c) => c.id === view.id) : undefined
+  /* v2.1 — editorial collection view */
+  const currentCollection = view.type === 'collection' ? COLLECTIONS.find((c) => c.id === view.id) : undefined
+  const collectionTools = useMemo(
+    () => (currentCollection ? currentCollection.appIds.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t)) : []),
+    [currentCollection]
+  )
 
   const goBack = useCallback(
-    () => setView((v) => (v.type === 'app' || v.type === 'category' ? { type: 'home' } : v)),
+    () => setView((v) => (v.type === 'app' || v.type === 'category' || v.type === 'collection' ? { type: 'home' } : v)),
     []
   )
 
@@ -853,9 +987,11 @@ export default function AppStoreApp() {
                 ? currentApp.name
                 : view.type === 'category' && currentCategory
                   ? currentCategory.name
-                  : view.type === 'myapps'
-                    ? 'My Apps'
-                    : 'App Store'}
+                  : view.type === 'collection'
+                    ? (COLLECTIONS.find((c) => c.id === view.id)?.title ?? 'Collection')
+                    : view.type === 'myapps'
+                      ? 'My Apps'
+                      : 'App Store'}
             </h1>
           )}
           {view.type !== 'search' && (
@@ -906,6 +1042,99 @@ export default function AppStoreApp() {
           {/* ---------------- HOME ---------------- */}
           {view.type === 'home' && (
             <div className="space-y-7 pb-6">
+              {/* v2.1 — updates available (real version diffs) */}
+              {updates.length > 0 && (
+                <div>
+                  <SectionHead title={`Updates available · ${updates.length}`} icon={Download} />
+                  <div className="space-y-2">
+                    {updates.map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center gap-3 rounded-2xl border border-primary/25 bg-primary/[0.06] p-3"
+                      >
+                        <span
+                          className={cn(
+                            'flex size-11 shrink-0 items-center justify-center rounded-[0.9rem] bg-gradient-to-br text-white ring-1 ring-black/5',
+                            t.gradient
+                          )}
+                        >
+                          <t.icon className="size-5.5" strokeWidth={1.9} aria-hidden />
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => showTool(t.id)}
+                          className="min-w-0 flex-1 text-left"
+                          aria-label={`See what's new in ${t.name}`}
+                        >
+                          <p className="truncate text-sm font-semibold">
+                            {t.name}
+                            <span className="ml-1.5 text-xs font-medium text-primary">v{t.version}</span>
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {t.changelog?.[0] ?? 'Improvements and fixes'}
+                          </p>
+                        </button>
+                        <Button
+                          size="sm"
+                          className="h-9 shrink-0 rounded-full px-4"
+                          onClick={() => {
+                            markVersionSeen(t.id, t.version!)
+                            toast({ title: `${t.name} updated ✓`, description: `Now on v${t.version}` })
+                          }}
+                        >
+                          Update
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* v2.1 — editorial collections */}
+              <div>
+                <SectionHead title="Collections" icon={Sparkles} />
+                <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+                  {COLLECTIONS.map((c) => {
+                    const picks = c.appIds.map((id) => getToolById(id)).filter((t): t is Tool => Boolean(t))
+                    const Icon = c.icon
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setView({ type: 'collection', id: c.id })}
+                        aria-label={`Open collection ${c.title}`}
+                        className={cn(
+                          'relative flex h-36 w-64 shrink-0 flex-col justify-between overflow-hidden rounded-3xl p-4 text-left text-white ring-1 ring-black/10 shadow-lg transition-transform active:scale-[0.98]',
+                          'bg-gradient-to-br',
+                          c.gradient
+                        )}
+                      >
+                        <span className="pointer-events-none absolute -right-4 -top-6 opacity-20" aria-hidden>
+                          <Icon className="size-28" strokeWidth={1.2} />
+                        </span>
+                        <span className="relative">
+                          <span className="block text-base font-extrabold leading-tight">{c.title}</span>
+                          <span className="mt-0.5 block text-xs text-white/85">{c.blurb}</span>
+                        </span>
+                        <span className="relative flex items-center gap-1.5">
+                          {picks.slice(0, 4).map((t) => (
+                            <span
+                              key={t.id}
+                              className="grid size-7 place-items-center rounded-lg bg-white/20 ring-1 ring-white/30 backdrop-blur"
+                            >
+                              <t.icon className="size-4" aria-hidden />
+                            </span>
+                          ))}
+                          <span className="ml-auto flex items-center gap-0.5 text-xs font-semibold text-white/90">
+                            {picks.length} <ChevronRight className="size-3.5" aria-hidden />
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* owner-curated linked platforms */}
               {externalApps.length > 0 && (
                 <div>
@@ -1073,6 +1302,30 @@ export default function AppStoreApp() {
             </div>
           )}
 
+          {/* ---------------- COLLECTION (v2.1) ---------------- */}
+          {view.type === 'collection' && currentCollection && (
+            <div className="space-y-4 pb-6">
+              <div className={cn('rounded-3xl bg-gradient-to-br p-5 text-white shadow-lg ring-1 ring-black/10', currentCollection.gradient)}>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-white/80">Editorial collection</p>
+                <h2 className="mt-0.5 text-xl font-extrabold">{currentCollection.title}</h2>
+                <p className="mt-1 text-sm text-white/85">{currentCollection.blurb}</p>
+              </div>
+              <div className="divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/70 bg-card px-4 shadow-sm">
+                {collectionTools.map((t) => (
+                  <AppRow
+                    key={t.id}
+                    tool={t}
+                    installed={installedIds.includes(t.id)}
+                    progress={progress[t.id]}
+                    onInstall={() => startInstall(t.id)}
+                    onOpen={installedIds.includes(t.id) ? () => openTool(t.id) : undefined}
+                    onShow={() => showTool(t.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ---------------- CATEGORY ---------------- */}
           {view.type === 'category' && currentCategory && (
             <div className="pb-6">
@@ -1109,6 +1362,13 @@ export default function AppStoreApp() {
               onShow={showTool}
               installedIds={installedIds}
               catalog={allTools}
+              updateAvailable={updates.some((u) => u.id === currentApp.id)}
+              onUpdate={() => {
+                if (currentApp.version) {
+                  markVersionSeen(currentApp.id, currentApp.version)
+                  toast({ title: `${currentApp.name} updated ✓`, description: `Now on v${currentApp.version}` })
+                }
+              }}
             />
           )}
 
