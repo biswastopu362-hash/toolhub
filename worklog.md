@@ -2434,3 +2434,23 @@ Gates:
 Stage Summary:
 - Dates/digits now natively bilingual across the OS's four most-used time surfaces; app strings stay English until Wave 2
 - Next: P8-W2 — Notes + Calculator + Clock app-internal strings join the dictionaries
+---
+Task ID: P8-W2
+Agent: main (Z.ai Code)
+Task: Phase 8 Wave 2 — Locale graduation II (Notes + Calculator + Clock strings)
+
+Work Log:
+- i18n.ts: +93 keys × 4 dictionaries (generic time/status, Clock world+picker, Stopwatch, Timer, Calculator, Notes incl. Write/Preview + folder-count-one plural), compile-proven via Record<TKey,string>
+- Clock: header/subtitle/tabs, local-time + world-clock strip, city picker, offset badges (Yesterday/Today/Tomorrow), stopwatch (status/start/pause, laps, best/worst hints, totals), timer (status, Time's up + alarm, presets chips + aria, custom H/M/S) all read t(); TABS label → TKey; removed dead offsetLabel
+- Calculator: DEG/RAD badge, History label/empty, error toast title/desc, keyboard hint
+- Notes: header, chips (All/Unfiled via TKey labels), Manage, search placeholder + count lines (incl. noteFolderCountOne plural fix found in QA), 3 empty states, Pinned/All-notes headers, card title/snippet, editor Saving/Saved, Edited+chars+words, delete dialog (title/desc/Cancel/Delete via uiDelete), export toasts, Write/Preview toggle + preview-empty
+- Shared: timeJustNow/mAgo/hAgo/dAgo + dayYesterday/Today/Tomorrow + btnStart/Pause/Resume + statusReady/Running/Paused keys now reused across apps
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser): bn → Notes (subtitle, নতুন/সব/অব্যবস্থিত/ব্যবস্থাপনা, শিরোনামহীন, সম্পাদিত 17মি আগে, ১৬ অক্ষর/৩ শব্দ, লেখা/প্রিভিউ), Clock (ঘড়ি tabs, স্থানীয় সময়, বিশ্ব ঘড়ি, প্রস্তুত/শুরু, দ্রুত প্রিসেট 1মি–30মি, ঘণ্টা/মিনিট/সেকেন্ড), Calculator (ডিগ্রি, ইতিহাস, bn kbd hint); en regression identical + "1 note" plural fixed; 0px overflow 360/1280; zero console/page errors (after purging stale-SW chunks; sandbox server died 3× mid-verify and was recovered)
+- Fixed during QA: noteFolderCountOne plural key; stale-SW chunk poisoning after server deaths (standard purge+reload)
+
+Stage Summary:
+- Notes, Calculator and Clock now fully speak all four languages; deep aria-labels and the folder-manager modal stay English for a later graduation pass
+- Next: P8-W3 — Calculator Pro (equation solver: quadratic + 2×2/3×3 linear systems; scientific keypad already ships)

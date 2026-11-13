@@ -50,7 +50,7 @@ import { cn } from '@/lib/utils'
 import { consumePendingShare } from '@/lib/share'
 import { useToast } from '@/hooks/use-toast'
 import { useLang } from '@/hooks/use-lang'
-import { formatDateLang, formatNumberLang, type Lang } from '@/lib/i18n'
+import { formatDateLang, formatNumberLang, type Lang, type TKey } from '@/lib/i18n'
 
 /* ================================================================== */
 /* Model                                                               */
@@ -166,14 +166,14 @@ function persistFolders(folders: Folder[]) {
 
 /* ---------------- time + export helpers ---------------- */
 
-function relativeTime(ts: number, lang: Lang): string {
+function relativeTime(ts: number, lang: Lang, t: (k: TKey, p?: Record<string, string | number>) => string): string {
   const diffMin = Math.floor((Date.now() - ts) / 60_000)
-  if (diffMin < 1) return 'just now'
-  if (diffMin < 60) return `${diffMin}m ago`
+  if (diffMin < 1) return t('timeJustNow')
+  if (diffMin < 60) return t('timeMAgo', { n: diffMin })
   const h = Math.floor(diffMin / 60)
-  if (h < 24) return `${h}h ago`
+  if (h < 24) return t('timeHAgo', { n: h })
   const d = Math.floor(h / 24)
-  if (d < 7) return `${d}d ago`
+  if (d < 7) return t('timeDAgo', { n: d })
   return formatDateLang(ts, lang, 'short')
 }
 
@@ -241,6 +241,7 @@ function MarkdownLite({ text }: { text: string }) {
 
 export default function NotesTool() {
   const { toast } = useToast()
+  const { lang, t } = useLang()
   const [notes, setNotes] = useState<Note[]>(loadNotes) // lazy init — safe (ssr:false)
   const [folders, setFolders] = useState<Folder[]>(loadFolders)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -343,19 +344,19 @@ export default function NotesTool() {
     setNotes((prev) => prev.filter((n) => n.id !== id))
     setSelectedId(null)
     toast({
-      title: 'Note deleted',
+      title: t('noteDeleteToast'),
       description: target?.title.trim()
-        ? `“${target.title.trim()}” was removed.`
-        : 'Your note was removed.',
+        ? `“${target.title.trim()}” ${t('noteDeleteDesc2')}`
+        : `${t('noteUntitled')} ${t('noteDeleteDesc2')}`,
     })
   }
 
   const handleExport = (note: Note) => {
     try {
       exportNote(note)
-      toast({ title: 'Note exported', description: 'Saved as a .md file on this device.' })
+      toast({ title: t('noteExportToast'), description: t('noteExportToastDesc') })
     } catch {
-      toast({ title: 'Export failed', description: 'The browser blocked the download.' })
+      toast({ title: t('noteExportFail'), description: t('noteExportFailDesc') })
     }
   }
 
@@ -456,14 +457,15 @@ function NotesList({
   onCreate: () => void
 }) {
   const { toast } = useToast()
+  const { t } = useLang()
   const hasNotes = allNotes.length > 0
   const shownCount = pinned.length + others.length
   const activeLabel =
     activeFolder === 'all'
-      ? 'All notes'
+      ? t('noteAllNotes')
       : activeFolder === 'unfiled'
-        ? 'Unfiled'
-        : (folders.find((f) => f.id === activeFolder)?.name ?? 'All notes')
+        ? t('noteUnfiled')
+        : (folders.find((f) => f.id === activeFolder)?.name ?? t('noteAllNotes'))
 
   return (
     <>
@@ -476,13 +478,13 @@ function NotesList({
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold tracking-tight">Notes</h2>
-            <p className="text-xs text-zinc-400">Folders, pins, markdown &amp; export — all on-device.</p>
+            <p className="text-xs text-zinc-400">{t('noteSubtitle')}</p>
           </div>
           <Button
             onClick={onCreate}
             className="h-10 shrink-0 rounded-xl bg-gradient-to-r from-amber-300 to-yellow-500 font-semibold text-zinc-950 shadow-lg hover:from-amber-200 hover:to-yellow-400"
           >
-            <Plus className="size-4" aria-hidden /> New
+            <Plus className="size-4" aria-hidden /> {t('noteNew')}
           </Button>
         </div>
 
@@ -490,8 +492,8 @@ function NotesList({
         <div className="no-scrollbar mt-4 flex items-center gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Folders">
           {(
             [
-              { id: 'all', label: 'All', emoji: '', count: allNotes.length },
-              { id: 'unfiled', label: 'Unfiled', emoji: '📥', count: allNotes.filter((n) => !n.folderId).length },
+              { id: 'all', label: 'noteAll' as const, emoji: '', count: allNotes.length },
+              { id: 'unfiled', label: 'noteUnfiled' as const, emoji: '📥', count: allNotes.filter((n) => !n.folderId).length },
             ] as const
           ).map((chip) => (
             <button
@@ -506,7 +508,7 @@ function NotesList({
                   : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10'
               )}
             >
-              {chip.label}
+              {t(chip.label)}
               <span className="text-[10px] tabular-nums opacity-70">{chip.count}</span>
             </button>
           ))}
@@ -535,7 +537,7 @@ function NotesList({
             aria-label="Manage folders"
             className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-dashed border-white/15 px-3 text-xs font-semibold text-zinc-400 transition-colors hover:border-amber-400/40 hover:text-amber-300"
           >
-            <FolderPlus className="size-3.5" aria-hidden /> Manage
+            <FolderPlus className="size-3.5" aria-hidden /> {t('noteManage')}
           </button>
         </div>
       </div>
@@ -551,7 +553,7 @@ function NotesList({
           <Input
             value={searchQuery}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Search all notes…"
+            placeholder={t('noteSearchPlaceholder')}
             aria-label="Search notes"
             className="h-11 rounded-xl border-white/10 bg-white/5 pl-10 text-zinc-100 placeholder:text-zinc-500 focus-visible:border-amber-400/50 focus-visible:ring-0"
           />
@@ -560,8 +562,10 @@ function NotesList({
         {hasNotes && (
           <p className="text-xs text-zinc-500" aria-live="polite">
             {searching
-              ? `${shownCount} of ${allNotes.length} note${allNotes.length === 1 ? '' : 's'} match${shownCount === 1 ? 'es' : ''} · searching everywhere`
-              : `${activeLabel} · ${shownCount} note${shownCount === 1 ? '' : 's'} · saved on this device`}
+              ? t('noteSearchCount', { shown: shownCount, total: allNotes.length })
+              : shownCount === 1
+                ? t('noteFolderCountOne', { label: activeLabel })
+                : t('noteFolderCount', { label: activeLabel, n: shownCount })}
           </p>
         )}
 
@@ -569,16 +573,15 @@ function NotesList({
         {!hasNotes && (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-6 py-14 text-center">
             <StickyNote className="size-10 text-zinc-600" aria-hidden />
-            <p className="text-sm font-semibold text-zinc-300">No notes yet</p>
+            <p className="text-sm font-semibold text-zinc-300">{t('noteEmptyTitle')}</p>
             <p className="max-w-xs text-xs leading-relaxed text-zinc-500">
-              Capture ideas, to-dos and thoughts. Organize with folders and colors — everything stays
-              private on this device.
+              {t('noteEmptyDesc')}
             </p>
             <Button
               onClick={onCreate}
               className="mt-1 h-11 rounded-xl bg-gradient-to-r from-amber-300 to-yellow-500 font-semibold text-zinc-950 hover:from-amber-200 hover:to-yellow-400"
             >
-              <Plus className="size-4" aria-hidden /> Create your first note
+              <Plus className="size-4" aria-hidden /> {t('noteCreateFirst')}
             </Button>
           </div>
         )}
@@ -587,14 +590,14 @@ function NotesList({
         {hasNotes && searching && shownCount === 0 && (
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-6 py-12 text-center">
             <SearchX className="size-10 text-zinc-600" aria-hidden />
-            <p className="text-sm font-semibold text-zinc-300">No notes match “{searchQuery.trim()}”</p>
-            <p className="text-xs text-zinc-500">Try a different keyword or clear the search.</p>
+            <p className="text-sm font-semibold text-zinc-300">{t('noteNoMatch', { q: searchQuery.trim() })}</p>
+            <p className="text-xs text-zinc-500">{t('noteNoMatchDesc')}</p>
             <Button
               variant="outline"
               onClick={() => onQueryChange('')}
               className="mt-1 h-11 rounded-xl border-white/15 bg-transparent text-zinc-200 hover:bg-white/10 hover:text-white"
             >
-              Clear search
+              {t('noteClearSearch')}
             </Button>
           </div>
         )}
@@ -608,16 +611,16 @@ function NotesList({
               <FolderIcon className="size-10 text-zinc-600" aria-hidden />
             )}
             <p className="text-sm font-semibold text-zinc-300">
-              {activeFolder === 'unfiled' ? 'Nothing unfiled' : `“${activeLabel}” is empty`}
+              {activeFolder === 'unfiled' ? t('noteNothingUnfiled') : t('noteFolderEmpty', { label: activeLabel })}
             </p>
             <p className="max-w-xs text-xs leading-relaxed text-zinc-500">
-              New notes you create here land in this folder automatically.
+              {t('noteFolderEmptyDesc')}
             </p>
             <Button
               onClick={onCreate}
               className="mt-1 h-11 rounded-xl bg-gradient-to-r from-amber-300 to-yellow-500 font-semibold text-zinc-950 hover:from-amber-200 hover:to-yellow-400"
             >
-              <Plus className="size-4" aria-hidden /> New note here
+              <Plus className="size-4" aria-hidden /> {t('noteNewHere')}
             </Button>
           </div>
         )}
@@ -626,7 +629,7 @@ function NotesList({
         {pinned.length > 0 && (
           <section aria-label="Pinned notes">
             <p className="mb-2 flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-              <Pin className="size-3 text-amber-400" aria-hidden /> Pinned
+              <Pin className="size-3 text-amber-400" aria-hidden /> {t('notePinned')}
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {pinned.map((note) => (
@@ -641,7 +644,7 @@ function NotesList({
           <section aria-label="Notes">
             {pinned.length > 0 && (
               <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                Notes
+                {t('noteAllNotes')}
               </p>
             )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -683,7 +686,7 @@ function NoteCard({
   const snippet = note.body.trim().replace(/^#+\s+/gm, '').replace(/[*_`>]/g, '')
   const color = colorOf(note.colorId)
   const folder = note.folderId ? folders.find((f) => f.id === note.folderId) : null
-  const { lang } = useLang()
+  const { lang, t } = useLang()
 
   return (
     <div
@@ -704,7 +707,7 @@ function NoteCard({
     >
       <span className="flex items-start gap-2">
         <span className="min-w-0 flex-1 truncate font-semibold text-zinc-100">
-          {note.title.trim() || 'Untitled'}
+          {note.title.trim() || t('noteUntitled')}
         </span>
         {note.pinned && <Pin className="mt-0.5 size-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="Pinned" />}
       </span>
@@ -714,7 +717,7 @@ function NoteCard({
           snippet ? 'text-zinc-400' : 'text-zinc-500/70 italic'
         )}
       >
-        {snippet || 'No additional text'}
+        {snippet || t('noteNoText')}
       </span>
       <span className="mt-auto flex items-center gap-1.5 pt-1.5 text-[11px] text-zinc-500">
         {folder && (
@@ -724,7 +727,7 @@ function NoteCard({
             <span aria-hidden>·</span>
           </>
         )}
-        <span title={fullTimestamp(note.updatedAt, lang)}>{relativeTime(note.updatedAt, lang)}</span>
+        <span title={fullTimestamp(note.updatedAt, lang)}>{relativeTime(note.updatedAt, lang, t)}</span>
       </span>
     </div>
   )
@@ -754,11 +757,11 @@ function NoteEditor({
   onExport: (note: Note) => void
 }) {
   const [preview, setPreview] = useState(false)
-  const { lang } = useLang()
+  const { lang, t } = useLang()
   const body = note.body
   const charCount = body.length
   const wordCount = body.trim() ? body.trim().split(/\s+/).length : 0
-  const displayTitle = note.title.trim() || 'Untitled'
+  const displayTitle = note.title.trim() || t('noteUntitled')
   const color = colorOf(note.colorId)
 
   return (
@@ -787,12 +790,12 @@ function NoteEditor({
             {saveState === 'saving' ? (
               <>
                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                Saving…
+                {t('noteSaving')}
               </>
             ) : (
               <>
                 <Check className="size-3.5" aria-hidden />
-                Saved
+                {t('noteSaved')}
               </>
             )}
           </span>
@@ -829,21 +832,20 @@ function NoteEditor({
               </AlertDialogTrigger>
               <AlertDialogContent className="border-white/10 bg-zinc-950 text-zinc-100">
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('noteDeleteTitle')}</AlertDialogTitle>
                   <AlertDialogDescription className="text-zinc-400">
-                    “{displayTitle}” will be permanently removed from this device. This action
-                    cannot be undone.
+                    {t('noteDeleteDesc', { t: displayTitle })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel className="border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 hover:text-white">
-                    Cancel
+                    {t('cancel')}
                   </AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-rose-500 text-white hover:bg-rose-400 focus-visible:ring-rose-400/40"
                     onClick={() => onDelete(note.id)}
                   >
-                    Delete
+                    {t('uiDelete')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -856,18 +858,18 @@ function NoteEditor({
           ref={titleInputRef}
           value={note.title}
           onChange={(e) => onChange(note.id, { title: e.target.value })}
-          placeholder="Title"
+          placeholder={t('noteTitlePlaceholder')}
           aria-label="Note title"
           className="mt-3 h-auto border-0 bg-transparent px-0 text-xl font-bold text-white shadow-none placeholder:text-zinc-600 focus-visible:border-0 focus-visible:ring-0 md:text-2xl"
         />
 
         {/* Meta */}
         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-zinc-500">
-          <span title={fullTimestamp(note.updatedAt, lang)}>Edited {relativeTime(note.updatedAt, lang)}</span>
+          <span title={fullTimestamp(note.updatedAt, lang)}>{t('noteEdited', { t: relativeTime(note.updatedAt, lang, t) })}</span>
           <span aria-hidden>·</span>
-          <span>{formatNumberLang(charCount, lang)} chars</span>
+          <span>{t('noteChars', { n: formatNumberLang(charCount, lang) })}</span>
           <span aria-hidden>·</span>
-          <span>{formatNumberLang(wordCount, lang)} words</span>
+          <span>{t('noteWords', { n: formatNumberLang(wordCount, lang) })}</span>
         </p>
 
         {/* Color + folder row */}
@@ -912,8 +914,8 @@ function NoteEditor({
           <div className="flex rounded-xl border border-white/10 bg-white/5 p-1" role="radiogroup" aria-label="Editor mode">
             {(
               [
-                { id: 'write', icon: PenLine, label: 'Write' },
-                { id: 'preview', icon: Eye, label: 'Preview' },
+                { id: 'write', icon: PenLine, label: 'noteWrite' as const },
+                { id: 'preview', icon: Eye, label: 'notePreview' as const },
               ] as const
             ).map((v) => (
               <button
@@ -929,7 +931,7 @@ function NoteEditor({
                 )}
               >
                 <v.icon className="size-3.5" aria-hidden />
-                {v.label}
+                {t(v.label)}
               </button>
             ))}
           </div>
@@ -950,7 +952,7 @@ function NoteEditor({
             <MarkdownLite text={body} />
           ) : (
             <p className="py-10 text-center text-sm italic text-zinc-500">
-              Nothing to preview yet — switch to Write and start typing.
+              {t('notePreviewEmpty')}
             </p>
           )
         ) : (

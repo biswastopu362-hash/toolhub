@@ -126,12 +126,6 @@ function dayOffset(now: Date, tz: string): number {
   return Math.round((toUTC(key(tz)) - toUTC(key())) / 86_400_000)
 }
 
-function offsetLabel(offset: number): string {
-  if (offset < 0) return 'Yesterday'
-  if (offset > 0) return 'Tomorrow'
-  return 'Today'
-}
-
 function loadWorldCities(): string[] {
   try {
     const raw = window.localStorage.getItem(WORLD_LS_KEY)
@@ -154,7 +148,7 @@ function WorldClockTab({ active }: { active: boolean }) {
     typeof window === 'undefined' ? [] : loadWorldCities()
   )
   const [pickerOpen, setPickerOpen] = useState(false)
-  const { lang } = useLang()
+  const { lang, t } = useLang()
 
   /* tick while the tab is visible */
   useEffect(() => {
@@ -195,7 +189,7 @@ function WorldClockTab({ active }: { active: boolean }) {
       {/* -------- Local time -------- */}
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-500/[0.12] via-transparent to-slate-500/[0.05] p-5 text-center sm:p-6">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
-          Local time
+          {t('clockLocalTime')}
         </p>
         <p
           className="mt-1 text-5xl font-black tracking-tight tabular-nums text-zinc-50 sm:text-6xl"
@@ -211,7 +205,7 @@ function WorldClockTab({ active }: { active: boolean }) {
         <div className="mb-3 flex items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             <Globe2 className="size-3.5" aria-hidden />
-            World clock
+            {t('clockWorldTitle')}
             <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
               {chosen.length}
             </span>
@@ -224,7 +218,7 @@ function WorldClockTab({ active }: { active: boolean }) {
             aria-label="Add or remove cities"
             className="flex h-11 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 text-xs font-bold text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
           >
-            <Plus className="size-4" aria-hidden /> Add city
+            <Plus className="size-4" aria-hidden /> {t('clockAddCity')}
           </button>
         </div>
 
@@ -234,11 +228,10 @@ function WorldClockTab({ active }: { active: boolean }) {
               <Globe2 className="size-7" strokeWidth={1.9} aria-hidden />
             </span>
             <p className="mt-4 text-sm font-bold text-zinc-200">
-              Track the world&apos;s time
+              {t('clockEmptyTitle')}
             </p>
             <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-zinc-500">
-              Add cities to see their live time next to yours — your pick is
-              stored on this device only.
+              {t('clockEmptyDesc')}
             </p>
             <Button
               onClick={() => {
@@ -247,7 +240,7 @@ function WorldClockTab({ active }: { active: boolean }) {
               }}
               className="mt-4 h-11 rounded-xl bg-gradient-to-r from-slate-300 to-slate-500 font-semibold text-zinc-950 hover:from-slate-200 hover:to-slate-400"
             >
-              <Plus className="size-4" aria-hidden /> Add your first city
+              <Plus className="size-4" aria-hidden /> {t('clockAddFirst')}
             </Button>
           </div>
         ) : (
@@ -278,7 +271,7 @@ function WorldClockTab({ active }: { active: boolean }) {
                               : 'border-white/10 bg-white/5 text-zinc-400'
                           )}
                         >
-                          {offsetLabel(offset)}
+                          {offset < 0 ? t('dayYesterday') : offset > 0 ? t('dayTomorrow') : t('dayToday')}
                         </span>
                       </div>
                       <p className="mt-0.5 truncate text-[11px] text-zinc-500">
@@ -331,9 +324,9 @@ function WorldClockTab({ active }: { active: boolean }) {
                   <Globe2 className="size-4.5" aria-hidden />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-bold">World clock cities</h3>
+                  <h3 className="text-sm font-bold">{t('clockPickerTitle')}</h3>
                   <p className="text-[11px] text-zinc-500">
-                    Tap to add or remove · {selected.length} selected
+                    {t('clockPickerSub', { n: selected.length })}
                   </p>
                 </div>
                 <button
@@ -390,7 +383,7 @@ function WorldClockTab({ active }: { active: boolean }) {
                   }}
                   className="h-11 w-full rounded-xl bg-gradient-to-r from-slate-300 to-slate-500 font-bold text-zinc-950 hover:from-slate-200 hover:to-slate-400"
                 >
-                  Done
+                  {t('done')}
                 </Button>
               </div>
             </motion.div>
@@ -419,6 +412,7 @@ function formatStopwatch(ms: number): string {
 }
 
 function StopwatchTab({ active }: { active: boolean }) {
+  const { t } = useLang()
   const [running, setRunning] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [laps, setLaps] = useState<Lap[]>([])
@@ -476,7 +470,7 @@ function StopwatchTab({ active }: { active: boolean }) {
   }, [laps])
 
   const reversedLaps = useMemo(() => [...laps].reverse(), [laps])
-  const status = running ? 'Running' : elapsed > 0 ? 'Paused' : 'Ready'
+  const status = running ? t('statusRunning') : elapsed > 0 ? t('statusPaused') : t('statusReady')
 
   return (
     <div className="space-y-4">
@@ -521,7 +515,7 @@ function StopwatchTab({ active }: { active: boolean }) {
             ) : (
               <Play className="size-5" aria-hidden />
             )}
-            {running ? 'Pause' : 'Start'}
+            {running ? t('btnPause') : t('btnStart')}
           </Button>
           <button
             onClick={addLap}
@@ -544,11 +538,12 @@ function StopwatchTab({ active }: { active: boolean }) {
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-              Laps · {laps.length}
+              {t('swLapsLabel', { n: laps.length })}
             </p>
             <p className="text-[10px] text-zinc-600">
-              <span className="font-bold text-emerald-300">Best</span> ·{' '}
-              <span className="font-bold text-rose-300">Worst</span> highlighted
+              <span className="font-bold text-emerald-300">{t('swBest')}</span> ·{' '}
+              <span className="font-bold text-rose-300">{t('swWorst')}</span>{' '}
+              {t('swBestWorstHint', { best: t('swBest'), worst: t('swWorst') })}
             </p>
           </div>
           <ol className={cn('max-h-72 space-y-1.5 pr-1', SCROLL_CLASS)}>
@@ -575,16 +570,16 @@ function StopwatchTab({ active }: { active: boolean }) {
                     )}
                   >
                     <span className="w-16 shrink-0 text-xs font-bold uppercase tracking-wider text-zinc-400">
-                      Lap {l.n}
+                      {t('swLapN', { n: l.n })}
                     </span>
                     {isBest && (
                       <span className="shrink-0 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                        Best
+                        {t('swBest')}
                       </span>
                     )}
                     {isWorst && (
                       <span className="shrink-0 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300">
-                        Worst
+                        {t('swWorst')}
                       </span>
                     )}
                     <span className="flex-1" />
@@ -602,7 +597,7 @@ function StopwatchTab({ active }: { active: boolean }) {
                         {formatStopwatch(l.split)}
                       </p>
                       <p className="font-mono text-[10px] tabular-nums text-zinc-500">
-                        {formatStopwatch(l.total)} total
+                        {t('swTotal', { t: formatStopwatch(l.total) })}
                       </p>
                     </div>
                   </motion.li>
@@ -614,8 +609,8 @@ function StopwatchTab({ active }: { active: boolean }) {
       ) : (
         <p className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-center text-xs text-zinc-500">
           {running
-            ? 'Tap Lap to record a split — best and worst get highlighted.'
-            : 'Laps will appear here once you record them.'}
+            ? t('swHintRunning')
+            : t('swHintIdle')}
         </p>
       )}
     </div>
@@ -638,6 +633,7 @@ function formatTimer(ms: number): string {
 
 function TimerTab() {
   const { toast } = useToast()
+  const { t } = useLang()
   const [hours, setHours] = useState(0)
   const [minutes, setMinutes] = useState(5)
   const [seconds, setSeconds] = useState(0)
@@ -741,8 +737,8 @@ function TimerTab() {
         setFinished(true)
         startAlarm()
         toast({
-          title: "Time's up",
-          description: 'Your countdown finished — alarm rings for 20 seconds.',
+          title: t('timerTimesUp'),
+          description: t('timerToastDesc'),
         })
       } else {
         setRemaining(rem)
@@ -819,12 +815,12 @@ function TimerTab() {
       ? clamp01(remaining / totalMs)
       : 1
   const status = finished
-    ? "Time's up"
+    ? t('timerTimesUp')
     : running
-      ? 'Running'
+      ? t('statusRunning')
       : remaining !== null
-        ? 'Paused'
-        : 'Ready'
+        ? t('statusPaused')
+        : t('statusReady')
   const inputsLocked = running || finished
 
   return (
@@ -873,10 +869,10 @@ function TimerTab() {
               <>
                 <BellRing className="size-7 text-rose-300" aria-hidden />
                 <p className="mt-1 text-2xl font-black tracking-tight text-rose-300">
-                  Time&apos;s up
+                  {t('timerTimesUp')}
                 </p>
                 <p className="mt-0.5 text-[11px] text-zinc-500">
-                  Alarm rings for 20 s
+                  {t('timerAlarmShort')}
                 </p>
               </>
             ) : (
@@ -915,7 +911,7 @@ function TimerTab() {
                 className="h-12 gap-2 rounded-2xl bg-rose-500 px-6 font-bold text-white shadow-lg shadow-rose-500/25 hover:bg-rose-400"
                 aria-label="Dismiss alarm"
               >
-                <Check className="size-4" aria-hidden /> Dismiss
+                <Check className="size-4" aria-hidden /> {t('timerDismiss')}
               </Button>
               <Button
                 onClick={toggleRun}
@@ -923,7 +919,7 @@ function TimerTab() {
                 className="h-12 min-w-28 gap-2 rounded-2xl border-white/15 bg-white/5 font-bold hover:bg-white/10"
                 aria-label="Restart timer"
               >
-                <Play className="size-4" aria-hidden /> Restart
+                <Play className="size-4" aria-hidden /> {t('timerRestart')}
               </Button>
             </>
           ) : (
@@ -951,7 +947,7 @@ function TimerTab() {
                 ) : (
                   <Play className="size-5" aria-hidden />
                 )}
-                {running ? 'Pause' : remaining !== null ? 'Resume' : 'Start'}
+                {running ? t('btnPause') : remaining !== null ? t('btnResume') : t('btnStart')}
               </Button>
             </>
           )}
@@ -959,7 +955,7 @@ function TimerTab() {
 
         {needsDuration && (
           <p className="mt-3 text-center text-xs font-medium text-rose-300" role="alert">
-            Set a duration above zero to start.
+            {t('timerNeedsDuration')}
           </p>
         )}
       </div>
@@ -967,7 +963,7 @@ function TimerTab() {
       {/* -------- Presets + manual duration -------- */}
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-          Quick presets
+          {t('timerPresets')}
         </p>
         <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Timer presets">
           {PRESETS.map((p) => {
@@ -977,7 +973,7 @@ function TimerTab() {
                 key={p}
                 onClick={() => applyPreset(p)}
                 disabled={inputsLocked}
-                aria-label={`Set ${p} minute timer`}
+                aria-label={t('timerPresetAria', { n: p })}
                 aria-pressed={activePreset}
                 className={cn(
                   'h-11 min-w-[3.25rem] rounded-xl border px-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
@@ -986,21 +982,21 @@ function TimerTab() {
                     : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white'
                 )}
               >
-                {p}m
+                {t('timerPresetChip', { n: p })}
               </button>
             )
           })}
         </div>
 
         <p className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-          Custom duration
+          {t('timerCustom')}
         </p>
         <div className="mt-2 grid grid-cols-3 gap-3">
           {(
             [
-              { id: 'timer-hours', label: 'Hours', value: hours, set: setHours, max: 99 },
-              { id: 'timer-minutes', label: 'Minutes', value: minutes, set: setMinutes, max: 59 },
-              { id: 'timer-seconds', label: 'Seconds', value: seconds, set: setSeconds, max: 59 },
+              { id: 'timer-hours', label: 'timerHours', value: hours, set: setHours, max: 99 },
+              { id: 'timer-minutes', label: 'timerMinutes', value: minutes, set: setMinutes, max: 59 },
+              { id: 'timer-seconds', label: 'timerSeconds', value: seconds, set: setSeconds, max: 59 },
             ] as const
           ).map((f) => (
             <div key={f.id} className="space-y-1.5">
@@ -1008,7 +1004,7 @@ function TimerTab() {
                 htmlFor={f.id}
                 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
               >
-                {f.label}
+                {t(f.label)}
               </label>
               <input
                 id={f.id}
@@ -1035,13 +1031,14 @@ function TimerTab() {
 
 type TabId = 'clock' | 'stopwatch' | 'timer'
 
-const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: 'clock', label: 'Clock', icon: Clock },
-  { id: 'stopwatch', label: 'Stopwatch', icon: Watch },
-  { id: 'timer', label: 'Timer', icon: Hourglass },
+const TABS: { id: TabId; key: 'clockTabClock' | 'clockTabStopwatch' | 'clockTabTimer'; icon: LucideIcon }[] = [
+  { id: 'clock', key: 'clockTabClock', icon: Clock },
+  { id: 'stopwatch', key: 'clockTabStopwatch', icon: Watch },
+  { id: 'timer', key: 'clockTabTimer', icon: Hourglass },
 ]
 
 export default function ClockTool() {
+  const { t } = useLang()
   const [tab, setTab] = useState<TabId>('clock')
 
   const switchTab = (t: TabId): void => {
@@ -1066,9 +1063,9 @@ export default function ClockTool() {
               <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-bold tracking-tight">Clock</h2>
+              <h2 className="text-lg font-bold tracking-tight">{t('clockTabClock')}</h2>
               <p className="text-xs text-zinc-400">
-                World time, stopwatch and countdowns.
+                {t('clockSubtitle')}
               </p>
             </div>
           </div>
@@ -1078,20 +1075,20 @@ export default function ClockTool() {
             role="tablist"
             aria-label="Clock tools"
           >
-            {TABS.map((t) => (
+            {TABS.map((tb) => (
               <button
-                key={t.id}
-                id={`clock-tab-${t.id}`}
+                key={tb.id}
+                id={`clock-tab-${tb.id}`}
                 role="tab"
-                aria-selected={tab === t.id}
-                aria-controls={`clock-panel-${t.id}`}
-                onClick={() => switchTab(t.id)}
+                aria-selected={tab === tb.id}
+                aria-controls={`clock-panel-${tb.id}`}
+                onClick={() => switchTab(tb.id)}
                 className={cn(
                   'relative flex h-11 flex-1 items-center justify-center rounded-xl text-sm font-bold transition-colors',
-                  tab === t.id ? 'text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+                  tab === tb.id ? 'text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
                 )}
               >
-                {tab === t.id && (
+                {tab === tb.id && (
                   <motion.span
                     layoutId="clock-tab-pill"
                     transition={{ type: 'spring', stiffness: 420, damping: 34 }}
@@ -1099,8 +1096,8 @@ export default function ClockTool() {
                   />
                 )}
                 <span className="relative z-10 flex items-center gap-1.5">
-                  <t.icon className="size-4" aria-hidden />
-                  {t.label}
+                  <tb.icon className="size-4" aria-hidden />
+                  {t(tb.key)}
                 </span>
               </button>
             ))}
@@ -1109,20 +1106,20 @@ export default function ClockTool() {
 
         {/* ---------------- Panels (kept mounted so state survives tab switches) ---------------- */}
         <div className="p-4 sm:p-5">
-          {TABS.map((t) => (
+          {TABS.map((tb) => (
             <motion.div
-              key={t.id}
-              id={`clock-panel-${t.id}`}
+              key={tb.id}
+              id={`clock-panel-${tb.id}`}
               role="tabpanel"
-              aria-labelledby={`clock-tab-${t.id}`}
+              aria-labelledby={`clock-tab-${tb.id}`}
               initial={false}
-              animate={{ opacity: tab === t.id ? 1 : 0, y: tab === t.id ? 0 : 10 }}
+              animate={{ opacity: tab === tb.id ? 1 : 0, y: tab === tb.id ? 0 : 10 }}
               transition={SPRING}
-              className={cn(tab !== t.id && 'hidden')}
+              className={cn(tab !== tb.id && 'hidden')}
             >
-              {t.id === 'clock' && <WorldClockTab active={tab === 'clock'} />}
-              {t.id === 'stopwatch' && <StopwatchTab active={tab === 'stopwatch'} />}
-              {t.id === 'timer' && <TimerTab />}
+              {tb.id === 'clock' && <WorldClockTab active={tab === 'clock'} />}
+              {tb.id === 'stopwatch' && <StopwatchTab active={tab === 'stopwatch'} />}
+              {tb.id === 'timer' && <TimerTab />}
             </motion.div>
           ))}
         </div>

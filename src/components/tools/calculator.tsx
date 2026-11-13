@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Delete, History, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { useLang } from '@/hooks/use-lang'
 
 /* ================================================================== */
 /* Expression engine: tokenizer → shunting-yard → RPN evaluation       */
@@ -282,6 +283,7 @@ const HISTORY_KEY = 'toolhub-calc-history'
 
 export default function CalculatorTool() {
   const { toast } = useToast()
+  const { t } = useLang()
   const [display, setDisplay] = useState('')
   const [deg, setDeg] = useState(true)
   const [history, setHistory] = useState<HistoryItem[]>(() => {
@@ -343,8 +345,8 @@ export default function CalculatorTool() {
           setDisplay(res)
         } catch (err) {
           toast({
-            title: 'Could not calculate',
-            description: err instanceof Error ? err.message : 'Check the expression',
+            title: t('calcErrorTitle'),
+            description: err instanceof Error ? err.message : t('calcErrorDesc'),
             variant: 'destructive',
           })
         }
@@ -369,7 +371,7 @@ export default function CalculatorTool() {
       }
       setDisplay((d) => d + key)
     },
-    [display, deg, toast]
+    [display, deg, toast, t]
   )
 
   /* Keyboard support */
@@ -478,7 +480,7 @@ export default function CalculatorTool() {
           {/* Mode + history toggle */}
           <div className="mt-3 flex items-center justify-between">
             <Badge variant="outline" className="gap-1">
-              {deg ? 'Degrees (DEG)' : 'Radians (RAD)'}
+              {deg ? t('calcDeg') : t('calcRad')}
             </Badge>
             <div className="flex gap-1">
               <Button
@@ -489,7 +491,7 @@ export default function CalculatorTool() {
                 className="gap-1.5 text-muted-foreground"
               >
                 <History className="h-4 w-4" />
-                History
+                {t('calcHistory')}
               </Button>
               {history.length > 0 && (
                 <Button
@@ -512,7 +514,7 @@ export default function CalculatorTool() {
           {showHistory && (
             <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border bg-muted/30 p-2">
               {history.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">No calculations yet</p>
+                <p className="py-4 text-center text-xs text-muted-foreground">{t('calcNoHistory')}</p>
               ) : (
                 <ul className="space-y-1">
                   {history.map((h, i) => (
@@ -552,7 +554,7 @@ export default function CalculatorTool() {
           </div>
 
           <p className="mt-3 text-center text-[11px] text-muted-foreground">
-            You can also type with a keyboard — digits, + − * / ^ ( ) %, Enter = calculate, Esc = clear
+            {t('calcKbdHint')}
           </p>
         </CardContent>
       </Card>

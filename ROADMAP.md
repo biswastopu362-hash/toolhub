@@ -212,7 +212,7 @@ Target: **~80+ apps & features** by Day 90.
 ## Phase 8 — v2.2 · "Depth & Flow" (post-v2.1, pulled per week)
 
 - [x] **P8-W1** Locale graduation I: shared Intl date/time layer (`localeTag`, `formatDateLang`) — Clock, Calendar, Notes, Reminders render bn/hi/es dates & digits natively
-- [ ] **P8-W2** Locale graduation II: Notes + Calculator + Clock app-internal strings join the 4-language dictionaries (compile-proven key coverage)
+- [x] **P8-W2** Locale graduation II: Notes + Calculator + Clock app-internal strings join the 4-language dictionaries (compile-proven key coverage)
 - [ ] **P8-W3** Calculator Pro: scientific keypad (trig/log/pow/root), equation solver (quadratic + 2×2/3×3 linear systems), richer tape history
 - [ ] **P8-W4** Mind Map studio: node graph editor — radial layout, drag, per-branch colors, collapse/expand, JSON export/import
 - [ ] **P8-W5** Flowchart studio: shape palette (terminal/process/decision/io), SVG connectors with arrowheads, grid snap, JSON save/load
