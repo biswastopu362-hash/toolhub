@@ -49,6 +49,8 @@ import {
 import { cn } from '@/lib/utils'
 import { consumePendingShare } from '@/lib/share'
 import { useToast } from '@/hooks/use-toast'
+import { useLang } from '@/hooks/use-lang'
+import { formatDateLang, formatNumberLang, type Lang } from '@/lib/i18n'
 
 /* ================================================================== */
 /* Model                                                               */
@@ -164,7 +166,7 @@ function persistFolders(folders: Folder[]) {
 
 /* ---------------- time + export helpers ---------------- */
 
-function relativeTime(ts: number): string {
+function relativeTime(ts: number, lang: Lang): string {
   const diffMin = Math.floor((Date.now() - ts) / 60_000)
   if (diffMin < 1) return 'just now'
   if (diffMin < 60) return `${diffMin}m ago`
@@ -172,17 +174,11 @@ function relativeTime(ts: number): string {
   if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
   if (d < 7) return `${d}d ago`
-  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDateLang(ts, lang, 'short')
 }
 
-function fullTimestamp(ts: number): string {
-  return new Date(ts).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+function fullTimestamp(ts: number, lang: Lang): string {
+  return formatDateLang(ts, lang, 'datetime')
 }
 
 function exportNote(note: Note) {
@@ -687,6 +683,7 @@ function NoteCard({
   const snippet = note.body.trim().replace(/^#+\s+/gm, '').replace(/[*_`>]/g, '')
   const color = colorOf(note.colorId)
   const folder = note.folderId ? folders.find((f) => f.id === note.folderId) : null
+  const { lang } = useLang()
 
   return (
     <div
@@ -727,7 +724,7 @@ function NoteCard({
             <span aria-hidden>·</span>
           </>
         )}
-        <span title={fullTimestamp(note.updatedAt)}>{relativeTime(note.updatedAt)}</span>
+        <span title={fullTimestamp(note.updatedAt, lang)}>{relativeTime(note.updatedAt, lang)}</span>
       </span>
     </div>
   )
@@ -757,6 +754,7 @@ function NoteEditor({
   onExport: (note: Note) => void
 }) {
   const [preview, setPreview] = useState(false)
+  const { lang } = useLang()
   const body = note.body
   const charCount = body.length
   const wordCount = body.trim() ? body.trim().split(/\s+/).length : 0
@@ -865,11 +863,11 @@ function NoteEditor({
 
         {/* Meta */}
         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-zinc-500">
-          <span title={fullTimestamp(note.updatedAt)}>Edited {relativeTime(note.updatedAt)}</span>
+          <span title={fullTimestamp(note.updatedAt, lang)}>Edited {relativeTime(note.updatedAt, lang)}</span>
           <span aria-hidden>·</span>
-          <span>{charCount.toLocaleString('en-US')} chars</span>
+          <span>{formatNumberLang(charCount, lang)} chars</span>
           <span aria-hidden>·</span>
-          <span>{wordCount.toLocaleString('en-US')} words</span>
+          <span>{formatNumberLang(wordCount, lang)} words</span>
         </p>
 
         {/* Color + folder row */}

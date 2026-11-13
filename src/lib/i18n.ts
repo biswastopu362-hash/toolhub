@@ -1240,3 +1240,134 @@ export function localizeDigits(text: string, lang: Lang): string {
   if (lang !== 'bn') return text
   return text.replace(/\d/g, (d) => BN_DIGITS[Number(d)])
 }
+
+/* ------------------------------------------------------------------ */
+/* Locale-aware date & time formatting (v2.2 W1) — bn/hi/es graduation */
+/* ------------------------------------------------------------------ */
+
+/** BCP-47 tag for each UI language, used by all Intl formatters. */
+export function localeTag(lang: Lang): string {
+  switch (lang) {
+    case 'bn':
+      return 'bn-BD'
+    case 'hi':
+      return 'hi-IN'
+    case 'es':
+      return 'es-ES'
+    default:
+      return 'en-US'
+  }
+}
+
+export type DateStyle =
+  | 'full' /** Monday, January 12, 2026 */
+  | 'dateLong' /** January 12, 2026 */
+  | 'medium' /** Jan 12, 2026 */
+  | 'short' /** Jan 12 */
+  | 'weekdayShort' /** Mon */
+  | 'weekdayLong' /** Monday */
+  | 'monthYear' /** January 2026 */
+  | 'weekdayDate' /** Mon, Jan 12 */
+  | 'weekdayTime' /** Mon, Jan 12, 3:45 PM */
+  | 'time' /** 3:45 PM */
+  | 'time24' /** 15:45 */
+  | 'time24sec' /** 15:45:07 */
+  | 'datetime' /** Jan 12, 2026, 3:45 PM */
+
+const FMT_CACHE = new Map<string, Intl.DateTimeFormat>()
+
+function fmtFor(lang: Lang, style: DateStyle, tz?: string): Intl.DateTimeFormat {
+  const key = `${lang}|${style}|${tz ?? ''}`
+  const hit = FMT_CACHE.get(key)
+  if (hit) return hit
+  const opts: Intl.DateTimeFormatOptions = {}
+  switch (style) {
+    case 'full':
+      opts.weekday = 'long'
+      opts.month = 'long'
+      opts.day = 'numeric'
+      opts.year = 'numeric'
+      break
+    case 'dateLong':
+      opts.month = 'long'
+      opts.day = 'numeric'
+      opts.year = 'numeric'
+      break
+    case 'medium':
+      opts.month = 'short'
+      opts.day = 'numeric'
+      opts.year = 'numeric'
+      break
+    case 'short':
+      opts.month = 'short'
+      opts.day = 'numeric'
+      break
+    case 'weekdayShort':
+      opts.weekday = 'short'
+      break
+    case 'weekdayLong':
+      opts.weekday = 'long'
+      break
+    case 'monthYear':
+      opts.month = 'long'
+      opts.year = 'numeric'
+      break
+    case 'weekdayDate':
+      opts.weekday = 'short'
+      opts.month = 'short'
+      opts.day = 'numeric'
+      break
+    case 'weekdayTime':
+      opts.weekday = 'short'
+      opts.month = 'short'
+      opts.day = 'numeric'
+      opts.hour = 'numeric'
+      opts.minute = '2-digit'
+      break
+    case 'time':
+      opts.hour = 'numeric'
+      opts.minute = '2-digit'
+      break
+    case 'time24':
+      opts.hour = '2-digit'
+      opts.minute = '2-digit'
+      opts.hour12 = false
+      break
+    case 'time24sec':
+      opts.hour = '2-digit'
+      opts.minute = '2-digit'
+      opts.second = '2-digit'
+      opts.hour12 = false
+      break
+    case 'datetime':
+      opts.month = 'short'
+      opts.day = 'numeric'
+      opts.year = 'numeric'
+      opts.hour = 'numeric'
+      opts.minute = '2-digit'
+      break
+  }
+  const fmt = new Intl.DateTimeFormat(localeTag(lang), tz ? { ...opts, timeZone: tz } : opts)
+  FMT_CACHE.set(key, fmt)
+  return fmt
+}
+
+/** Format a date/time in the active UI language (Bengali digits for bn). */
+export function formatDateLang(
+  value: Date | number,
+  lang: Lang,
+  style: DateStyle = 'medium'
+): string {
+  const d = typeof value === 'number' ? new Date(value) : value
+  return localizeDigits(fmtFor(lang, style).format(d), lang)
+}
+
+/** Same as formatDateLang but rendered inside an IANA timezone (world clock). */
+export function formatDateLangTz(value: Date, lang: Lang, style: DateStyle, tz: string): string {
+  return localizeDigits(fmtFor(lang, style, tz).format(value), lang)
+}
+
+/** Localized digit grouping for plain numbers (1234 → ১,২৩৪ in bn). */
+export function formatNumberLang(n: number, lang: Lang): string {
+  return localizeDigits(n.toLocaleString(localeTag(lang)), lang)
+}

@@ -209,6 +209,19 @@ Target: **~80+ apps & features** by Day 90.
 
 ---
 
+## Phase 8 — v2.2 · "Depth & Flow" (post-v2.1, pulled per week)
+
+- [x] **P8-W1** Locale graduation I: shared Intl date/time layer (`localeTag`, `formatDateLang`) — Clock, Calendar, Notes, Reminders render bn/hi/es dates & digits natively
+- [ ] **P8-W2** Locale graduation II: Notes + Calculator + Clock app-internal strings join the 4-language dictionaries (compile-proven key coverage)
+- [ ] **P8-W3** Calculator Pro: scientific keypad (trig/log/pow/root), equation solver (quadratic + 2×2/3×3 linear systems), richer tape history
+- [ ] **P8-W4** Mind Map studio: node graph editor — radial layout, drag, per-branch colors, collapse/expand, JSON export/import
+- [ ] **P8-W5** Flowchart studio: shape palette (terminal/process/decision/io), SVG connectors with arrowheads, grid snap, JSON save/load
+- [ ] **P8-W6** Stats Plotter: table/paste data → line/bar/scatter/pie charts + summary stats (mean/median/mode/range/stddev)
+- [ ] **P8-W7** Journal: daily mood-tracked entries, streak strip, mood history visualization, search
+- [ ] **P8-W8** Time Tracker: project timers, today/week totals, history log + Phase 8 QA Day (90-app sweep, 3-viewport overflow), APP_VERSION 2.2.0 + CHANGELOG, tag **v2.2**
+
+---
+
 ## 3. Backlog pool (pull from here when a day finishes early)
 
 - Image optimizer/compressor · Favicon generator · Lorem ipsum · SQL formatter · Palette generator

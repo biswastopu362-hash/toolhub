@@ -2415,3 +2415,22 @@ Gates:
 Stage Summary:
 - PHASE 7 "Reach & Rituals" CLOSED at v2.1: cloud sync v2 (auto + E2E), telemetry v2, widget packs, Spotlight plugins, App Lock v2, 4 languages, Store v2, SW nav-preload + prefetch warming
 - Tagged v2.1; Phase 8 would pull from the Phase 7 leftovers (app-internal i18n graduation, hi/es date locales, per-week backlog pool)
+---
+Task ID: P8-W1
+Agent: main (Z.ai Code)
+Task: Phase 8 Wave 1 — Locale graduation I (Intl date/time layer)
+
+Work Log:
+- i18n.ts: added localeTag (en-US/bn-BD/hi-IN/es-ES), DateStyle union (full/dateLong/medium/short/weekdayShort/weekdayLong/monthYear/weekdayDate/weekdayTime/time/time24/time24sec/datetime), cached Intl.DateTimeFormat factory, formatDateLang + formatDateLangTz (tz variant for world clock) + formatNumberLang — all funnel through the existing localizeDigits (Bengali numerals)
+- Clock: local hero date → 'full', city times → tz-aware time24/weekdayDate; English hardcodes removed
+- Calendar: month header 'monthYear', weekday heads from a 2023-Sunday anchor, day digits localized, agenda weekday/dateLong, upcoming strip 'weekdayDate'; date-fns kept only for ISO keys and comparisons
+- Notes: relativeTime/fullTimestamp take lang, ≥7d fallback renders localized 'short' date; editor char/word counters via formatNumberLang
+- Reminders: fullTimestamp localized 'datetime'
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser, 390×844): es → Clock "viernes, 13 de noviembre de 2026"; bn → Clock ২২:৪৬:১৯ / শুক্রবার, ১৩ নভেম্বর, ২০২৬; Calendar নভেম্বর ২০২৬ + রবি…শনি heads + ১–৩১ digits; Notes "১৬ chars | ৩ words"; Reminders title "১৩ নভে, ২০২৬, ১০:৪৬ PM"; hi → "शुक्रवार, 13 नवंबर 2026"; en regression identical to pre-change; 0px overflow at 360/390/1280; zero page/console errors
+
+Stage Summary:
+- Dates/digits now natively bilingual across the OS's four most-used time surfaces; app strings stay English until Wave 2
+- Next: P8-W2 — Notes + Calculator + Clock app-internal strings join the dictionaries

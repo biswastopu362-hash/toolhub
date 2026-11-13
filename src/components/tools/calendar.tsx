@@ -31,6 +31,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { useLang } from '@/hooks/use-lang'
+import { formatDateLang, localizeDigits } from '@/lib/i18n'
 
 /* ================================================================== */
 /* Model                                                               */
@@ -50,7 +52,9 @@ interface CalEvent {
 }
 
 const EVENTS_KEY = 'toolhub.calendar.events'
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+/** Jan 1 2023 was a Sunday — a stable anchor for localized weekday heads. */
+const WEEKDAY_ANCHOR = new Date(2023, 0, 1)
 
 const COLOR_DOT: Record<EventColor, string> = {
   red: 'bg-red-500',
@@ -128,6 +132,7 @@ const SCROLLBAR_X =
 /* ================================================================== */
 
 export default function CalendarApp() {
+  const { lang } = useLang()
   const { toast } = useToast()
 
   const [events, setEvents] = useState<CalEvent[]>(loadEvents)
@@ -283,7 +288,7 @@ export default function CalendarApp() {
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h2 className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-orange-400 bg-clip-text text-2xl font-extrabold tracking-tight text-transparent">
-              {format(monthDate, 'MMMM yyyy')}
+              {formatDateLang(monthDate, lang, 'monthYear')}
             </h2>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {events.length} event{events.length === 1 ? '' : 's'} scheduled
@@ -320,7 +325,9 @@ export default function CalendarApp() {
 
         {/* Weekday header */}
         <div className="mb-1.5 grid grid-cols-7 gap-1" aria-hidden>
-          {WEEKDAYS.map((d) => (
+          {Array.from({ length: 7 }, (_, i) =>
+            formatDateLang(new Date(WEEKDAY_ANCHOR.getTime() + i * 86_400_000), lang, 'weekdayShort')
+          ).map((d) => (
             <span
               key={d}
               className="text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -352,7 +359,7 @@ export default function CalendarApp() {
                     type="button"
                     onClick={() => setSelected(d)}
                     aria-pressed={isSelected}
-                    aria-label={format(d, 'MMMM d, yyyy')}
+                    aria-label={formatDateLang(d, lang, 'dateLong')}
                     className={cn(
                       'relative flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-xl text-sm transition-colors',
                       !isSameMonth(d, monthDate) && 'opacity-40',
@@ -361,7 +368,7 @@ export default function CalendarApp() {
                       isSelected && 'bg-primary font-semibold text-primary-foreground shadow-md'
                     )}
                   >
-                    <span className="leading-none tabular-nums">{format(d, 'd')}</span>
+                    <span className="leading-none tabular-nums">{localizeDigits(format(d, 'd'), lang)}</span>
                     <span className="flex h-1.5 items-center gap-[3px]">
                       {evs.map((ev) => (
                         <span
@@ -388,9 +395,9 @@ export default function CalendarApp() {
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <h3 className="truncate text-base font-bold leading-tight tracking-tight">
-                {format(selected, 'EEEE')}
+                {formatDateLang(selected, lang, 'weekdayLong')}
               </h3>
-              <p className="text-xs text-muted-foreground">{format(selected, 'MMMM d, yyyy')}</p>
+              <p className="text-xs text-muted-foreground">{formatDateLang(selected, lang, 'dateLong')}</p>
             </div>
             <Button
               onClick={openAdd}
@@ -463,7 +470,7 @@ export default function CalendarApp() {
                 <span className="mb-1.5 flex items-center gap-1.5">
                   <span className={cn('h-2 w-2 rounded-full', COLOR_DOT[ev.color])} aria-hidden />
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {format(parseISO(ev.date), 'EEE, MMM d')}
+                    {formatDateLang(parseISO(ev.date), lang, 'weekdayDate')}
                   </span>
                 </span>
                 <span className="block truncate text-sm font-semibold">{ev.title}</span>

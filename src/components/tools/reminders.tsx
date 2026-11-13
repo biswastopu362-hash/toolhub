@@ -12,6 +12,8 @@ import { Separator } from '@/components/ui/separator'
 import { ClipboardList, Coffee, ListChecks, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { useLang } from '@/hooks/use-lang'
+import { formatDateLang, type Lang } from '@/lib/i18n'
 
 /* ================================================================== */
 /* Reminders — quick checklist with filters + progress                 */
@@ -59,18 +61,13 @@ function loadReminders(): Reminder[] {
   }
 }
 
-function fullTimestamp(ts: number): string {
-  return new Date(ts).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+function fullTimestamp(ts: number, lang: Lang): string {
+  return formatDateLang(ts, lang, 'datetime')
 }
 
 export default function RemindersTool() {
   const { toast } = useToast()
+  const { lang } = useLang()
   const [items, setItems] = useState<Reminder[]>(loadReminders) // lazy init — safe (ssr:false)
   const [draft, setDraft] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
@@ -250,7 +247,7 @@ export default function RemindersTool() {
                   'min-w-0 flex-1 break-words text-sm leading-snug',
                   item.done && 'text-muted-foreground line-through'
                 )}
-                title={fullTimestamp(item.createdAt)}
+                title={fullTimestamp(item.createdAt, lang)}
               >
                 {item.text}
               </span>

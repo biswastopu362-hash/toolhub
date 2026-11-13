@@ -33,6 +33,8 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import { useLang } from '@/hooks/use-lang'
+import { formatDateLang, formatDateLangTz, type Lang } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 /* ================================================================== */
@@ -93,22 +95,12 @@ const CITIES: CityZone[] = [
 
 const WORLD_LS_KEY = 'toolhub-clock-world'
 
-function cityTime(now: Date, tz: string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: tz,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(now)
+function cityTime(now: Date, tz: string, lang: Lang): string {
+  return formatDateLangTz(now, lang, 'time24', tz)
 }
 
-function cityDate(now: Date, tz: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  }).format(now)
+function cityDate(now: Date, tz: string, lang: Lang): string {
+  return formatDateLangTz(now, lang, 'weekdayDate', tz)
 }
 
 function cityGmt(now: Date, tz: string): string {
@@ -162,6 +154,7 @@ function WorldClockTab({ active }: { active: boolean }) {
     typeof window === 'undefined' ? [] : loadWorldCities()
   )
   const [pickerOpen, setPickerOpen] = useState(false)
+  const { lang } = useLang()
 
   /* tick while the tab is visible */
   useEffect(() => {
@@ -194,22 +187,8 @@ function WorldClockTab({ active }: { active: boolean }) {
     [selected]
   )
 
-  const localTime = now
-    ? new Intl.DateTimeFormat('en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      }).format(now)
-    : '--:--:--'
-  const localDate = now
-    ? now.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      })
-    : '—'
+  const localTime = now ? formatDateLang(now, lang, 'time24sec') : '--:--:--'
+  const localDate = now ? formatDateLang(now, lang, 'full') : '—'
 
   return (
     <div className="space-y-4">
@@ -303,11 +282,11 @@ function WorldClockTab({ active }: { active: boolean }) {
                         </span>
                       </div>
                       <p className="mt-0.5 truncate text-[11px] text-zinc-500">
-                        {now ? cityDate(now, c.tz) : '—'}
+                        {now ? cityDate(now, c.tz, lang) : '—'}
                       </p>
                     </div>
                     <p className="shrink-0 font-mono text-lg font-bold tabular-nums text-zinc-100">
-                      {now ? cityTime(now, c.tz) : '--:--'}
+                      {now ? cityTime(now, c.tz, lang) : '--:--'}
                     </p>
                     <button
                       onClick={() => toggleCity(c.id)}
@@ -387,7 +366,7 @@ function WorldClockTab({ active }: { active: boolean }) {
                         </p>
                       </div>
                       <span className="shrink-0 font-mono text-sm tabular-nums text-zinc-400">
-                        {now ? cityTime(now, c.tz) : '--:--'}
+                        {now ? cityTime(now, c.tz, lang) : '--:--'}
                       </span>
                       <span
                         className={cn(
