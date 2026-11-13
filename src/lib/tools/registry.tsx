@@ -92,6 +92,7 @@ import {
   Trophy,
   Network,
   Workflow,
+  LineChart,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -202,6 +203,7 @@ const TravelFuelApp = load(() => import('@/components/tools/travel-fuel'))
 const AiWriterApp = load(() => import('@/components/tools/ai-writer'))
 const MindMapApp = load(() => import('@/components/tools/mind-map'))
 const FlowchartApp = load(() => import('@/components/tools/flowchart'))
+const StatsPlotterApp = load(() => import('@/components/tools/stats-plotter'))
 const SudokuApp = load(() => import('@/components/tools/sudoku'))
 const MinesweeperApp = load(() => import('@/components/tools/minesweeper'))
 const SnakeApp = load(() => import('@/components/tools/snake'))
@@ -1398,6 +1400,19 @@ export const tools: Tool[] = [
     keywords: ['flowchart', 'diagram', 'process', 'workflow', 'decision tree', 'steps', 'pipeline', 'diagram editor'],
     version: '1.0.0',
     Component: FlowchartApp,
+  },
+  {
+    id: 'stats-plotter',
+    name: 'Stats Plotter',
+    description: 'Paste a table and get line, bar, scatter and pie charts plus mean, median, mode and standard deviation — all offline',
+    tagline: 'Numbers in, insight out',
+    category: 'calculator',
+    icon: LineChart,
+    gradient: 'from-amber-400 via-orange-500 to-rose-500',
+    glow: '#f97316',
+    keywords: ['stats', 'statistics', 'chart', 'graph', 'plot', 'mean', 'median', 'standard deviation', 'csv', 'data', 'analytics'],
+    version: '1.0.0',
+    Component: StatsPlotterApp,
   },
 ]
 

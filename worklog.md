@@ -2516,3 +2516,23 @@ Gates:
 Stage Summary:
 - Catalog now 87 apps; backlog pool "Flowchart studio" done
 - Next: P8-W6 — Stats Plotter (new app)
+---
+Task ID: P8-W6
+Agent: main (Z.ai Code)
+Task: Phase 8 Wave 6 — Stats Plotter (new app, catalog 87 → 88)
+
+Work Log:
+- New app `stats-plotter` (calculator category): paste-to-chart analytics
+  - Parser: rows "label, value1, value2…" (CSV/semicolon/tab tolerant), per-row errors surface inline; multi-column rows become multiple series
+  - Four SVG chart types (viewBox 400×250, crisp at any size): line (polyline + point dots + gridline axes with tick labels), bar (grouped bars, zero-inclusive scale), scatter (2 series → x/y pairs with hint label), pie (slices + percentage legend) — pure render (no mutation, immutability-lint clean)
+  - Summary statistics per series: count, sum, mean, median, mode (with multimodal/— handling), min·max, range, population stddev — verified against hand math
+  - Data editor sheet (Data toggle) + Sample loader; dataset persists to localStorage 'toolhub-stats-plotter'
+- Registry: id stats-plotter, LineChart icon, amber-orange gradient (#f97316), calculator category, version 1.0.0
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean (fixed react-hooks/immutability violation in pie slice computation)
+- E2E (agent-browser, 390×844): installed via store search; sample parses 2 series × 7 rows; line = 2 polylines + 14 dots; bar = 14 grouped bars; scatter = 7 dots; pie = 7 slices + legend; stats verified (SUM 148, MEAN 21.1429, MEDIAN 22, RANGE 18); 0px overflow 360/1280; zero console/page errors
+
+Stage Summary:
+- Catalog now 88 apps; backlog pool "Graph/statistics plotter" done
+- Next: P8-W7 — Journal with mood tracking (new app)
