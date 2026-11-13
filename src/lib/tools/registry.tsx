@@ -93,6 +93,7 @@ import {
   Network,
   Workflow,
   LineChart,
+  BookHeart,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -204,6 +205,7 @@ const AiWriterApp = load(() => import('@/components/tools/ai-writer'))
 const MindMapApp = load(() => import('@/components/tools/mind-map'))
 const FlowchartApp = load(() => import('@/components/tools/flowchart'))
 const StatsPlotterApp = load(() => import('@/components/tools/stats-plotter'))
+const JournalApp = load(() => import('@/components/tools/journal'))
 const SudokuApp = load(() => import('@/components/tools/sudoku'))
 const MinesweeperApp = load(() => import('@/components/tools/minesweeper'))
 const SnakeApp = load(() => import('@/components/tools/snake'))
@@ -1413,6 +1415,19 @@ export const tools: Tool[] = [
     keywords: ['stats', 'statistics', 'chart', 'graph', 'plot', 'mean', 'median', 'standard deviation', 'csv', 'data', 'analytics'],
     version: '1.0.0',
     Component: StatsPlotterApp,
+  },
+  {
+    id: 'journal',
+    name: 'Journal',
+    description: 'One entry a day with a mood — keep the streak alive, watch your 30-day mood ribbon and find any past entry by search',
+    tagline: 'A line a day keeps the memory alive',
+    category: 'daily',
+    icon: BookHeart,
+    gradient: 'from-rose-400 via-pink-500 to-fuchsia-600',
+    glow: '#ec4899',
+    keywords: ['journal', 'diary', 'mood', 'daily', 'reflection', 'streak', 'gratitude', 'entries', 'tracking'],
+    version: '1.0.0',
+    Component: JournalApp,
   },
 ]
 

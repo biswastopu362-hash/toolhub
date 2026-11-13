@@ -2536,3 +2536,24 @@ Gates:
 Stage Summary:
 - Catalog now 88 apps; backlog pool "Graph/statistics plotter" done
 - Next: P8-W7 — Journal with mood tracking (new app)
+---
+Task ID: P8-W7
+Agent: main (Z.ai Code)
+Task: Phase 8 Wave 7 — Journal with mood tracking (new app, catalog 88 → 89)
+
+Work Log:
+- New app `journal` (daily category): one entry per day with a mood
+  - Editor: 5-mood radio (Terrible→Great with colored dots), textarea, Save → toast; editing past days via the strip or history (date-labeled heading, Back-to-today, Delete entry)
+  - Streaks: current (walks back from today/yesterday) + longest (sorted scan); flame badge with gradient when active
+  - 14-day strip of mood-colored dots (today ringed, tap to edit); 30-day mood ribbon (height by mood, tooltips); stats row (current streak, longest, avg mood 1 decimal)
+  - History: search across text + dates with empty/search-miss states, entries show localized dates (via formatDateLang — the app benefits from the W1 layer), mood chip + score pill
+  - Editor-field reset on date switch uses the React-documented adjust-state-during-render pattern (react-hooks v6 rejected the effect version); localStorage 'toolhub-journal'
+- Registry: id journal, BookHeart icon, rose-pink gradient (#ec4899), daily category, version 1.0.0
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean (fixed formatDateLang arg type + removed stale eslint-disable)
+- E2E (agent-browser, 390×844): installed via store search; wrote today (Good) → 1-day streak; wrote yesterday via strip (Great) → 2-day streak; search "backlog" finds the right entry; stats verified (current 2 / longest 2 / avg 4.5); mood ribbon renders; 0px overflow 360/1280; zero console/page errors (one Journal "crashed" was ChunkLoadError from a server-death window — Try again recovered it cleanly)
+
+Stage Summary:
+- Catalog now 89 apps; backlog pool "Journal with mood tracking" done — four new apps shipped this phase (mind-map, flowchart, stats-plotter, journal)
+- Next: P8-W8 — Time Tracker (new app #5) + Phase 8 QA Day + v2.2 release
