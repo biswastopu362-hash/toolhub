@@ -2454,3 +2454,22 @@ Gates:
 Stage Summary:
 - Notes, Calculator and Clock now fully speak all four languages; deep aria-labels and the folder-manager modal stay English for a later graduation pass
 - Next: P8-W3 — Calculator Pro (equation solver: quadratic + 2×2/3×3 linear systems; scientific keypad already ships)
+---
+Task ID: P8-W3
+Agent: main (Z.ai Code)
+Task: Phase 8 Wave 3 — Calculator Pro (Solve mode)
+
+Work Log:
+- Calculator gains a Calculate ↔ Solve segmented mode switch (same dark-glass shell, keyboard handler now mode-aware)
+- SolverPanel: quadratic (D, real roots, complex pair r±i·im, vertex, a=0 guard with localized hint), 2×2 linear (D/Dx/Dy → unique/infinite/none), 3×3 linear via Cramer's rule (4 determinants → x/y/z or status); NumField/ResultRow primitives match the calculator's premium styling
+- Richer tape: HistoryItem gains kind ('solve'), solver entries render a SOLVE chip and restore cleanly (quad expr now formats with proper − signs); tapping a solve entry opens the keypad without polluting the expression
+- i18n: +14 keys × 4 dicts (calcModeCalc/Solve, solverQuadratic/Lin2/Lin3/Disc/Root/Vertex/NoReal/Unique/Infinite/None/NeedA)
+- Registry: Calculator bumped to version 2.0.0 with What's-new changelog + solver keywords/tagline
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser, 390×844): quadratic x²−3x+2 → D=1, x=2/x=1, vertex (1.5, −0.25); 2×2 seed → x=2, y=3; 3×3 seed → x=12/7, y=3/7, z=27/7 (matches hand calculation); tape shows SOLVE badge entry; 0px overflow 360/1280; zero page/console errors (sandbox dev server died 4× during the wave — each time restarted and verification resumed)
+
+Stage Summary:
+- Calculator graduates from keypad to a two-mode math tool; backlog pool "Scientific calculator mode" (already shipped v1) and "Equation solver" now both done
+- Next: P8-W4 — Mind Map studio (new app)
