@@ -90,6 +90,7 @@ import {
   CircleHelp,
   LifeBuoy,
   Trophy,
+  Network,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -198,6 +199,7 @@ const PrayerTimesApp = load(() => import('@/components/tools/prayer-times'))
 const CycleTrackerApp = load(() => import('@/components/tools/cycle-tracker'))
 const TravelFuelApp = load(() => import('@/components/tools/travel-fuel'))
 const AiWriterApp = load(() => import('@/components/tools/ai-writer'))
+const MindMapApp = load(() => import('@/components/tools/mind-map'))
 const SudokuApp = load(() => import('@/components/tools/sudoku'))
 const MinesweeperApp = load(() => import('@/components/tools/minesweeper'))
 const SnakeApp = load(() => import('@/components/tools/snake'))
@@ -1368,6 +1370,19 @@ export const tools: Tool[] = [
     featured: true,
     version: '1.0.0',
     Component: AiWriterApp,
+  },
+  {
+    id: 'mind-map',
+    name: 'Mind Map',
+    description: 'Branch ideas on an infinite canvas — drag nodes, color branches, collapse subtrees, tidy with one tap',
+    tagline: 'Grow ideas, branch by branch',
+    category: 'productivity',
+    icon: Network,
+    gradient: 'from-violet-400 via-purple-500 to-fuchsia-600',
+    glow: '#a855f7',
+    keywords: ['mind map', 'brainstorm', 'ideas', 'diagram', 'tree', 'outline', 'visualize', 'branches', 'planning'],
+    version: '1.0.0',
+    Component: MindMapApp,
   },
 ]
 

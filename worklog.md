@@ -2473,3 +2473,25 @@ Gates:
 Stage Summary:
 - Calculator graduates from keypad to a two-mode math tool; backlog pool "Scientific calculator mode" (already shipped v1) and "Equation solver" now both done
 - Next: P8-W4 — Mind Map studio (new app)
+---
+Task ID: P8-W4
+Agent: main (Z.ai Code)
+Task: Phase 8 Wave 4 — Mind Map studio (new app, catalog 85 → 86)
+
+Work Log:
+- New app `mind-map` (productivity): two-sided tree editor on an infinite panning canvas
+  - Nodes: drag freely (pointer capture, world coords), tap to select, rename via editor sheet, 6-color branch palette, per-node collapse with "+N" hidden-descendant badge, subtree delete
+  - Root children alternate right/left by index; children inherit side; bezier edges drawn in SVG from parent edge to child edge, stroked with branch color
+  - Tidy: balanced horizontal layout (per-side leaf stacking, parents center on children, left side centered around y=0)
+  - Multi-map: chip strip with counts + delete, double-tap to rename, localStorage persistence ('toolhub-mindmaps'), premium empty states via seeded "Product launch" demo map + "Untitled map"
+  - Export/Import: JSON download / FileReader import with shape validation + localized error toast slot
+- Registry: id mind-map, Network icon, violet-purple gradient (#a855f7), productivity category, keywords (brainstorm/diagram/tree/…), version 1.0.0
+- QA recoveries: sandbox dev server died 6× during the wave (added /tmp/dev-watch.sh watchdog that auto-restarts it); one real "App Store crashed" investigated → ChunkLoadError from a dead-server chunk request, not a code bug; store healthy after restart
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser, 390×844): installed from store via search (GET flow verified: search result shows tagline/rating/size + Install); seed map renders 6 nodes; tap → editor sheet; Add branch + rename ("Budget") → 7 nodes; Tidy repositions; canvas pan via drag; Collapse → "+1" badge + child hidden; Expand restores; 0px overflow 360/1280; zero console/page errors on healthy server
+
+Stage Summary:
+- Catalog now 86 apps; Mind Map ships the backlog pool's "Mind map" item
+- Next: P8-W5 — Flowchart studio (new app)
