@@ -2495,3 +2495,24 @@ Gates:
 Stage Summary:
 - Catalog now 86 apps; Mind Map ships the backlog pool's "Mind map" item
 - Next: P8-W5 — Flowchart studio (new app)
+---
+Task ID: P8-W5
+Agent: main (Z.ai Code)
+Task: Phase 8 Wave 5 — Flowchart studio (new app, catalog 86 → 87)
+
+Work Log:
+- New app `flowchart` (productivity): shape-based process editor on a panning canvas
+  - Four shapes via CSS (clip-path diamond/parallelogram, pill, rounded rect) with per-shape accent colors and inline italic placeholders
+  - Blocks drag with 20px grid snap (Snap toggle, aria-pressed); edges auto-trim to shape boundaries (weighted half-extent formula) with SVG arrowhead marker
+  - Connect flow: select block → "Connect from here" → tap target (amber banner guides; duplicates and self-links rejected); connectors tap-to-delete via fat invisible stroke hit area
+  - Editor sheet: rename, shape switcher radios, delete (cascades to touching edges)
+  - Multi-chart chips + rename (double-tap) + delete; localStorage 'toolhub-flowcharts'; seeded "Bug triage" demo (5 blocks / 4 edges) + empty flow; JSON export/import with shape validation
+- Registry: id flowchart, Workflow icon, teal-emerald gradient (#10b981), productivity category, version 1.0.0
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser, 390×844): installed via store search; seed chart renders 5 steps · 4 connectors with all four shapes; added Process "Patch release" → 6 steps; renamed; Connect-from → tap "Fix it" → 5 connectors; Snap toggles; 0px overflow 360/1280; zero console/page errors
+
+Stage Summary:
+- Catalog now 87 apps; backlog pool "Flowchart studio" done
+- Next: P8-W6 — Stats Plotter (new app)

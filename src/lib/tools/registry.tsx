@@ -91,6 +91,7 @@ import {
   LifeBuoy,
   Trophy,
   Network,
+  Workflow,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -200,6 +201,7 @@ const CycleTrackerApp = load(() => import('@/components/tools/cycle-tracker'))
 const TravelFuelApp = load(() => import('@/components/tools/travel-fuel'))
 const AiWriterApp = load(() => import('@/components/tools/ai-writer'))
 const MindMapApp = load(() => import('@/components/tools/mind-map'))
+const FlowchartApp = load(() => import('@/components/tools/flowchart'))
 const SudokuApp = load(() => import('@/components/tools/sudoku'))
 const MinesweeperApp = load(() => import('@/components/tools/minesweeper'))
 const SnakeApp = load(() => import('@/components/tools/snake'))
@@ -1383,6 +1385,19 @@ export const tools: Tool[] = [
     keywords: ['mind map', 'brainstorm', 'ideas', 'diagram', 'tree', 'outline', 'visualize', 'branches', 'planning'],
     version: '1.0.0',
     Component: MindMapApp,
+  },
+  {
+    id: 'flowchart',
+    name: 'Flowchart',
+    description: 'Draw processes with start/end, process, decision and I/O shapes — arrowed connectors, grid snap, JSON export',
+    tagline: 'Map the flow, step by step',
+    category: 'productivity',
+    icon: Workflow,
+    gradient: 'from-teal-400 via-emerald-500 to-green-600',
+    glow: '#10b981',
+    keywords: ['flowchart', 'diagram', 'process', 'workflow', 'decision tree', 'steps', 'pipeline', 'diagram editor'],
+    version: '1.0.0',
+    Component: FlowchartApp,
   },
 ]
 
