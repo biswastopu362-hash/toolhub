@@ -59,6 +59,7 @@ import { useExternalApps } from '@/lib/tools/external'
 import type { ExternalAppPayload } from '@/lib/tools/external'
 import { EXTERNAL_GRADIENTS, EXTERNAL_ICONS, externalIcon } from '@/lib/tools/external-icons'
 import { getDailyOpens, type DailyOpens } from '@/lib/telemetry'
+import { DiagnosticsCenter } from '@/components/tools/diagnostics-center'
 
 /* ------------------------------------------------------------------ */
 /* Local metadata                                                      */
@@ -489,6 +490,9 @@ export default function AdminConsole() {
           </div>
         )}
       </div>
+
+      {/* P9-W1 — nine-point platform health check with owner-triggered fixes */}
+      <DiagnosticsCenter />
 
       {/* list */}
       <div>

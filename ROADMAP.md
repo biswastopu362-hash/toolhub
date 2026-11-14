@@ -228,7 +228,7 @@ Drafted at the user's request right after the v2.2 launch of Phase 8. Three pill
 
 - **Friendly** — the platform must feel effortless: onboarding v2/v3, coach marks, illustrated empty states, haptics & micro-interactions, WCAG AA, font scaling, themes v4, gesture polish, 4-language graduation.
 - **Faultless** — find and fix every error: Diagnostics Center, three-wave catalog error sweep, crash telemetry charts, input/storage/offline hardening, performance budgets, zero-error QA gate at every phase close.
-- **Advanced** — 30+ new pro-grade tools across Creator / Dev / AI / Media / Automation studios, then an ecosystem layer (widgets, plugins, packs) — shipping **v3.0** at a 120+ app catalog.
+- **Advanced** — 10 brand-new tools (Flows, Shortcuts, API Client, SQL Playground, Webhook Inspector, AI Summarizer/Image Studio/Vision, Prompt Library, Documents Vault) plus 30+ pro-grade v2 upgrades across the existing 90-app catalog — shipping **v3.0** at a 100+ app catalog.
 
 Cadence: 10 phases × 10 waves (1 wave = 1 day). The daily ritual never changes: tsc → lint → agent-browser E2E (360/390/1280) → worklog → ROADMAP tick → push. The last wave of each phase is a QA Day + tag.
 
@@ -258,69 +258,69 @@ Cadence: 10 phases × 10 waves (1 wave = 1 day). The daily ritual never changes:
 - [ ] **P10-W9** Help Center v2: searchable per-app guides + "advanced tools cookbook" seeds
 - [ ] **P10-W10** Phase 10 QA Day + usability checklist (friendliness scorecard per app) → tag **v2.4**
 
-### Phase 11 — v2.5 · "Creator Tools" (advanced tools I)
+### Phase 11 — v2.5 · "Creator Tools" (advanced upgrades I)
 
-- [ ] **P11-W1** Code Editor: syntax-highlighted multi-tab editor, snippets, find/replace, export
-- [ ] **P11-W2** Regex Lab: pattern builder, live match highlighting, replace preview, cheat-sheet
-- [ ] **P11-W3** Diff & Merge: two-pane text compare, unified diff, change navigation
-- [ ] **P11-W4** Snippet Vault: tagged snippets, search, folders, import/export
-- [ ] **P11-W5** Text Forge: case/sort/dedupe/count, lorem generator, hash + encode/decode suite
-- [ ] **P11-W6** Markdown Studio v2: live preview, outline, export to HTML/MD
-- [ ] **P11-W7** Icon Forge: SVG icon composer, export PNG set + favicon pack
-- [ ] **P11-W8** Color Studio v2: palette generator, contrast checker, export design tokens
-- [ ] **P11-W9** Image Optimizer: drag-in compress/resize/convert with before-after preview
-- [ ] **P11-W10** Phase 11 QA Day: new-tools sweep → tag **v2.5**
+- [ ] **P11-W1** Code Editor v2: multi-tab sessions, find/replace, run-preview for HTML/Markdown, snippet library refresh
+- [ ] **P11-W2** Regex Lab v2: pattern builder, replace preview, match explanations, cheat-sheet
+- [ ] **P11-W3** Diff & Merge v2: side-by-side + unified views, per-hunk navigation, merge-to-result
+- [ ] **P11-W4** Snippet Vault: tagged snippet library extracted from Code Editor (search, folders, import/export)
+- [ ] **P11-W5** Text Forge v2: case/sort/dedupe/count consolidation, lorem generator, encode/decode suite
+- [ ] **P11-W6** Markdown Studio v2: live outline, export to HTML/MD, image paste
+- [ ] **P11-W7** Icon Forge: SVG icon composer → PNG set + favicon pack (new app)
+- [ ] **P11-W8** Color Studio v2: palette generator, contrast checker, design-token export
+- [ ] **P11-W9** Image Studio v2: batch compress/resize/convert with before-after preview
+- [ ] **P11-W10** Phase 11 QA Day: upgraded-tools sweep → tag **v2.5**
 
-### Phase 12 — v2.6 · "Dev Tools" (advanced tools II)
+### Phase 12 — v2.6 · "Dev Tools" (advanced upgrades II)
 
-- [ ] **P12-W1** API Client: request runner (method/headers/body), response viewer, history, environments
-- [ ] **P12-W2** JSON Forge: format/minify, JSONPath queries, schema inference, error pin-pointing
-- [ ] **P12-W3** SQL Playground: in-browser SQLite (sql.js), sample DBs, saved queries + SQL formatter
-- [ ] **P12-W4** Cron Builder: human-readable schedule editor, next-runs preview, timezone-aware
-- [ ] **P12-W5** Webhook Inspector: local mock listener, request log, replay + cURL copy
-- [ ] **P12-W6** JWT Inspector + Hash Suite: decode/verify, claims table, hash/checksum calculator
-- [ ] **P12-W7** QR & Barcode Studio v2: batch generation, logo embedding, scanner (camera where allowed)
-- [ ] **P12-W8** CSV Studio v2: join/dedupe/pivot, type inference, chart hand-off
-- [ ] **P12-W9** Chart Builder: paste/table data → bar/line/pie/area, PNG export, themes
-- [ ] **P12-W10** Phase 12 QA Day: new-tools sweep → tag **v2.6**
+- [ ] **P12-W1** API Client: request runner (method/headers/body), response viewer, history, environments (new app)
+- [ ] **P12-W2** JSON Formatter v2: JSONPath queries, schema inference, error pin-pointing
+- [ ] **P12-W3** SQL Playground: in-browser SQLite (sql.js), sample DBs, saved queries (new app)
+- [ ] **P12-W4** Cron & Timestamp v2: visual cron builder, next-runs preview, timezone-aware
+- [ ] **P12-W5** Webhook Inspector: mock listener, request log, replay + cURL copy (new app)
+- [ ] **P12-W6** JWT & Hash Suite v2: signature verify, claims table, checksum calculator
+- [ ] **P12-W7** QR Studio v2: batch generation, logo embedding, camera scanner
+- [ ] **P12-W8** Sheet Studio v2: pivot/join/dedupe, type inference, chart hand-off
+- [ ] **P12-W9** Stats Plotter v2: area/pie themes, PNG export, dataset library
+- [ ] **P12-W10** Phase 12 QA Day: upgraded-tools sweep → tag **v2.6**
 
-### Phase 13 — v2.7 · "AI Studio" (advanced tools III)
+### Phase 13 — v2.7 · "AI Studio" (advanced upgrades III)
 
-- [ ] **P13-W1** AI Chat: streaming assistant with history + system presets (thin backend route)
-- [ ] **P13-W2** AI Writer: tone presets, rewrite/expand/shorten, side-by-side compare
-- [ ] **P13-W3** AI Summarizer: paste/URL → TL;DR, key points, action items
-- [ ] **P13-W4** AI Translator: EN/BN/HI/ES + more, tone-aware, copy-ready
-- [ ] **P13-W5** AI Image Studio: text-to-image generation + edit presets
-- [ ] **P13-W6** AI Vision: image Q&A, extract text/tables from photos
-- [ ] **P13-W7** AI Voice Studio: TTS with voice/speed controls, download audio
-- [ ] **P13-W8** AI Transcribe: audio upload → transcript with timestamps
-- [ ] **P13-W9** Prompt Library: templates with variables, favorites, run history
+- [ ] **P13-W1** AI Chat v2: streaming responses, system presets, conversation export
+- [ ] **P13-W2** AI Writer v2: tone presets, rewrite/expand/shorten, side-by-side compare
+- [ ] **P13-W3** AI Summarizer: paste/URL → TL;DR, key points, action items (new app)
+- [ ] **P13-W4** Translator v2: tone-aware output, romanization, copy-ready blocks
+- [ ] **P13-W5** AI Image Studio: text-to-image generation + edit presets (new app)
+- [ ] **P13-W6** AI Vision: image Q&A, text/table extraction from photos (new app)
+- [ ] **P13-W7** TTS Studio v2: multi-voice picker, speed control, audio download
+- [ ] **P13-W8** Speech-to-Text v2: timestamps, speaker labels, export transcript
+- [ ] **P13-W9** Prompt Library: templates with variables, favorites, run history (new app)
 - [ ] **P13-W10** Phase 13 QA Day + backend guards (rate limit, error surface) → tag **v2.7**
 
-### Phase 14 — v2.8 · "Media Lab" (advanced tools IV)
+### Phase 14 — v2.8 · "Media Lab" (advanced upgrades IV)
 
-- [ ] **P14-W1** Audio Recorder & Trimmer: record, waveform trim, export
-- [ ] **P14-W2** Audio Effects: speed/pitch/fade/normalize + Metronome sound packs
-- [ ] **P14-W3** Video Trimmer: client-side segment cut, preview, export
-- [ ] **P14-W4** Screen & Voice Recorder: screen capture + mic mix (desktop; picker fallback)
-- [ ] **P14-W5** PDF Pro: merge/split/rotate/reorder pages
-- [ ] **P14-W6** PDF Annotate: text, highlight, signature, flattened export
-- [ ] **P14-W7** Photo Editor v2: crop/filters/draw/text layers
-- [ ] **P14-W8** Image Batch Ops: multi-file resize/convert/watermark with presets
-- [ ] **P14-W9** GIF Maker + Pixel Art editor: frames → gif with speed control; 16×16–64×64 pixel canvas
+- [ ] **P14-W1** Voice Recorder v2: waveform trimming, markers, export
+- [ ] **P14-W2** Audio Studio v2: speed/pitch/fade/normalize effects chain
+- [ ] **P14-W3** Video Studio v2: segment trimming, preview scrub, export
+- [ ] **P14-W4** Screen Recorder v2: mic mixing, format pick, countdown
+- [ ] **P14-W5** PDF Tools v2: merge/split/rotate/reorder page grid
+- [ ] **P14-W6** PDF Tools v2.1: annotate, highlight, e-sign, flattened export
+- [ ] **P14-W7** Paint Studio v2: layers, text, filters, undo history
+- [ ] **P14-W8** Image Studio v2.1: batch watermark/convert presets
+- [ ] **P14-W9** GIF Maker v2: frame timeline, speed control, pixel-art mode
 - [ ] **P14-W10** Phase 14 QA Day: low-end viewport budgets → tag **v2.8**
 
-### Phase 15 — v2.9 · "Automate & Life" (advanced tools V)
+### Phase 15 — v2.9 · "Automate & Life" (new tools)
 
-- [ ] **P15-W1** Flows engine: trigger → action graph editor with validation
+- [ ] **P15-W1** Flows engine: trigger → action graph editor with validation (new app)
 - [ ] **P15-W2** Flow actions I: notify, clipboard, open app, copy field
 - [ ] **P15-W3** Flow actions II: timers, conditions, variables, loops-lite
-- [ ] **P15-W4** Shortcuts app: run flows from Spotlight/Shade/quick actions
+- [ ] **P15-W4** Shortcuts: run flows from Spotlight/Shade/quick actions (new app)
 - [ ] **P15-W5** Scheduled automations + run-history logs
 - [ ] **P15-W6** Flow templates gallery: ready-made recipes one tap away
 - [ ] **P15-W7** Share sheet v2: system share target → route into any app/flow
-- [ ] **P15-W8** Documents Vault: encrypted local store for sensitive notes/files
-- [ ] **P15-W9** Money pack: Expense Split + Subscription/Bill reminder
+- [ ] **P15-W8** Documents Vault: encrypted local store for sensitive notes/files (new app)
+- [ ] **P15-W9** Money pack: Expense Tracker v2 (splits & bills) + Subscription tracker (new app)
 - [ ] **P15-W10** Phase 15 QA Day: flow E2E scenarios → tag **v2.9**
 
 ### Phase 16 — v3.0-beta · "Ecosystem & Reach"
@@ -362,7 +362,7 @@ Cadence: 10 phases × 10 waves (1 wave = 1 day). The daily ritual never changes:
 - [ ] **P18-W9** Launch-week comms draft (share copy, changelog page)
 - [ ] **P18-W10** **LAUNCH v3.0** — tag, push, celebration toast + draft next horizon
 
-**Success criteria (end of Day 100):** 120+ app catalog · zero known errors · 4 languages across chrome + core apps · WCAG AA · Lighthouse ≥95 mobile · **v3.0 shipped**.
+**Success criteria (end of Day 100):** 100+ app catalog (90 existing + 10 new) · every existing tool upgraded or error-swept · zero known errors · 4 languages across chrome + core apps · WCAG AA · Lighthouse ≥95 mobile · **v3.0 shipped**.
 
 ---
 
