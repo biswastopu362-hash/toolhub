@@ -222,6 +222,150 @@ Target: **~80+ apps & features** by Day 90.
 
 ---
 
+## The 100-Day Master Plan — "Road to v3.0" (P9–P18 · 100 waves · Day 91–190)
+
+Drafted at the user's request right after the v2.2 launch of Phase 8. Three pillars govern this stretch:
+
+- **Friendly** — the platform must feel effortless: onboarding v2/v3, coach marks, illustrated empty states, haptics & micro-interactions, WCAG AA, font scaling, themes v4, gesture polish, 4-language graduation.
+- **Faultless** — find and fix every error: Diagnostics Center, three-wave catalog error sweep, crash telemetry charts, input/storage/offline hardening, performance budgets, zero-error QA gate at every phase close.
+- **Advanced** — 30+ new pro-grade tools across Creator / Dev / AI / Media / Automation studios, then an ecosystem layer (widgets, plugins, packs) — shipping **v3.0** at a 120+ app catalog.
+
+Cadence: 10 phases × 10 waves (1 wave = 1 day). The daily ritual never changes: tsc → lint → agent-browser E2E (360/390/1280) → worklog → ROADMAP tick → push. The last wave of each phase is a QA Day + tag.
+
+### Phase 9 — v2.3 · "Fortify" (find & fix every error)
+
+- [ ] **P9-W1** Diagnostics Center (Admin Console tab): registry integrity, installed-vs-registry drift, storage quota, SW/cache health, orphan-data scan — live checks with auto-fix suggestions; fix all findings
+- [ ] **P9-W2** Catalog error sweep I: 30 apps deep QA (console + network + UX) at 360/390/1280, fix everything found
+- [ ] **P9-W3** Catalog error sweep II: next 30 apps, same bar, fix everything found
+- [ ] **P9-W4** Catalog error sweep III: final 30 apps + cross-app drills (copy→paste, share→open, lock→unlock), fix everything found
+- [ ] **P9-W5** Crash & error telemetry: per-app error counts, 14-day trend chart, session health score in Admin Console
+- [ ] **P9-W6** Input hardening: every form validated + sanitized, friendly inline errors, paste-sanitize, maxLength guards
+- [ ] **P9-W7** Storage audit: store-migration test matrix, corrupt-data recovery drill, backup/restore E2E for all domains
+- [ ] **P9-W8** Offline resilience: every app renders a graceful offline state, retry banners, SW update flow re-test, airplane-mode drill
+- [ ] **P9-W9** Performance budgets: startup/interaction budgets per app, blur-budget respect on phones, fix all regressions
+- [ ] **P9-W10** Phase 9 QA Day: full 90-app marathon, zero-error gate → tag **v2.3**
+
+### Phase 10 — v2.4 · "Delight" (user-friendly wave)
+
+- [ ] **P10-W1** Onboarding v2: per-app first-open tips, "what's new since v2.2" digest, discoverability nudges
+- [ ] **P10-W2** Coach marks + tooltips: long-press menus, folders, widgets, dock, Spotlight — first-time hints everywhere
+- [ ] **P10-W3** Empty states v2: illustrated premium empty states + one-tap sample data for every app
+- [ ] **P10-W4** Micro-interactions: haptics (vibrate patterns), optional UI sounds, springy sheet/menu transitions
+- [ ] **P10-W5** Accessibility I: contrast AA sweep, focus-ring consistency, screen-reader labels for every interactive element
+- [ ] **P10-W6** Accessibility II: reduced-motion mode, 85–130% font scaling, 44px touch-target audit across shell + top apps
+- [ ] **P10-W7** Themes v4: 8 new presets, live preview carousel, per-app accent override
+- [ ] **P10-W8** Gestures v2: swipe-between-recents, pull-to-refresh shade, refined long-press quick menus
+- [ ] **P10-W9** Help Center v2: searchable per-app guides + "advanced tools cookbook" seeds
+- [ ] **P10-W10** Phase 10 QA Day + usability checklist (friendliness scorecard per app) → tag **v2.4**
+
+### Phase 11 — v2.5 · "Creator Tools" (advanced tools I)
+
+- [ ] **P11-W1** Code Editor: syntax-highlighted multi-tab editor, snippets, find/replace, export
+- [ ] **P11-W2** Regex Lab: pattern builder, live match highlighting, replace preview, cheat-sheet
+- [ ] **P11-W3** Diff & Merge: two-pane text compare, unified diff, change navigation
+- [ ] **P11-W4** Snippet Vault: tagged snippets, search, folders, import/export
+- [ ] **P11-W5** Text Forge: case/sort/dedupe/count, lorem generator, hash + encode/decode suite
+- [ ] **P11-W6** Markdown Studio v2: live preview, outline, export to HTML/MD
+- [ ] **P11-W7** Icon Forge: SVG icon composer, export PNG set + favicon pack
+- [ ] **P11-W8** Color Studio v2: palette generator, contrast checker, export design tokens
+- [ ] **P11-W9** Image Optimizer: drag-in compress/resize/convert with before-after preview
+- [ ] **P11-W10** Phase 11 QA Day: new-tools sweep → tag **v2.5**
+
+### Phase 12 — v2.6 · "Dev Tools" (advanced tools II)
+
+- [ ] **P12-W1** API Client: request runner (method/headers/body), response viewer, history, environments
+- [ ] **P12-W2** JSON Forge: format/minify, JSONPath queries, schema inference, error pin-pointing
+- [ ] **P12-W3** SQL Playground: in-browser SQLite (sql.js), sample DBs, saved queries + SQL formatter
+- [ ] **P12-W4** Cron Builder: human-readable schedule editor, next-runs preview, timezone-aware
+- [ ] **P12-W5** Webhook Inspector: local mock listener, request log, replay + cURL copy
+- [ ] **P12-W6** JWT Inspector + Hash Suite: decode/verify, claims table, hash/checksum calculator
+- [ ] **P12-W7** QR & Barcode Studio v2: batch generation, logo embedding, scanner (camera where allowed)
+- [ ] **P12-W8** CSV Studio v2: join/dedupe/pivot, type inference, chart hand-off
+- [ ] **P12-W9** Chart Builder: paste/table data → bar/line/pie/area, PNG export, themes
+- [ ] **P12-W10** Phase 12 QA Day: new-tools sweep → tag **v2.6**
+
+### Phase 13 — v2.7 · "AI Studio" (advanced tools III)
+
+- [ ] **P13-W1** AI Chat: streaming assistant with history + system presets (thin backend route)
+- [ ] **P13-W2** AI Writer: tone presets, rewrite/expand/shorten, side-by-side compare
+- [ ] **P13-W3** AI Summarizer: paste/URL → TL;DR, key points, action items
+- [ ] **P13-W4** AI Translator: EN/BN/HI/ES + more, tone-aware, copy-ready
+- [ ] **P13-W5** AI Image Studio: text-to-image generation + edit presets
+- [ ] **P13-W6** AI Vision: image Q&A, extract text/tables from photos
+- [ ] **P13-W7** AI Voice Studio: TTS with voice/speed controls, download audio
+- [ ] **P13-W8** AI Transcribe: audio upload → transcript with timestamps
+- [ ] **P13-W9** Prompt Library: templates with variables, favorites, run history
+- [ ] **P13-W10** Phase 13 QA Day + backend guards (rate limit, error surface) → tag **v2.7**
+
+### Phase 14 — v2.8 · "Media Lab" (advanced tools IV)
+
+- [ ] **P14-W1** Audio Recorder & Trimmer: record, waveform trim, export
+- [ ] **P14-W2** Audio Effects: speed/pitch/fade/normalize + Metronome sound packs
+- [ ] **P14-W3** Video Trimmer: client-side segment cut, preview, export
+- [ ] **P14-W4** Screen & Voice Recorder: screen capture + mic mix (desktop; picker fallback)
+- [ ] **P14-W5** PDF Pro: merge/split/rotate/reorder pages
+- [ ] **P14-W6** PDF Annotate: text, highlight, signature, flattened export
+- [ ] **P14-W7** Photo Editor v2: crop/filters/draw/text layers
+- [ ] **P14-W8** Image Batch Ops: multi-file resize/convert/watermark with presets
+- [ ] **P14-W9** GIF Maker + Pixel Art editor: frames → gif with speed control; 16×16–64×64 pixel canvas
+- [ ] **P14-W10** Phase 14 QA Day: low-end viewport budgets → tag **v2.8**
+
+### Phase 15 — v2.9 · "Automate & Life" (advanced tools V)
+
+- [ ] **P15-W1** Flows engine: trigger → action graph editor with validation
+- [ ] **P15-W2** Flow actions I: notify, clipboard, open app, copy field
+- [ ] **P15-W3** Flow actions II: timers, conditions, variables, loops-lite
+- [ ] **P15-W4** Shortcuts app: run flows from Spotlight/Shade/quick actions
+- [ ] **P15-W5** Scheduled automations + run-history logs
+- [ ] **P15-W6** Flow templates gallery: ready-made recipes one tap away
+- [ ] **P15-W7** Share sheet v2: system share target → route into any app/flow
+- [ ] **P15-W8** Documents Vault: encrypted local store for sensitive notes/files
+- [ ] **P15-W9** Money pack: Expense Split + Subscription/Bill reminder
+- [ ] **P15-W10** Phase 15 QA Day: flow E2E scenarios → tag **v2.9**
+
+### Phase 16 — v3.0-beta · "Ecosystem & Reach"
+
+- [ ] **P16-W1** Widget packs v2: new widgets + visual widget editor
+- [ ] **P16-W2** Spotlight plugins v2: unit/currency refresh, math chaining, app actions
+- [ ] **P16-W3** Store v3: refreshed collections, screenshot carousels, "what's new" digest page
+- [ ] **P16-W4** Developer mode: tool-pack format spec + sandboxed loader
+- [ ] **P16-W5** Pack installer + sample pack (install external tool packs as JSON)
+- [ ] **P16-W6** i18n graduation III: remaining core apps' internal strings join the 4-language dictionaries
+- [ ] **P16-W7** i18n graduation IV: new tools (P11–P15) join the dictionaries; locale QA across bn/hi/es
+- [ ] **P16-W8** Cloud sync v3: selective domain sync, conflict viewer, device names
+- [ ] **P16-W9** App Lock v3: per-folder biometric, auto-lock policies, duress hint
+- [ ] **P16-W10** Phase 16 QA Day → tag **v3.0-beta**
+
+### Phase 17 — v3.0-rc · "Reach & Polish"
+
+- [ ] **P17-W1** PWA reach: shortcuts v3, file/protocol handlers, share extensions audit
+- [ ] **P17-W2** Update system: in-app changelog digest, migration notes, rollback-safe stores
+- [ ] **P17-W3** Onboarding v3 + one-time feature-discovery hints for everything shipped in P9–P16
+- [ ] **P17-W4** Perf sweep II: cold-start budget, bundle diet, lazy audit across all new tools
+- [ ] **P17-W5** A11y final audit: WCAG AA across shell + top-25 apps
+- [ ] **P17-W6** Full E2E marathon: every app × {360, 390, 430, 768, 1280}, zero errors
+- [ ] **P17-W7** Bug bash: cross-app interaction drill + fix everything found
+- [ ] **P17-W8** Docs: user manual + advanced-tools cookbook + developer docs
+- [ ] **P17-W9** Data safety: export-everything, wipe, fresh-install + migration drill
+- [ ] **P17-W10** Release candidate **v3.0-rc** + changelog + store metadata
+
+### Phase 18 — v3.0 · "Launch"
+
+- [ ] **P18-W1** RC feedback fixes wave
+- [ ] **P18-W2** Launch assets: icons, banners, screenshots refresh
+- [ ] **P18-W3** Final QA: Lighthouse ≥95 mobile, PWA checks, a11y green
+- [ ] **P18-W4** Store listing refresh: every app's page reads well (120+ apps)
+- [ ] **P18-W5** Launch rehearsal: fresh-profile E2E, airplane drill, low-end viewport
+- [ ] **P18-W6** RC freeze + beta notes
+- [ ] **P18-W7** v3.0 freeze + credits + final changelog
+- [ ] **P18-W8** Buffer day (overflow from any phase)
+- [ ] **P18-W9** Launch-week comms draft (share copy, changelog page)
+- [ ] **P18-W10** **LAUNCH v3.0** — tag, push, celebration toast + draft next horizon
+
+**Success criteria (end of Day 100):** 120+ app catalog · zero known errors · 4 languages across chrome + core apps · WCAG AA · Lighthouse ≥95 mobile · **v3.0 shipped**.
+
+---
+
 ## 3. Backlog pool (pull from here when a day finishes early)
 
 - Image optimizer/compressor · Favicon generator · Lorem ipsum · SQL formatter · Palette generator
