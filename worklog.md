@@ -2575,3 +2575,26 @@ Gates:
 Stage Summary:
 - PHASE 8 "Depth & Flow" CLOSED at v2.2: locale graduation (dates + Notes/Calculator/Clock strings ×4 languages), Calculator Pro solve mode, and five new apps (Mind Map, Flowchart, Stats Plotter, Journal, Time Tracker)
 - Tagged v2.2; Phase 9 pool: app-internal i18n graduation wave 2 (deep aria-labels, folder manager, remaining apps), hi/es date locale polish, backlog pool (SQL formatter, favicon generator, pixel art editor, piano, subscription tracker, documents vault…)
+---
+Task ID: P9-W1
+Agent: main (Z.ai Code)
+Task: Phase 9 Wave 1 — Diagnostics Center (nine-point platform health check)
+
+Work Log:
+- Session start: working tree found regressed to a stale end-of-v2.1 snapshot (APP_VERSION 2.1.0, Phase 8 section + hi/es dicts + 5 apps missing from the working copy while HEAD was at v2.2) — environment restore artifact. Verified via git diff direction (registry lost mind-map/flowchart/stats-plotter/journal/time-tracker) and restored cleanly with `git restore .`; local main == origin/main (0/0)
+- 100-Day Master Plan drafted into ROADMAP.md (P9-P18, 10 phases x 10 waves = 100 waves, v2.3 -> v3.0) around the user's three pillars: user-friendly (Delight phase), find-and-fix-every-error (Fortify phase), advanced tools (5 tool phases)
+- PLAN CORRECTION after registry audit: catalog already ships ai-chat, ai-writer, translator, tts-studio, speech-to-text, code-editor, regex-tester, diff-checker, json-formatter, jwt-decoder, cron-timestamp, gif-maker, voice/screen recorders, pdf-tools, paint-studio, image-tools, expense-tracker, sheet-studio, stats-plotter... — P11-P15 reframed as pro-grade v2 upgrades of these, with only genuinely-missing tools marked (new app): Snippet Vault, Icon Forge, API Client, SQL Playground, Webhook Inspector, AI Summarizer/Image Studio/Vision, Prompt Library, Flows, Shortcuts, Documents Vault, Subscription tracker. Success criteria now 100+ catalog
+- src/lib/diagnostics.ts: 9-check engine — registry integrity (unique ids, complete definitions, hex glow, component fn), installed-vs-registry drift (orphans + missing system apps, reads zustand persist raw), storage quota (estimate API, 75%/90% thresholds), localStorage health (JSON validity for owned keys + size budget), IndexedDB health (discovers every DB via databases(), open-tests all toolhub* stores staggered 15ms, flags foreign DBs), SW/cache (registration, live scope, asset count, stale toolhub-vN detection), web manifest (fetch + name/icons/shortcuts), feature matrix (8 APIs), foreign-key scan
+- Owner-triggered fixes: Repair installed list (filters orphans, re-seats system apps, reload), Purge stale caches (keeps newest toolhub-vN), Remove corrupt keys; every fix explicit — never automatic
+- src/components/tools/diagnostics-center.tsx: card in Admin Console below telemetry hero — auto-runs once per unlock (900ms delay, after embed sweep), live "Checking n/9" progress, health score ring (100 - 10*warn - 25*fail), status rows with fix buttons, toast on fix (+ reload when needed), aria-label + sr-only score
+- FIXED DURING QA (live E2E findings): IndexedDB check false-positived on toolhub-habits/toolhub-weather (34+ legit app DBs vs hardcoded 3) -> redesigned to discovery-based open-test-all-toolhub*; foreign-key scan false-positived on nextauth.message (our own NextAuth dependency) -> added to owned prefixes
+- Sandbox notes: dev server OOM-died twice mid-verification (restarted + warmed); stale-SW chunk poisoning after restart (unstyled render) resolved with standard purge (caches.delete all + unregister SW) + reload
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean (0 problems)
+- E2E (agent-browser 390x844): deep link -> passcode gate -> unlock -> Diagnostics Center auto-ran 9/9, score 90 (only environmental Web-Share warn in headless); Re-run re-completes 9 rows; both QA false-positives verified fixed live
+- Overflow 0px at 360 and 1280; zero page errors; desktop 1280 layout premium (screenshot verified)
+
+Stage Summary:
+- P9-W1 shipped: Diagnostics Center live in Admin Console — the platform now audits itself
+- Next: P9-W2 — catalog error sweep I (30 apps deep QA at 360/390/1280, fix everything found)
