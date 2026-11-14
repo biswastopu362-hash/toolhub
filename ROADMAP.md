@@ -218,7 +218,7 @@ Target: **~80+ apps & features** by Day 90.
 - [x] **P8-W5** Flowchart studio: shape palette (terminal/process/decision/io), SVG connectors with arrowheads, grid snap, JSON save/load
 - [x] **P8-W6** Stats Plotter: table/paste data → line/bar/scatter/pie charts + summary stats (mean/median/mode/range/stddev)
 - [x] **P8-W7** Journal: daily mood-tracked entries, streak strip, mood history visualization, search
-- [ ] **P8-W8** Time Tracker: project timers, today/week totals, history log + Phase 8 QA Day (90-app sweep, 3-viewport overflow), APP_VERSION 2.2.0 + CHANGELOG, tag **v2.2**
+- [x] **P8-W8** Time Tracker: project timers, today/week totals, history log + Phase 8 QA Day (90-app sweep, 3-viewport overflow), APP_VERSION 2.2.0 + CHANGELOG, tag **v2.2**
 
 ---
 

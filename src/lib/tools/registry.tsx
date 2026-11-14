@@ -94,6 +94,7 @@ import {
   Workflow,
   LineChart,
   BookHeart,
+  Timer,
 } from 'lucide-react'
 import { ToolSkeleton } from '@/components/tools/tool-skeleton'
 import { getExternalToolById, getExternalTools } from './external'
@@ -206,6 +207,7 @@ const MindMapApp = load(() => import('@/components/tools/mind-map'))
 const FlowchartApp = load(() => import('@/components/tools/flowchart'))
 const StatsPlotterApp = load(() => import('@/components/tools/stats-plotter'))
 const JournalApp = load(() => import('@/components/tools/journal'))
+const TimeTrackerApp = load(() => import('@/components/tools/time-tracker'))
 const SudokuApp = load(() => import('@/components/tools/sudoku'))
 const MinesweeperApp = load(() => import('@/components/tools/minesweeper'))
 const SnakeApp = load(() => import('@/components/tools/snake'))
@@ -385,11 +387,10 @@ export const tools: Tool[] = [
     gradient: 'from-red-400 via-rose-500 to-pink-600',
     glow: '#f43f5e',
     keywords: ['calendar', 'events', 'schedule', 'plan', 'month', 'date', 'agenda'],
-    version: '1.4.0',
+    version: '2.2.0',
     changelog: [
-      'Home-screen widget: your next events at a glance',
-      'Feeds the new widget strip and Spotlight answers',
-      'Smoother month swiping',
+      'Month header, weekday strip, day numbers and agenda dates now render in Bengali, Hindi and Spanish',
+      'Localized date labels across the agenda panel and upcoming strip',
     ],
     Component: CalendarApp,
   },
@@ -973,7 +974,11 @@ export const tools: Tool[] = [
     gradient: 'from-slate-500 via-slate-600 to-slate-800',
     glow: '#475569',
     keywords: ['time', 'world clock', 'stopwatch', 'timer', 'alarm', 'timezone', 'countdown', 'laps'],
-    version: '2.0.0',
+    version: '2.2.0',
+    changelog: [
+      'Full Bengali, Hindi and Spanish translations across world clock, stopwatch and timer',
+      'City dates and local time render in your language, with Bengali numerals',
+    ],
     Component: ClockTool,
   },
   {
@@ -999,11 +1004,10 @@ export const tools: Tool[] = [
     gradient: 'from-amber-300 via-amber-400 to-yellow-600',
     glow: '#fbbf24',
     keywords: ['notes', 'write', 'memo', 'diary', 'notepad', 'text', 'folder', 'pin', 'markdown', 'export', 'color', 'notebook'],
-    version: '2.1.0',
+    version: '2.2.0',
     changelog: [
-      'Your pinned note now lives on the home screen as a sticky widget',
-      'Folders ride the cloud-sync launcher domain',
-      'Create notes straight from Spotlight with "note: …"',
+      'Notes now speaks Bengali, Hindi and Spanish — headers, folders, editor and dialogs included',
+      'Timestamps and word counts render with localized dates and digits',
     ],
     Component: NotesTool,
   },
@@ -1016,6 +1020,10 @@ export const tools: Tool[] = [
     gradient: 'from-rose-300 via-rose-400 to-red-500',
     glow: '#fb7185',
     keywords: ['todo', 'task', 'reminder', 'checklist', 'list', 'done'],
+    version: '2.2.0',
+    changelog: [
+      'Entry timestamps render in Bengali, Hindi and Spanish with localized digits',
+    ],
     Component: RemindersTool,
   },
   {
@@ -1428,6 +1436,19 @@ export const tools: Tool[] = [
     keywords: ['journal', 'diary', 'mood', 'daily', 'reflection', 'streak', 'gratitude', 'entries', 'tracking'],
     version: '1.0.0',
     Component: JournalApp,
+  },
+  {
+    id: 'time-tracker',
+    name: 'Time Tracker',
+    description: 'Start per-task timers that add up — starting one pauses the others, totals persist across reloads',
+    tagline: 'Know where the hours go',
+    category: 'productivity',
+    icon: Timer,
+    gradient: 'from-cyan-400 via-teal-500 to-emerald-600',
+    glow: '#14b8a6',
+    keywords: ['time tracker', 'timer', 'hours', 'project', 'tasks', 'billing', 'stopwatch', 'log', 'work'],
+    version: '1.0.0',
+    Component: TimeTrackerApp,
   },
 ]
 

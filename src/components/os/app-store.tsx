@@ -122,6 +122,18 @@ const UPDATED_IN_21 = new Set([
   'game-2048',
 ])
 
+/** Apps that genuinely shipped changes in the v2.2 release. */
+const UPDATED_IN_22 = new Set([
+  'notes',
+  'clock',
+  'calendar',
+  'reminders',
+  'calculator',
+])
+
+/** Never-seen apps count as updates only for the CURRENT release. */
+const UPDATED_IN_CURRENT = UPDATED_IN_22
+
 /** Ask the OS shell to open an app window. */
 function requestOpenApp(id: string) {
   window.dispatchEvent(new CustomEvent<string>('toolhub:open-app', { detail: id }))
@@ -777,7 +789,7 @@ export default function AppStoreApp() {
     setSeenSeeded(true)
     const s = useAppStore.getState()
     for (const t of tools) {
-      if (t.version && s.seenVersions[t.id] === undefined && !UPDATED_IN_21.has(t.id)) {
+      if (t.version && s.seenVersions[t.id] === undefined && !UPDATED_IN_21.has(t.id) && !UPDATED_IN_22.has(t.id)) {
         s.markVersionSeen(t.id, t.version)
       }
     }
@@ -790,8 +802,8 @@ export default function AppStoreApp() {
         const seen = seenVersions[t.id]
         if (seen !== undefined) return seen !== t.version
         /* never-seen apps count as updates only when this release really
-           shipped changes for them (v2.1 set) — fresh installs are current */
-        return UPDATED_IN_21.has(t.id)
+           shipped changes for them (current release set) — fresh installs are current */
+        return UPDATED_IN_CURRENT.has(t.id)
       }),
     [installed, seenVersions]
   )

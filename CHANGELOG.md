@@ -1,8 +1,26 @@
 # ToolHub — Changelog
 
-One hub, every tool. A phone-OS style PWA super-app: an app-store launcher, 85 built-in
+One hub, every tool. A phone-OS style PWA super-app: an app-store launcher, 90 built-in
 offline apps, your own linked platforms, themes, widgets and search that thinks.
 Everything runs on your device — zero uploads.
+
+## 2.2.0 — Depth & Flow (Phase 8)
+
+**Localization graduation**
+
+- Clock, Calendar, Notes and Reminders now render dates, digits and full app strings in Bengali, Hindi and Spanish (shared Intl date layer, +190 dictionary keys, compile-proven across all four languages)
+
+**Calculator Pro**
+
+- New Solve mode: quadratic equations (roots, complex pairs, vertex) and 2×2 / 3×3 linear systems via Cramer's rule — solver results land in the tape with a Solve badge
+
+**Five new apps (85 → 90)**
+
+- Mind Map: two-sided tree editor on an infinite pan canvas — branch colors, collapse subtrees, one-tap tidy, JSON export/import
+- Flowchart: terminal/process/decision/IO shapes, arrowed connectors, grid snap, multi-chart documents + JSON
+- Stats Plotter: paste a table, get line/bar/scatter/pie charts plus mean, median, mode, range and standard deviation
+- Journal: one entry a day with a mood — streaks, a 30-day mood ribbon and instant search
+- Time Tracker: per-task timers that add up; starting one pauses the others and totals survive reloads
 
 ## 2.1.0 — Reach & Rituals (Phase 7)
 

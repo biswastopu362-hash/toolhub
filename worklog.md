@@ -2557,3 +2557,21 @@ Gates:
 Stage Summary:
 - Catalog now 89 apps; backlog pool "Journal with mood tracking" done — four new apps shipped this phase (mind-map, flowchart, stats-plotter, journal)
 - Next: P8-W8 — Time Tracker (new app #5) + Phase 8 QA Day + v2.2 release
+---
+Task ID: P8-W8
+Agent: main (Z.ai Code)
+Task: Phase 8 Wave 8 — Time Tracker (new app #5) + Phase 8 QA Day + v2.2 release
+
+Work Log:
+- New app `time-tracker` (productivity): per-task timers that add up — start/pause with banked totals, starting one task pauses the others (exclusivity), reset/delete per task, live 1s ticker only while something runs; totals persist across reloads (localStorage 'toolhub-timetracker', runningSince cleared on load so closed-while-running resumes paused)
+- Registry: id time-tracker, Timer icon, cyan-teal gradient (#14b8a6), version 1.0.0 — catalog 85 → 90
+- Release: APP_VERSION 2.2.0 (src/lib/constants.ts); CHANGELOG.md v2.2.0 "Depth & Flow" entry (mirrors the eight waves); store update-badge seeding — UPDATED_IN_22 set (notes/clock/calendar/reminders/calculator) with per-app registry version bumps + real changelogs, never-seen apps now count as updates only for the current release set
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E (agent-browser, 390×844): Time Tracker installed via store search; two tasks added; exclusivity verified (starting Email froze Deep work at 00:00:04 PAUSED, exactly 1 running); pause froze Email (two reads identical); totals sum correctly (00:00:35); state survived reload; zero console errors
+- Phase 8 QA Day: 90/90-app catalog sweep ALL OK in one pass (auto-restarting dev server handled several OOM crash-loops; one ops-session shell recovered via fresh restart); 0px horizontal overflow at 360/390/1280 on home + store + settings (9/9); zero page errors
+
+Stage Summary:
+- PHASE 8 "Depth & Flow" CLOSED at v2.2: locale graduation (dates + Notes/Calculator/Clock strings ×4 languages), Calculator Pro solve mode, and five new apps (Mind Map, Flowchart, Stats Plotter, Journal, Time Tracker)
+- Tagged v2.2; Phase 9 pool: app-internal i18n graduation wave 2 (deep aria-labels, folder manager, remaining apps), hi/es date locale polish, backlog pool (SQL formatter, favicon generator, pixel art editor, piano, subscription tracker, documents vault…)
