@@ -2621,3 +2621,25 @@ Gates:
 Stage Summary:
 - P9-W2 closed with a clean bill of health: apps 1-30 verified render, error, overflow and interaction safe
 - Next: P9-W3 — catalog error sweep II (next 30 apps, same harness)
+---
+Task ID: P9-W3
+Agent: main (Z.ai Code)
+Task: Phase 9 Wave 3 — Catalog error sweep II (apps 31-60, deep QA)
+
+Work Log:
+- Reused the P9-W2 harness (hash-nav loop + error collector + per-app probe), sweeping registry apps 31-60: memory-match, bangla-wordle, 2p-arcade, solitaire, trivia-quiz, game-center, calculator, unit-converter, qr-generator, password-generator, emi-calculator, travel-fuel, age-calculator, text-tools, color-tool, json-formatter, diff-checker, regex-tester, hash-uuid, jwt-decoder, cron-timestamp, code-editor, task-board, business-card, base64-tool, clock, weather, notes, reminders, currency
+- INCIDENT root-caused, not an app defect: the first full pass flagged all 30 apps "crashed" with identical ~150-char texts — the dev server OOM-died mid-sweep (4th crash) and every lazy chunk 404'd; the D87 per-app error boundaries caught every failure with the graceful "Your data is safe — Try again" fallback (dialog present, zero window errors, server 000 confirmed). D87 verified live under real failure conditions
+- Adapted protocol: after restart, re-swept in batches of 10 with server health checks between batches — 30/30 render, no crash UI, 0 runtime errors, 0px overflow at 390x844
+- 360px overflow pass in two batches: 30/30 at 0px; 1280 spot checks calculator/code-editor/game-center all 0px
+- Visual spot-checks: 2p-arcade (full tabbed board), json-formatter (editor + actions), age-calculator, reminders — all premium
+- Interaction drills: calculator 2+5=7 via real button clicks (arithmetic correct); notes full lifecycle — New -> fill title/body -> "Back to notes" saves -> localStorage persistence verified (note persisted=true; Escape closes the window without saving, save-on-back is the designed flow, not a defect)
+- Game Center at 1280 verified visually: rounds/wins/badges hero, per-game high-score rows (sudoku/minesweeper/snake), 37-badge achievement wall
+- Code fixes required: NONE — the 31-60 slice is defect-free; the wave's real value was live-validating D87 crash recovery under server death
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E: 30/30 render+errors+overflow at 390 · 30/30 overflow at 360 · 3 apps spot at 1280 · calculator + notes drills passed · zero native page errors
+
+Stage Summary:
+- P9-W3 closed clean: apps 31-60 verified; D87 error boundaries battle-tested against server death
+- Next: P9-W4 — catalog error sweep III (final 30 apps + cross-app drills)
