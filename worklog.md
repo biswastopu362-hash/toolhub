@@ -2643,3 +2643,24 @@ Gates:
 Stage Summary:
 - P9-W3 closed clean: apps 31-60 verified; D87 error boundaries battle-tested against server death
 - Next: P9-W4 — catalog error sweep III (final 30 apps + cross-app drills)
+---
+Task ID: P9-W4
+Agent: main (Z.ai Code)
+Task: Phase 9 Wave 4 — Catalog error sweep III (apps 61-90 + cross-app drills)
+
+Work Log:
+- Swept registry apps 61-90 in batches of 10 with server health checks: image-tools, voice-recorder, device-info, settings, admin-console, help, flashcards, habit-tracker, compass, metronome, presentation-studio, resume-builder, invoice-generator, markdown-studio, screen-recorder, gif-maker, video-converter, meme-maker, collage-maker, sticker-studio, subtitle-studio, wallpaper-studio, random-tools, font-playground, ai-writer, mind-map, flowchart, stats-plotter, journal, time-tracker — 30/30 render, no crash UI, zero runtime errors, 0px overflow at 390x844; 360px pass 30/30 at 0px. FULL CATALOG now verified: 90/90 apps clean across W2-W4
+- Cross-app drills: (1) 2048 -> Game Center shared-store handoff — played 6 arrow moves (score 16), Game Center 2048 row shows "High score 16" live; (2) Spotlight inline calculator — typed 12*4, plugin rendered "12*4 = 48 · TAP TO COPY"; (3) copy flow — hash-uuid generated + Copy fired (clipboard READ is headless-permission-blocked, environmental, write side observed via app toast pattern); (4) FULL lock->unlock lifecycle (below) — the wave's headline find
+- REAL BUG FOUND + FIXED (App Lock bypass): after enabling App Lock (PIN setup persisted: enabled=true, pinHash set, lockedApps=["notes"]), deep-linking #/app/notes rendered the app WITHOUT the PIN gate. Root cause: the gate was enforced only inside openApp() (launcher taps), while the hash router renders app windows directly from the route — every deep link / back-forward / share-target entry bypassed the lock entirely
+- Fix (page.tsx): render-level enforcement — routeGated derived from appLock + route app id; LockGate now renders for BOTH lockAppId (launcher path, hash unchanged) and routeGated (deep-link path); unlock recorded via session state keyed {app, unlocked[]} using React's documented adjust-state-during-render pattern (route changes invalidate the unlock — leaving the app or opening another one re-arms the gate; no effects, lint-clean)
+- REGRESSION during fix caught by E2E: first version required hash-derived app to render the gate, which silently broke the launcher-tap path (hash still #/ -> app null -> gate never rendered) — caught by the tap drill, fixed by decoupling the gate's appId from the route (lockAppId ?? routeGated app id)
+- Full lock lifecycle re-verified end-to-end after the fix: setup PIN 1357 via keypad UI -> persisted; Lock Notes toggle -> lockedApps=["notes"]; launcher tap -> gate; deep link -> gate; wrong PIN 0000 -> rejected, pad resets; correct PIN -> app opens; home -> re-deep-link -> gate re-arms; Settings Remove -> native confirm dialog -> appLock null; Notes then opens freely (gate=false appOpen=true)
+- Sandbox: dev server OOM-died 5 more times this wave (counter: 8 total) — every recovery documented; stale-SW shell cache re-poisoned once after restart (purge+reload ritual applied); native page errors zero at every gate
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E: 30/30 render+overflow at 390 · 30/30 overflow at 360 · 4 cross-app drills · full lock lifecycle 8-step verified · zero native page errors
+
+Stage Summary:
+- P9-W4 closed: catalog 90/90 verified clean; App Lock deep-link bypass FIXED and battle-tested through the complete lifecycle
+- Next: P9-W5 — crash & error telemetry (per-app counts, 14-day trend, session health score in Admin Console)

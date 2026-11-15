@@ -161,6 +161,28 @@ function OsShell() {
 
   const app = getToolById(appId)
   const showApp = hydrated && Boolean(app)
+  /* P9-W4 fix: the PIN gate must also engage on hash/deep-link routes
+   * (#/app/<id> via back/forward, share links or external entry), which
+   * bypass openApp() entirely. Gate at the render level; the session
+   * unlock is keyed to the open app and re-arms on ANY route change, so
+   * leaving the app (or opening another one) demands the PIN again. */
+  const appLock = useAppStore((s) => s.appLock)
+  const [session, setSession] = useState<{ app: string | null; unlocked: string[] }>({
+    app: null,
+    unlocked: [],
+  })
+  if ((session.app ?? null) !== (appId ?? null)) {
+    /* React's documented "adjust state during render" pattern — route
+     * changes invalidate the unlock; no effect needed. */
+    setSession({ app: appId, unlocked: [] })
+  }
+  const routeGated =
+    showApp &&
+    !!app &&
+    !!appLock &&
+    appLock.enabled &&
+    appLock.lockedApps.includes(app.id) &&
+    !session.unlocked.includes(app.id)
   const wallpaperId = hydrated ? wallpaper : DEFAULT_WALLPAPER
 
   /* v2.1 telemetry: every app session start (UI tap OR deep link) bumps the
@@ -498,24 +520,39 @@ function OsShell() {
 
         {/* Full-screen app window with iPad-style zoom transition */}
         <AnimatePresence>
-          {showApp && app && <AppWindow key={app.id} app={app} onHome={goHome} originRect={winOrigin} />}
+          {showApp && app && !routeGated && (
+            <AppWindow key={app.id} app={app} onHome={goHome} originRect={winOrigin} />
+          )}
         </AnimatePresence>
 
-        {/* App Lock PIN gate (D9) */}
+        {/* App Lock PIN gate (D9) — covers launcher taps AND hash/deep-link
+         * routes since P9-W4 (render-level enforcement). The gate's target
+         * comes from lockAppId (launcher path, hash not changed yet) or from
+         * the route itself (deep-link path). */}
         <AnimatePresence>
-          {lockAppId && (
+          {(lockAppId !== null || routeGated) && (
             <LockGate
               key="app-lock"
-              appId={lockAppId}
+              appId={(lockAppId ?? (routeGated && app ? app.id : '')) as string}
               onUnlock={() => {
-                const id = lockAppId
+                const id = lockAppId ?? (routeGated && app ? app.id : '')
+                if (!id) return
+                /* pre-record the unlock keyed to the incoming route so the
+                 * render-time route-change reset does not re-gate it */
+                setSession({ app: id, unlocked: [id] })
                 setLockAppId(null)
-                if (id) {
+                /* launcher-tap path: the hash is still on the previous view —
+                 * navigate now that the session unlock is recorded */
+                if (lockAppId !== null) {
                   useAppStore.getState().addRecent(id)
                   navigate(`#/app/${id}`)
                 }
               }}
-              onCancel={() => setLockAppId(null)}
+              onCancel={() => {
+                setLockAppId(null)
+                /* deep-link path: bounce home instead of leaking the app */
+                if (routeGated) navigate('#/')
+              }}
             />
           )}
         </AnimatePresence>
