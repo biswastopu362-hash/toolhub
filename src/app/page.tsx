@@ -44,6 +44,7 @@ import Onboarding from '@/components/os/onboarding'
 import { LaunchCelebration } from '@/components/os/launch-celebration'
 import { AutoSync } from '@/components/os/auto-sync'
 import { recordAppOpen } from '@/lib/telemetry'
+import { setActiveCrashApp } from '@/lib/crash-telemetry'
 import { evalCurrency, evalColor, evalUnitChain } from '@/lib/spotlight-plugins'
 import { WidgetStrip } from '@/components/os/home-widgets'
 import { NotificationShade } from '@/components/os/notification-shade'
@@ -82,6 +83,7 @@ import { useHomeDrag } from '@/components/home/use-home-drag'
 import { AuthProvider } from '@/components/auth/session-provider'
 import { useLang } from '@/hooks/use-lang'
 import { AppErrorBoundary } from '@/components/os/app-error-boundary'
+import { GlobalErrorTelemetry } from '@/components/os/global-error-telemetry'
 
 /* ================================================================== */
 /* Constants                                                           */
@@ -192,12 +194,14 @@ function OsShell() {
   useEffect(() => {
     if (!appId) {
       lastOpenedRef.current = null
+      setActiveCrashApp(null) /* P9-W5: global errors now belong to the shell */
       return
     }
     if (appId !== lastOpenedRef.current) {
       lastOpenedRef.current = appId
       recordAppOpen(appId)
     }
+    setActiveCrashApp(appId) /* P9-W5: attribute window errors to the open app */
   }, [appId])
 
   /* one-time consistency pass for the persisted home layout (installed only) */
@@ -565,6 +569,9 @@ function OsShell() {
 
         {/* v2.1 automatic cloud backup watcher (no UI; gated by session + setting) */}
         <AutoSync />
+
+        {/* P9-W5 — window error/rejection streams + session lifecycle (no UI) */}
+        <GlobalErrorTelemetry />
       </div>
     </MotionConfig>
   )
@@ -2424,7 +2431,7 @@ function AppWindow({ app, onHome, originRect }: { app: Tool; onHome: () => void;
 
       {/* App body — D87: per-app crash isolation */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        <AppErrorBoundary appName={app.name} onHome={onHome}>
+        <AppErrorBoundary appName={app.name} appId={app.id} onHome={onHome}>
           {app.external ? (
             /* linked platforms run edge-to-edge, like a native app screen */
             <div className="h-full">

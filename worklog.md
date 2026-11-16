@@ -2664,3 +2664,25 @@ Gates:
 Stage Summary:
 - P9-W4 closed: catalog 90/90 verified clean; App Lock deep-link bypass FIXED and battle-tested through the complete lifecycle
 - Next: P9-W5 — crash & error telemetry (per-app counts, 14-day trend, session health score in Admin Console)
+---
+Task ID: P9-W5
+Agent: main (Z.ai Code)
+Task: Phase 9 Wave 5 — Crash & error telemetry (session health score, 14-day trend, per-app counts in Admin Console)
+
+Work Log:
+- New engine src/lib/crash-telemetry.ts: two error streams into one local store (localStorage `toolhub.crashes.v1`, 30-day retention, 20-session history, never uploaded) — (1) app crashes via React error boundaries, (2) window `error` + `unhandledrejection` events attributed to the open app or `system` when the shell throws
+- Module-level attribution: setActiveCrashApp(id) wired into the existing hash-level appId funnel in page.tsx (same single funnel as opens telemetry — deep links, taps, share targets all attribute correctly; null on home = shell/system)
+- GlobalErrorTelemetry (invisible shell mount): markSessionStart() on mount, resource-load noise filtered (empty-message error events skipped), finishSession() on pagehide persists the summary; React's reportError echo of boundary crashes deduped by message-signature within 2s so a crash never double-counts as a global error
+- AppErrorBoundary: new optional appId prop (stable registry id as telemetry key; appName stays display-only); componentDidCatch now feeds recordAppCrash inside its own try/catch — telemetry can never block crash recovery
+- CrashTelemetryPanel in Admin Console (under Diagnostics Center): live session health score badge (100 − 15/crash − 3/error, tone-tiered), uptime/crashes/errors/last-session strip, 14-day stacked trend chart (rose = boundary crashes, amber = script errors, muted stubs for clean days), per-app offender list (registry + linked-platform name resolution, rose/amber count badges, last message + relative time, max-h-48 scroll), Clear history via AlertDialog (days+sessions wiped, current session tally preserved — stated in the dialog copy)
+- E2E (390/360/1280): panel renders pristine (score 100, "all clear", Clear disabled); REAL error pipeline drills — system probe (thrown on home) recorded under "OS shell · system", notes probe (thrown at #/app/notes) attributed to Notes; score 100→94 exactly per formula; synthetic boundary-crash drill validated the crash bucket (rose badge + "1 crash · 1 error" trend); multi-day injection verified chart aggregation (3 crashes · 4 errors across 3 days); Clear history reset store to {"days":{},"sessions":[]}; 0px overflow at 360/390/1280; zero unexpected page errors (only the two intentional probes)
+- Note: a real React boundary crash was not forced in-browser (needs a broken render); the boundary path feeds the same bump() write path the drills verified, and the crash-bucket rendering was validated via the synthetic record
+- Sandbox: dev server found dead at wave start (OOM, counter: 9) — restarted, all gates re-run after restart
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean (run twice, incl. after server restart)
+- E2E: panel pristine→probes→94→crash drill→multi-day chart→clear→pristine; attribution system+notes correct; 0px overflow 360/390/1280
+
+Stage Summary:
+- P9-W5 closed: the platform can now see its own failures — session health, 14-day trend and per-app offenders live in Admin Console, local-only
+- Next: P9-W6 — input hardening (validation + sanitization, inline errors, paste-sanitize, maxLength guards)

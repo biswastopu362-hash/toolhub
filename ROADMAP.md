@@ -238,7 +238,7 @@ Cadence: 10 phases × 10 waves (1 wave = 1 day). The daily ritual never changes:
 - [x] **P9-W2** Catalog error sweep I: 30 apps deep QA (console + network + UX) at 360/390/1280, fix everything found
 - [x] **P9-W3** Catalog error sweep II: next 30 apps, same bar, fix everything found
 - [x] **P9-W4** Catalog error sweep III: final 30 apps + cross-app drills (copy→paste, share→open, lock→unlock), fix everything found
-- [ ] **P9-W5** Crash & error telemetry: per-app error counts, 14-day trend chart, session health score in Admin Console
+- [x] **P9-W5** Crash & error telemetry: per-app error counts, 14-day trend chart, session health score in Admin Console
 - [ ] **P9-W6** Input hardening: every form validated + sanitized, friendly inline errors, paste-sanitize, maxLength guards
 - [ ] **P9-W7** Storage audit: store-migration test matrix, corrupt-data recovery drill, backup/restore E2E for all domains
 - [ ] **P9-W8** Offline resilience: every app renders a graceful offline state, retry banners, SW update flow re-test, airplane-mode drill

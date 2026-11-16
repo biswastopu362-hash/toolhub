@@ -3,10 +3,13 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, Home, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { recordAppCrash } from '@/lib/crash-telemetry'
 
 interface Props {
   children: ReactNode
   appName: string
+  /** Stable registry id — used as the telemetry key (appName is display-only). */
+  appId?: string
   onHome: () => void
 }
 
@@ -29,6 +32,14 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[toolhub] app crashed:', this.props.appName, error, info.componentStack)
+    /* P9-W5: feed the crash stream — the Admin Console trend chart and
+     * per-app offender list read from this store. Telemetry failures are
+     * swallowed so recovery is never blocked. */
+    try {
+      recordAppCrash(this.props.appId ?? this.props.appName, `${error.name}: ${error.message}`)
+    } catch {
+      /* ignore */
+    }
   }
 
   private retry = () => {

@@ -60,6 +60,7 @@ import type { ExternalAppPayload } from '@/lib/tools/external'
 import { EXTERNAL_GRADIENTS, EXTERNAL_ICONS, externalIcon } from '@/lib/tools/external-icons'
 import { getDailyOpens, type DailyOpens } from '@/lib/telemetry'
 import { DiagnosticsCenter } from '@/components/tools/diagnostics-center'
+import { CrashTelemetryPanel } from '@/components/tools/crash-telemetry-panel'
 
 /* ------------------------------------------------------------------ */
 /* Local metadata                                                      */
@@ -493,6 +494,9 @@ export default function AdminConsole() {
 
       {/* P9-W1 — nine-point platform health check with owner-triggered fixes */}
       <DiagnosticsCenter />
+
+      {/* P9-W5 — live session health, 14-day error trend, per-app offenders */}
+      <CrashTelemetryPanel />
 
       {/* list */}
       <div>
