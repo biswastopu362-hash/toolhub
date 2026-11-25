@@ -2708,3 +2708,26 @@ Gates:
 Stage Summary:
 - P9-W6 closed: every field on the platform now rejects invisible-character injection and runaway pastes; the owner-facing form speaks in friendly sentences
 - Next: P9-W7 — storage audit (store-migration test matrix, corrupt-data recovery drill, backup/restore E2E)
+---
+Task ID: P9-W7
+Agent: main (Z.ai Code)
+Task: Phase 9 Wave 7 — Storage audit (store-migration matrix, corrupt-data recovery, backup/restore E2E)
+
+Work Log:
+- Refactor: extracted the persisted-state migration out of the zustand persist config into pure exported migratePersistedState() (app-store.ts) — the store now delegates to it, and the Storage Audit replays the EXACT boot code; single source of truth
+- Refactor: storage domain map (23 LS keys + prefixes + ~30 IndexedDB shapes) moved out of backup-restore.tsx into shared src/lib/storage-domains.ts, consumed by both the Backup app and the audit
+- New engine src/lib/storage-audit.ts: (1) MIGRATION_FIXTURES — 7 historical persisted shapes (v0 fresh, v0 empty, v1 pre-layout, v2 folder layout, v3 pre-system-backfill, v5 pre-Help, v6 idempotency) run through the real migrate with invariant checks (system apps seated, help backfilled, no dupes, layout references installed ids, no ghost installs); (2) live-store integrity (version vs app, installed ids incl. linked-platform externals) + corrupt-key JSON scan over every owned key; (3) domain coverage — every toolhub* DB/key must be known to the backup map, else it silently escapes backups
+- Lossless recovery: quarantineKey() moves corrupt bytes to toolhub.quarantine.<key> (salvageable, discardable) and removes the original so the owning app boots fresh
+- StorageAuditPanel in Admin Console: staged streaming audit (auto-run once per unlock), migration matrix list, live-profile row, findings with per-key Quarantine buttons + quarantined list with Discard, coverage verdict, deep-link button into Backup & Restore
+- REAL AUDIT FINDINGS FIXED: the backup map was missing toolhub.telemetry.v1, toolhub.crashes.v1, toolhub.notifs, toolhub.games.v1 (real data — now mapped and packed) and nextauth.message, toolhub-celebrated, toolhub-onboarded, toolhub.share.pending (transient — mapped with exclude flag; scanSources now skips excluded keys so backups never carry meaningless state)
+- E2E: audit green ("Migration 7/7 · 0 findings · coverage complete"); corrupt-drill — broken JSON in toolhub-calc-history detected ("unreadable JSON — the app that owns it will crash on boot"), quarantined losslessly, Calculator booted clean; REAL boot migration — v3 fixture written to toolhub-store, reload, zustand migrated to v6 with system apps + help backfilled and user data kept; backup/restore roundtrip — marker note created, export captured (1480 B, 7 keys incl. both telemetry domains), notes key wiped, file re-imported through the real UI (preview said "7 settings keys · 0 database records"), restore applied, note title "P9W7 Restore Drill Note" recovered byte-for-byte
+- Sandbox: dev server OOM-died 4x this wave (counter: 13) + one stale-SW shell episode — the trifecta (HMR mid-session edits + server death + SW cache) produced a temporary dead-hydration look; every fresh session rendered and interacted perfectly, confirming environmental (no code regression). No source edits mid-session from here on
+- Gates re-run after every fix: tsc clean, lint clean
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E: migration matrix 7/7 · live boot migration v3→v6 verified · corrupt quarantine lifecycle verified · backup→wipe→restore roundtrip verified · coverage complete · 0px overflow 360/390/1280 · 0 page errors
+
+Stage Summary:
+- P9-W7 closed: storage layer is now auditable end-to-end — migration matrix green against the real boot code, corruption has a lossless recovery path, and every data domain provably escapes neither the audit nor the backup file
+- Next: P9-W8 — offline resilience (graceful offline states, retry banners, SW update flow re-test, airplane-mode drill)

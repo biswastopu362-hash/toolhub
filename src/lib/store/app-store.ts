@@ -136,6 +136,54 @@ function newCustomId(): string {
   return `cw-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+/**
+ * P9-W7: the persisted-state migration, extracted as a pure function so
+ * the Storage Audit can run the full version matrix (old persisted shapes
+ * → current shape) against the exact same code the store uses at boot.
+ * `version` on the persist config tells zustand WHEN to run this; the
+ * body is idempotent-forward, so running it on already-current state is
+ * safe — which is what makes the matrix test meaningful for every
+ * historical shape at once.
+ */
+export function migratePersistedState(persisted: unknown): Partial<AppState> {
+  const state = (persisted ?? {}) as Partial<AppState>
+  const next = { ...state, layout: state.layout ?? [], layoutMigrated: false }
+  const installed = Array.isArray(state.installed) ? state.installed : deriveInstalled(state)
+  next.installed = installed
+  /* v4: system apps (App Store, Settings, Files) are always present —
+   * backfill installs for profiles created before they existed. */
+  const missing = SYSTEM_APP_IDS.filter((id) => !installed.includes(id))
+  if (missing.length > 0) {
+    next.installed = [...installed, ...missing]
+    const docked = DOCK_IDS as readonly string[]
+    const placed = new Set<string>()
+    for (const it of next.layout) {
+      if (it.kind === 'app') placed.add(it.id)
+      else for (const a of it.appIds) placed.add(a)
+    }
+    for (const id of missing) {
+      if (!docked.includes(id) && !placed.has(id)) {
+        next.layout.push({ kind: 'app', id } as HomeItem)
+      }
+    }
+  }
+  /* v6: Help Center (D86) ships on every device — backfill for
+   * profiles that predate it, placed at the end of the home layout. */
+  if (!next.installed.includes('help')) {
+    next.installed = [...next.installed, 'help']
+    const docked = DOCK_IDS as readonly string[]
+    const placed = new Set<string>()
+    for (const it of next.layout) {
+      if (it.kind === 'app') placed.add(it.id)
+      else for (const a of it.appIds) placed.add(a)
+    }
+    if (!docked.includes('help') && !placed.has('help')) {
+      next.layout.push({ kind: 'app', id: 'help' } as HomeItem)
+    }
+  }
+  return next
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -240,44 +288,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'toolhub-store',
       version: 6,
-      migrate: (persisted) => {
-        const state = persisted as Partial<AppState>
-        const next = { ...state, layout: state.layout ?? [], layoutMigrated: false }
-        const installed = Array.isArray(state.installed) ? state.installed : deriveInstalled(state)
-        next.installed = installed
-        /* v4: system apps (App Store, Settings, Files) are always present —
-         * backfill installs for profiles created before they existed. */
-        const missing = SYSTEM_APP_IDS.filter((id) => !installed.includes(id))
-        if (missing.length > 0) {
-          next.installed = [...installed, ...missing]
-          const docked = DOCK_IDS as readonly string[]
-          const placed = new Set<string>()
-          for (const it of next.layout) {
-            if (it.kind === 'app') placed.add(it.id)
-            else for (const a of it.appIds) placed.add(a)
-          }
-          for (const id of missing) {
-            if (!docked.includes(id) && !placed.has(id)) {
-              next.layout.push({ kind: 'app', id } as HomeItem)
-            }
-          }
-        }
-        /* v6: Help Center (D86) ships on every device — backfill for
-         * profiles that predate it, placed at the end of the home layout. */
-        if (!next.installed.includes('help')) {
-          next.installed = [...next.installed, 'help']
-          const docked = DOCK_IDS as readonly string[]
-          const placed = new Set<string>()
-          for (const it of next.layout) {
-            if (it.kind === 'app') placed.add(it.id)
-            else for (const a of it.appIds) placed.add(a)
-          }
-          if (!docked.includes('help') && !placed.has('help')) {
-            next.layout.push({ kind: 'app', id: 'help' } as HomeItem)
-          }
-        }
-        return next
-      },
+      migrate: (persisted) => migratePersistedState(persisted) as AppState,
       partialize: (s) => {
         const { storeDeepLink: _drop, ...rest } = s
         return rest as AppState

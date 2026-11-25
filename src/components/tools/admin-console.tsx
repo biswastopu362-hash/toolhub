@@ -62,6 +62,7 @@ import { getDailyOpens, type DailyOpens } from '@/lib/telemetry'
 import { LIMITS, validatePlatformForm, type FieldErrors } from '@/lib/input-hardening'
 import { DiagnosticsCenter } from '@/components/tools/diagnostics-center'
 import { CrashTelemetryPanel } from '@/components/tools/crash-telemetry-panel'
+import { StorageAuditPanel } from '@/components/tools/storage-audit-panel'
 
 /* ------------------------------------------------------------------ */
 /* Local metadata                                                      */
@@ -498,6 +499,9 @@ export default function AdminConsole() {
 
       {/* P9-W5 — live session health, 14-day error trend, per-app offenders */}
       <CrashTelemetryPanel />
+
+      {/* P9-W7 — migration matrix, corruption quarantine, backup coverage */}
+      <StorageAuditPanel />
 
       {/* list */}
       <div>
