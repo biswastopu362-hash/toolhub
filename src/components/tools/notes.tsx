@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { consumePendingShare } from '@/lib/share'
+import { LIMITS } from '@/lib/input-hardening'
 import { useToast } from '@/hooks/use-toast'
 import { useLang } from '@/hooks/use-lang'
 import { formatDateLang, formatNumberLang, type Lang, type TKey } from '@/lib/i18n'
@@ -860,6 +861,7 @@ function NoteEditor({
           onChange={(e) => onChange(note.id, { title: e.target.value })}
           placeholder={t('noteTitlePlaceholder')}
           aria-label="Note title"
+          maxLength={LIMITS.noteTitle}
           className="mt-3 h-auto border-0 bg-transparent px-0 text-xl font-bold text-white shadow-none placeholder:text-zinc-600 focus-visible:border-0 focus-visible:ring-0 md:text-2xl"
         />
 

@@ -84,6 +84,7 @@ import { AuthProvider } from '@/components/auth/session-provider'
 import { useLang } from '@/hooks/use-lang'
 import { AppErrorBoundary } from '@/components/os/app-error-boundary'
 import { GlobalErrorTelemetry } from '@/components/os/global-error-telemetry'
+import { PasteSanitizer } from '@/components/os/paste-sanitizer'
 
 /* ================================================================== */
 /* Constants                                                           */
@@ -572,6 +573,9 @@ function OsShell() {
 
         {/* P9-W5 — window error/rejection streams + session lifecycle (no UI) */}
         <GlobalErrorTelemetry />
+
+        {/* P9-W6 — platform-wide paste sanitize funnel (no UI; guards every field) */}
+        <PasteSanitizer />
       </div>
     </MotionConfig>
   )

@@ -59,6 +59,7 @@ import { useExternalApps } from '@/lib/tools/external'
 import type { ExternalAppPayload } from '@/lib/tools/external'
 import { EXTERNAL_GRADIENTS, EXTERNAL_ICONS, externalIcon } from '@/lib/tools/external-icons'
 import { getDailyOpens, type DailyOpens } from '@/lib/telemetry'
+import { LIMITS, validatePlatformForm, type FieldErrors } from '@/lib/input-hardening'
 import { DiagnosticsCenter } from '@/components/tools/diagnostics-center'
 import { CrashTelemetryPanel } from '@/components/tools/crash-telemetry-panel'
 
@@ -1030,6 +1031,7 @@ function LoginCard({ onUnlocked }: { onUnlocked: () => void }) {
                 setError(null)
               }}
               placeholder="Admin passcode"
+              maxLength={LIMITS.adminPasscode}
               aria-label="Admin passcode"
               aria-invalid={Boolean(error)}
               className="h-11 rounded-xl pr-11"
@@ -1071,6 +1073,20 @@ function LoginCard({ onUnlocked }: { onUnlocked: () => void }) {
 /* Add / edit form dialog                                              */
 /* ================================================================== */
 
+/** P9-W6: friendly inline error line under a form field. */
+function InlineFieldError({ msg }: { msg?: string }) {
+  if (!msg) return null
+  return (
+    <p
+      role="alert"
+      className="flex items-start gap-1 text-[11px] font-medium text-rose-600 dark:text-rose-400"
+    >
+      <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
+      {msg}
+    </p>
+  )
+}
+
 function PlatformFormDialog({
   open,
   editing,
@@ -1087,6 +1103,8 @@ function PlatformFormDialog({
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [busy, setBusy] = useState(false)
   const [fieldError, setFieldError] = useState<string | null>(null)
+  /* P9-W6: friendly per-field inline errors (client mirror of the server rules) */
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
 
   /* seed the form each time the dialog opens */
   useEffect(() => {
@@ -1109,19 +1127,32 @@ function PlatformFormDialog({
       setForm(EMPTY_FORM)
     }
     setFieldError(null)
+    setFieldErrors({})
   }, [open, editing])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
+  /* P9-W6: clear a field's inline error as soon as the owner edits it again */
+  const setClean = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    set(key, value)
+    setFieldErrors((prev) => (prev[key as string] ? { ...prev, [key]: undefined } : prev))
+  }
+
   const submit = useCallback(async () => {
     if (busy) return
-    if (!form.name.trim() || !form.url.trim() || !form.description.trim()) {
-      setFieldError('Name, URL and description are required.')
+    /* P9-W6: validate + sanitize before anything leaves the device. The
+     * toolkit mirrors the server contract, so this catches every issue
+     * with a friendly sentence and returns a cleaned payload. */
+    const { errors, values } = validatePlatformForm(form)
+    if (errors.name || errors.url || errors.description) {
+      setFieldErrors(errors)
+      setFieldError(null)
       return
     }
     setBusy(true)
     setFieldError(null)
+    setFieldErrors({})
     try {
       const url = editing
         ? `/api/admin/external-apps/${encodeURIComponent(editing.id)}`
@@ -1130,15 +1161,15 @@ function PlatformFormDialog({
         method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: form.name.trim(),
-          url: form.url.trim(),
-          description: form.description.trim(),
-          tagline: form.tagline.trim(),
+          name: values.name,
+          url: values.url,
+          description: values.description,
+          tagline: values.tagline,
           category: form.category,
           icon: form.icon,
           gradient: form.gradient,
           glow: form.glow,
-          keywords: form.keywords.trim(),
+          keywords: values.keywords,
           featured: form.featured,
           active: form.active,
         }),
@@ -1152,13 +1183,13 @@ function PlatformFormDialog({
         return
       }
       toast({
-        title: editing ? `${form.name.trim()} updated` : `${form.name.trim()} is live 🚀`,
+        title: editing ? `${values.name} updated` : `${values.name} is live 🚀`,
         description: editing
           ? 'Changes are visible to everyone using the hub.'
           : 'Users can now install it from the App Store.',
       })
       onOpenChange(false)
-      onSaved(form.url.trim())
+      onSaved(values.url)
     } catch {
       setFieldError('Network error — try again.')
     } finally {
@@ -1201,10 +1232,13 @@ function PlatformFormDialog({
             <Input
               id="pa-name"
               value={form.name}
-              onChange={(e) => set('name', e.target.value)}
+              onChange={(e) => setClean('name', e.target.value)}
               placeholder="e.g. My Recipe App"
-              maxLength={60}
+              maxLength={LIMITS.platformName}
+              aria-invalid={Boolean(fieldErrors.name)}
+              aria-describedby={fieldErrors.name ? 'pa-name-error' : undefined}
             />
+            <InlineFieldError msg={fieldErrors.name} />
           </div>
 
           <div className="space-y-1.5">
@@ -1212,14 +1246,23 @@ function PlatformFormDialog({
             <Input
               id="pa-url"
               value={form.url}
-              onChange={(e) => set('url', e.target.value)}
+              onChange={(e) => setClean('url', e.target.value)}
               placeholder="https://your-app.vercel.app"
               inputMode="url"
               type="url"
+              maxLength={LIMITS.platformUrl}
+              aria-invalid={Boolean(fieldErrors.url)}
+              aria-describedby={fieldErrors.url ? 'pa-url-error' : 'pa-url-hint'}
             />
-            <p className="text-[11px] text-muted-foreground">
-              The PWA or website link — users open it right inside ToolHub.
-            </p>
+            {fieldErrors.url ? (
+              <span id="pa-url-error">
+                <InlineFieldError msg={fieldErrors.url} />
+              </span>
+            ) : (
+              <p id="pa-url-hint" className="text-[11px] text-muted-foreground">
+                The PWA or website link — users open it right inside ToolHub.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -1227,11 +1270,14 @@ function PlatformFormDialog({
             <Textarea
               id="pa-desc"
               value={form.description}
-              onChange={(e) => set('description', e.target.value)}
+              onChange={(e) => setClean('description', e.target.value)}
               placeholder="What does this platform do?"
               rows={2}
-              maxLength={400}
+              maxLength={LIMITS.platformDescription}
+              aria-invalid={Boolean(fieldErrors.description)}
+              aria-describedby={fieldErrors.description ? 'pa-desc-error' : undefined}
             />
+            <InlineFieldError msg={fieldErrors.description} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -1240,9 +1286,9 @@ function PlatformFormDialog({
               <Input
                 id="pa-tagline"
                 value={form.tagline}
-                onChange={(e) => set('tagline', e.target.value)}
+                onChange={(e) => setClean('tagline', e.target.value)}
                 placeholder="Short store subtitle"
-                maxLength={120}
+                maxLength={LIMITS.platformTagline}
               />
             </div>
             <div className="space-y-1.5">
@@ -1250,8 +1296,9 @@ function PlatformFormDialog({
               <Input
                 id="pa-keywords"
                 value={form.keywords}
-                onChange={(e) => set('keywords', e.target.value)}
+                onChange={(e) => setClean('keywords', e.target.value)}
                 placeholder="recipes, cooking, food"
+                maxLength={LIMITS.platformKeywords}
               />
             </div>
           </div>

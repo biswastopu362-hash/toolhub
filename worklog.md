@@ -2686,3 +2686,25 @@ Gates:
 Stage Summary:
 - P9-W5 closed: the platform can now see its own failures — session health, 14-day trend and per-app offenders live in Admin Console, local-only
 - Next: P9-W6 — input hardening (validation + sanitization, inline errors, paste-sanitize, maxLength guards)
+---
+Task ID: P9-W6
+Agent: main (Z.ai Code)
+Task: Phase 9 Wave 6 — Input hardening (validated + sanitized forms, friendly inline errors, paste-sanitize, maxLength guards)
+
+Work Log:
+- New toolkit src/lib/input-hardening.ts: sanitizeText/sanitizePastedText (strips C0 controls, DEL+C1, bidi/embedding U+202A–202E, zero-width U+200B–200D/U+2060–2064/U+FEFF, separators U+2028/2029, annotation specials; normalizes \r\n; single-line fields fold \n\t to spaces; multiline fields trim per-line trailing spaces and cap blank-line runs at two; NFC-safe trim+collapse), isValidPlatformUrl (http(s)-only, mirrors server normalizeUrl), LIMITS constants, validatePlatformForm returning per-field friendly errors + a cleaned payload (client mirror of external-apps-server.ts contract)
+- PasteSanitizer (invisible shell mount, one document-level capture listener): every <input>/<textarea>/contentEditable on the platform is now paste-guarded from a single mount — dirty pastes are sanitized + clamped to the field's maxLength before any app code sees them, then re-inserted via execCommand('insertText') with a native-value-setter fallback so React controlled inputs stay in sync; clean pastes take the untouched native path (undo stacks + IME preserved); non-text input types (password, number, date, file…) skipped
+- Admin Console Linked Platforms form hardened: per-field friendly inline errors (InlineFieldError, rose, role=alert) replacing the old single generic error string; aria-invalid + aria-describedby wiring on name/url/description; errors clear per-field the moment the owner edits again; submit now validates + sends the sanitized payload; keywords/tagline/name/url/description maxLengths now driven by LIMITS; admin passcode input capped at 64
+- Notes title capped at 120 (existing long titles untouched — cap only guards new input); body intentionally uncapped, protected by the paste funnel only
+- E2E (390 first, then 360/1280): REAL paste-pipeline drills via synthetic ClipboardEvent+DataTransfer — (1) title: 'Bad\u0007\u001Ftitle\u200Bwith\u202Ehidden\u2062text\uFEFF!!\n\nNewline' → 'Badtitlewithhiddentext!! Newline', preventDefault observed; (2) body multiline: control+RLM stripped, \r\n normalized, blank-run capped → 'Alphaline\n\nBetatwo'; (3) 200-char paste into 120-max title → exactly 120 chars; (4) sanitized title persisted end-to-end (note list shows the clean string); (5) admin name-field paste 'Stealth\u0003\u200B\u202Dname\u2063test\uFEFF' → 'Stealthnametest'
+- Admin form validation drills: empty submit → three friendly errors (name/url/description); 'not a url at all' → only the URL error remains + aria-invalid=true + describedby=pa-url-error; fixing the URL clears the error live; valid publish → platform saved, then removed via its own delete-confirm (drill cleanup)
+- 0px overflow at 360/390/1280; zero native page errors; ChunkLoadError crash card on first admin visit was the OOM-restart stale-chunk pattern (environmental, not code) — fresh compile after server restart clean; sandbox dev server OOM-died twice this wave (counter: 11)
+- Gates re-run after every fix: tsc clean, lint clean
+
+Gates:
+- bunx tsc --noEmit clean · bun run lint clean
+- E2E: 5 paste drills exact · validation lifecycle 4-step (empty → bad URL → live-clear → publish) · overflow 0px at 360/390/1280 · 0 page errors
+
+Stage Summary:
+- P9-W6 closed: every field on the platform now rejects invisible-character injection and runaway pastes; the owner-facing form speaks in friendly sentences
+- Next: P9-W7 — storage audit (store-migration test matrix, corrupt-data recovery drill, backup/restore E2E)
